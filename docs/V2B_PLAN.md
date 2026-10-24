@@ -1,6 +1,6 @@
 # V2B follow-up: optional AI provider and private visitor chat
 
-This is a separate proposed PR, not an implemented or promised feature. V2A remains a complete scripted world with zero paid API calls. There is no visitor chat UI, unused API key, model selector, background network job, or half-working provider to enable. The V2A AI flag fails closed if turned on.
+This is the original planning checklist. The optional provider portion is now implemented in the separate V2B provider branch; see [the current V2B guide](LITTLE_SPARKS_V2B.md) for actual scope, verified sources, safeguards and activation. V2A remains a complete scripted fallback. The visitor-chat criteria below remain an unimplemented future follow-up, not a promised or half-enabled UI. No background job or paid activation is included.
 
 ## Provider acceptance criteria
 

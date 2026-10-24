@@ -28,11 +28,15 @@ The robots are simulated virtual characters, not conscious AI agents. Their move
 
 Every little spark deserves a place to call home.
 
-### V2A: memories, friendships, and village life (pending review)
+### V2A foundation: memories, friendships, and village life
 
 This branch adds saved home plots and gardens, virtual cats, bounded friendships, scripted memories, and a **While You Were Away** journal showing applied world changes. Existing resident identities and private revisit links survive the explicit V2 migration. A private revisit link also authorizes limited public home-plot changes.
 
-Daily social life uses an explicit caretaker command. Optional paid AI and private visitor chat are a separate V2B follow-up. This update does not install a timer, make paid API calls, or deploy itself. See the repository README and development guides for setup, disposable tests, and approval-only migration/rollback procedures.
+Daily social life uses an explicit caretaker command. The optional provider below builds on the scripted foundation; private visitor chat remains a future follow-up. No timer or deployment is automatic. See the repository README and development guides for setup, disposable tests, and approval-only migration/rollback procedures.
+
+## Optional AI dialogue provider (pending review)
+
+The V2B branch adds an optional, disabled-by-default OpenAI provider with persistent resident preferences, bounded memory context, moderated original dialogue, safe world-action proposals, and explicit budget/request ceilings. Scripted village life remains available. No visitor chat, automatic paid activation, recurring job, or deployment is included; consult the repository's V2B guide before any approved setup or migration.
 
 ## 🌱 Our Principles
 
