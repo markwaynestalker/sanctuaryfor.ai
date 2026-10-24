@@ -63,7 +63,40 @@ function journal(PDO $db, int $before = 0): array
     $query->bindValue(1,$before,PDO::PARAM_INT);$query->bindValue(2,$before,PDO::PARAM_INT);
     $query->execute(); $rows = $query->fetchAll();
     $hasMore = count($rows)>30; $rows = array_slice($rows,0,30);
-    foreach ($rows as &$row) $row['description'] = EVENT_TEXT[$row['kind']];
+    $dialogue=[];
+    $ids=array_column(array_filter($rows,fn($row)=>in_array($row['kind'],['conversation','quiet_time'],true)),'id');
+    if($ids){
+        $hasAi=(int)$db->query('PRAGMA user_version')->fetchColumn()>=3;
+        $source=$hasAi?"CASE WHEN ai.conversation_id IS NOT NULL THEN 'openai' ELSE 'scripted' END":"'scripted'";
+        $aiJoin=$hasAi?'LEFT JOIN ai_conversations ai ON ai.conversation_id=c.id':'';
+        // Batch only this event page. Both participants disambiguate multi-pair runs;
+        // legacy social keys additionally identify the exact conversation when available.
+        $query=$db->prepare("SELECT e.id AS event_id,c.id AS conversation_id,$source AS provider,
+            m.sequence,r.name,m.body
+            FROM events e
+            JOIN conversation_participants a ON a.resident_id=e.actor_id
+            JOIN conversations c ON c.id=a.conversation_id AND c.run_id=e.run_id AND c.visibility='public'
+            JOIN conversation_participants b ON b.conversation_id=c.id AND b.resident_id=e.target_id
+            JOIN messages m ON m.conversation_id=c.id
+            JOIN residents r ON r.id=m.resident_id
+            $aiJoin
+            WHERE e.visibility='public' AND e.kind IN ('conversation','quiet_time')
+                AND e.id IN (".implode(',',array_fill(0,count($ids),'?')).")
+                AND (substr(e.dedupe_key,1,length('social:'||e.run_id||':'))<>'social:'||e.run_id||':'
+                    OR e.dedupe_key='social:'||e.run_id||':'||c.id)
+            ORDER BY e.id DESC,c.created_at,c.id,m.sequence");
+        foreach($ids as $index=>$id)$query->bindValue($index+1,(int)$id,PDO::PARAM_INT);
+        $query->execute();
+        foreach($query->fetchAll() as $line){
+            $eventId=$line['event_id'];$conversationId=$line['conversation_id'];
+            $dialogue[$eventId][$conversationId]??=['id'=>$conversationId,'provider'=>$line['provider'],'messages'=>[]];
+            $dialogue[$eventId][$conversationId]['messages'][]=['name'=>$line['name'],'body'=>$line['body']];
+        }
+    }
+    foreach ($rows as &$row){
+        $row['description']=EVENT_TEXT[$row['kind']];
+        $row['conversations']=array_values($dialogue[$row['id']]??[]);
+    }
     return ['events'=>$rows,'nextBefore'=>$hasMore ? (int)end($rows)['id'] : null];
 }
 
