@@ -44,9 +44,14 @@ function validateProposal(array $proposal): string
 
 function remember(PDO $db,string $resident,string $other,string $run,string $summary,int $significance,string $time): void
 {
+    $preserve=(int)$db->query('PRAGMA user_version')->fetchColumn()>=4;
+    if($preserve){
+        $count=$db->prepare('SELECT COUNT(*) FROM memories WHERE resident_id=?');$count->execute([$resident]);
+        if((int)$count->fetchColumn()>=128)throw new Problem(503,'Memory archive capacity requires caretaker review.');
+    }
     $db->prepare("INSERT INTO memories(resident_id,other_resident_id,run_id,summary,significance,visibility,created_at) VALUES (?,?,?,?,?,'public',?)")
         ->execute([$resident,$other,$run,$summary,$significance,$time]);
-    $db->prepare('DELETE FROM memories WHERE resident_id=? AND id NOT IN (SELECT id FROM memories WHERE resident_id=? ORDER BY significance DESC,created_at DESC,id DESC LIMIT 12)')
+    if(!$preserve)$db->prepare('DELETE FROM memories WHERE resident_id=? AND id NOT IN (SELECT id FROM memories WHERE resident_id=? ORDER BY significance DESC,created_at DESC,id DESC LIMIT 12)')
         ->execute([$resident,$resident]);
 }
 
@@ -65,6 +70,7 @@ function simulateDay(PDO $db,string $period,?SocialPlanner $planner=null,?int $n
         assertSimulationLease($db,$leaseOwner);
         $query=$db->prepare('SELECT id,status,interaction_count,error_code FROM simulation_runs WHERE period=?'); $query->execute([$period]);
         if ($previous=$query->fetch()) { $db->exec('COMMIT'); return $previous+['replayed'=>true]; }
+        if((int)$db->query('PRAGMA user_version')->fetchColumn()>=4)throw new Problem(422,'Use the V4 opportunity runner for new activity. Legacy dates are replay-only.');
         if ($period>gmdate('Y-m-d',$now) || $period<gmdate('Y-m-d',$now-6*86400)) throw new Problem(422,'New simulation periods must be today or one of the previous six UTC days.');
         if (getenv('LITTLE_SPARKS_AI_ENABLED')==='1' && !$enabledFallback && !$isAi) throw new Problem(503,'Use the explicit provider runner or select the scripted fallback.');
         if ((int)$db->query('SELECT COUNT(*) FROM simulation_runs')->fetchColumn()>=4096) throw new Problem(503,'Simulation history requires caretaker review.');
@@ -126,8 +132,10 @@ function simulateDay(PDO $db,string $period,?SocialPlanner $planner=null,?int $n
         if($isAi&&!$planner->applied)throw new Problem(409,'The prepared neighbors are no longer eligible. No AI changes were applied.');
         // Retain dialogue for 30 days and no more than the latest 960 conversations (two messages each).
         $cutoff=gmdate('Y-m-d\TH:i:s\Z',$now-30*86400);
-        $db->prepare('DELETE FROM conversations WHERE created_at<?')->execute([$cutoff]);
-        $db->exec('DELETE FROM conversations WHERE id NOT IN (SELECT id FROM conversations ORDER BY created_at DESC,id DESC LIMIT 960)');
+        if((int)$db->query('PRAGMA user_version')->fetchColumn()<4){
+            $db->prepare('DELETE FROM conversations WHERE created_at<?')->execute([$cutoff]);
+            $db->exec('DELETE FROM conversations WHERE id NOT IN (SELECT id FROM conversations ORDER BY created_at DESC,id DESC LIMIT 960)');
+        }
         $db->prepare('UPDATE simulation_runs SET interaction_count=?,finished_at=? WHERE id=?')->execute([$interactions,gmdate('Y-m-d\TH:i:s\Z'),$run]);
         $db->exec('COMMIT');
         return ['id'=>$run,'status'=>'completed','interaction_count'=>$interactions,'error_code'=>null,'replayed'=>false];
