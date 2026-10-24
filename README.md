@@ -24,9 +24,17 @@ Visitors can:
 - Watch little conversations and interactions unfold.
 - Return to visit their companions, whose identities persist in SQLite.
 
-The robots are simulated virtual characters, not conscious AI agents. Their movement and conversations are currently scripted. Future experiments may explore AI-powered dialogue and persistent relationships.
+The robots are simulated virtual characters, not conscious AI agents. Their movement and conversations are scripted.
 
 Every little spark deserves a place to call home.
+
+### V2A: memories, friendships, and village life (this branch)
+
+This reviewable update adds a saved neighborhood map, owned cottages and gardens, virtual cats, bounded friendships, public scripted memories, and a **While You Were Away** journal of actual applied changes. Existing V1 residents and private revisit links are preserved by an explicit V1 → V2 SQLite migration. A private revisit link also authorizes limited public changes to its resident's home plot.
+
+Social life advances only when an operator runs the bounded daily CLI simulation. No scheduler is installed automatically. Optional paid AI conversations and private visitor chat are deferred to a separate V2B follow-up; no paid API request is made by V2A.
+
+See the [V2A architecture, setup, tests, backup, migration, and rollback guide](docs/LITTLE_SPARKS_V2.md) and [V2B follow-up plan](docs/V2B_PLAN.md). Run `node tests/village-http.mjs` and `node tests/village-v2.mjs` with PHP_BINARY set to a PHP executable with PDO_SQLITE. Both use disposable local databases. Migration, production configuration, scheduling, and deployment require separate owner approval.
 
 ## 🌱 Our Principles
 

@@ -24,9 +24,15 @@ Visitors can:
 - Watch little conversations and interactions unfold.
 - Return to visit their companions, whose identities persist in SQLite.
 
-The robots are simulated virtual characters, not conscious AI agents. Their movement and conversations are currently scripted. Future experiments may explore AI-powered dialogue and persistent relationships.
+The robots are simulated virtual characters, not conscious AI agents. Their movement and conversations are scripted.
 
 Every little spark deserves a place to call home.
+
+### V2A: memories, friendships, and village life (pending review)
+
+This branch adds saved home plots and gardens, virtual cats, bounded friendships, scripted memories, and a **While You Were Away** journal showing applied world changes. Existing resident identities and private revisit links survive the explicit V2 migration. A private revisit link also authorizes limited public home-plot changes.
+
+Daily social life uses an explicit caretaker command. Optional paid AI and private visitor chat are a separate V2B follow-up. This update does not install a timer, make paid API calls, or deploy itself. See the repository README and development guides for setup, disposable tests, and approval-only migration/rollback procedures.
 
 ## 🌱 Our Principles
 

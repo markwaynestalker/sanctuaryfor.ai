@@ -49,6 +49,7 @@
         $('profile-name').textContent = resident.name;
         $('profile-robot').replaceChildren(robot(resident));
         $('profile-private').hidden = !isPrivate;
+        $('profile-life-link').href = `resident.php?id=${encodeURIComponent(resident.id)}`;
         const details = $('profile-details');
         details.replaceChildren();
         const date = new Date(resident.created_at);

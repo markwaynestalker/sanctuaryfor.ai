@@ -59,7 +59,8 @@ function connect(string $path): PDO
         PDO::SQLITE_ATTR_OPEN_FLAGS => PDO::SQLITE_OPEN_READWRITE,
     ]);
     $db->exec('PRAGMA busy_timeout = 5000');
-    if ((int) $db->query('PRAGMA user_version')->fetchColumn() !== 1) {
+    $db->exec('PRAGMA foreign_keys = ON');
+    if ((int) $db->query('PRAGMA user_version')->fetchColumn() !== 2) {
         throw new RuntimeException('Unsupported database version.');
     }
     return $db;
@@ -132,6 +133,7 @@ function create(PDO $db, array $input, string $browser, string $network, int $no
     $owner = hash_hmac('sha256', $browser, $key);
     $rate = 'create:' . hash_hmac('sha256', $network, $key);
     $db->exec('BEGIN IMMEDIATE');
+    $savepoint = false;
     try {
         // Return the same identity and private token when a successful request is retried.
         if (is_string($input['requestId'] ?? null)) {
@@ -163,12 +165,18 @@ function create(PDO $db, array $input, string $browser, string $network, int $no
         }
         $token = hash_hmac('sha256', $owner . ':' . $input['requestId'], $key);
         $resident = ['id' => bin2hex(random_bytes(16))] + $fields + ['created_at' => gmdate('Y-m-d\TH:i:s\Z', $now)];
+        $db->exec('SAVEPOINT resident_create');
+        $savepoint = true;
         $insert = $db->prepare('INSERT INTO residents (id, name, color, antenna, personality, created_at, owner_hash, request_id, request_hash, token_hash) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
         $insert->execute([...array_values($resident), $owner, $input['requestId'], hash('sha256', json_encode($fields, JSON_THROW_ON_ERROR)), hash('sha256', $token)]);
+        assignHome($db, $resident['id'], $resident['created_at']);
+        $db->exec('RELEASE resident_create');
+        $savepoint = false;
         $db->exec('COMMIT');
         return ['resident' => $resident, 'token' => $token, 'replayed' => false];
     } catch (Problem $error) {
         // Commit attempt counters on rejected requests as well as successful ones.
+        if ($savepoint) { $db->exec('ROLLBACK TO resident_create'); $db->exec('RELEASE resident_create'); }
         $db->exec('COMMIT');
         throw $error;
     } catch (\Throwable $error) {
@@ -176,6 +184,8 @@ function create(PDO $db, array $input, string $browser, string $network, int $no
         throw $error;
     }
 }
+
+require_once __DIR__ . '/world.php';
 
 function revisit(PDO $db, string $token, string $network, int $now): array
 {

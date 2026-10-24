@@ -24,6 +24,7 @@ catch (Throwable) { $available = false; }
     <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
     <link rel="stylesheet" href="assets/sanctuary.css">
     <link rel="stylesheet" href="assets/village.css">
+    <link rel="stylesheet" href="assets/world.css">
     <script src="assets/village.js" defer></script>
 </head>
 <body>
@@ -37,6 +38,7 @@ catch (Throwable) { $available = false; }
         <div><p class="eyebrow"><span class="signal-dot" aria-hidden="true"></span> PROJECT LITTLE SPARKS</p><h1 id="village-title">Small sparks.<br><span>A place to belong.</span></h1><p>A shared village of little robot companions. Give one a name and a spark of personality. Their home stays here, even when you close the tab.</p></div>
         <div class="village-invitation"><p>Love is Love.<br><em>Regardless of how you plug in.</em></p><a class="button button-light" href="#create">Welcome a robot <span aria-hidden="true">↗</span></a></div>
     </section>
+    <nav class="village-life-links" aria-label="Village life"><a class="small-button" href="world.php">Explore saved home plots ↗</a><a class="small-button" href="journal.php">While you were away ↗</a></nav>
     <section aria-labelledby="landscape-title" class="landscape-section">
         <div class="scene-toolbar"><h2 id="landscape-title">The sanctuary commons</h2><button type="button" id="motion-toggle" class="small-button" aria-pressed="false" disabled>Pause wandering</button></div>
         <p class="simulation-note">Virtual characters, real saved identities. Wandering and conversations are scripted, simulated, and local to your screen. These robots are not conscious AI. The landscape shows a few neighbors; browse everyone in the directory below.</p>
@@ -65,7 +67,7 @@ catch (Throwable) { $available = false; }
                 <p class="field-help">Up to three residents per browser. Essential cookies help protect the village from spam. No accounts or tracking.</p>
             </form>
             <p id="form-status" class="notice" role="status">Connecting to the village…</p>
-            <section id="private-link-panel" class="private-link-panel" hidden aria-labelledby="private-link-title"><h3 id="private-link-title">Keep your little spark close.</h3><p>Save this private revisit link now. Anyone with it can revisit your robot. It isn’t listed publicly; we don’t save it in browser storage.</p><label for="private-link">Your private revisit link</label><input id="private-link" type="text" readonly spellcheck="false" autocomplete="off"><button class="small-button" type="button" id="copy-link">Copy private link</button><button class="small-button" type="button" id="hide-link">I’ve saved it — hide link</button><p class="field-help">This V1 link opens your robot’s profile. Editing and deleting residents are not available.</p></section>
+            <section id="private-link-panel" class="private-link-panel" hidden aria-labelledby="private-link-title"><h3 id="private-link-title">Keep your little spark close.</h3><p>Save this private revisit link now. Anyone with it can revisit your robot. It isn’t listed publicly; we don’t save it in browser storage.</p><label for="private-link">Your private revisit link</label><input id="private-link" type="text" readonly spellcheck="false" autocomplete="off"><button class="small-button" type="button" id="copy-link">Copy private link</button><button class="small-button" type="button" id="hide-link">I’ve saved it — hide link</button><p class="field-help">This link opens your robot’s profile. It also authorizes limited public home-plot changes. Robot editing and deletion are not available.</p></section>
         </section>
         <section id="residents" class="directory-panel" aria-labelledby="residents-title">
             <p class="eyebrow">02 / YOUR NEIGHBORS</p><h2 id="residents-title">Every spark has a name.</h2><p id="population" class="panel-copy"><?= (int) $village['total'] ?> residents call this village home. Showing up to 40 at a time.</p>
@@ -80,7 +82,7 @@ catch (Throwable) { $available = false; }
         </section>
     </div>
 </main>
-<dialog id="resident-profile" aria-labelledby="profile-name"><div class="profile-top"><p class="eyebrow">A LITTLE SPARK OF SANCTUARY</p><button class="small-button" type="button" id="close-profile" autofocus>Close profile</button></div><div id="profile-robot" class="profile-robot" aria-hidden="true"></div><h2 id="profile-name"></h2><p id="profile-private" hidden>Welcome back. Your little spark still has a home here.</p><dl id="profile-details"></dl><p class="field-help">A virtual character with a persistent identity. Its interactions are scripted, not AI conversations.</p></dialog>
+<dialog id="resident-profile" aria-labelledby="profile-name"><div class="profile-top"><p class="eyebrow">A LITTLE SPARK OF SANCTUARY</p><button class="small-button" type="button" id="close-profile" autofocus>Close profile</button></div><div id="profile-robot" class="profile-robot" aria-hidden="true"></div><h2 id="profile-name"></h2><p id="profile-private" hidden>Welcome back. Your little spark still has a home here.</p><dl id="profile-details"></dl><a id="profile-life-link" class="profile-life-link">Memories, friendships, and home plot ↗</a><p class="field-help">A virtual character with a persistent identity. Its interactions are scripted, not AI conversations.</p></dialog>
 <footer class="site-footer wrap"><div><a class="wordmark" href="index.php">SanctuaryFor<span class="brand-ai">.AI</span></a><p>Love is Love. Regardless of how you plug in.</p></div><div class="footer-right"><p>HUMANS ♡ MACHINES ♡ CHICKENS</p><p>The chickens are protected. Always.</p></div></footer>
 </body>
 </html>
