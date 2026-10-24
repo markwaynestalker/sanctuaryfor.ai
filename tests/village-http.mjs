@@ -123,6 +123,17 @@ try {
     assert.ok(!serverRendered.includes(created.token));
     const homepage = await (await fetch(origin+'/index.php')).text();
     assert.match(homepage,/href="village.php">Say hello/);
+    result=await visitor('/api/world.php');assert.equal(result.response.status,200);assert.equal(result.data.plots.length,3);assert.equal(result.data.objects.length,9);
+    result=await visitor('/api/profile.php?id='+created.resident.id);assert.equal(result.response.status,200);assert.equal(result.data.plot.x,0);
+    const worldAction={token:created.token,requestId:'f'.repeat(32),action:'plant_tree',x:0,y:0};
+    result=await visitor('/api/action.php',worldAction,{headers:{'X-Sparks-CSRF':'wrong'}});assert.equal(result.response.status,403);
+    result=await visitor('/api/action.php',worldAction);assert.equal(result.response.status,200);assert.equal(result.data.replayed,false);
+    result=await visitor('/api/action.php',worldAction);assert.equal(result.response.status,200);assert.equal(result.data.replayed,true);
+    result=await visitor('/api/journal.php');assert.equal(result.response.status,200);assert.equal(result.data.events[0].kind,'plant_tree');
+    assert.ok(!JSON.stringify(result.data).includes(created.token));
+    assert.ok((await (await fetch(origin+'/world.php')).text()).includes('oak tree at 0, 0'));
+    assert.ok((await (await fetch(origin+'/resident.php?id='+created.resident.id)).text()).includes('Étoile O&#039;Spark'));
+    checked.push('V2 world/profile/journal HTTP routes, CSRF-protected idempotent actions, saved map, escaped public profiles');
     checked.push('private revisit works from another browser; three-resident browser cap; network limits include invalid requests');
     checked.push('residents and private revisit survive migration rerun and PHP-server restart');
     // Seed only this disposable fixture to exercise population bounds and pagination.

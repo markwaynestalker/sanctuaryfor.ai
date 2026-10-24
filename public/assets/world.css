@@ -1,0 +1,248 @@
+.world-main{
+    padding-block:55px 80px
+}
+.world-intro{
+    padding-bottom:45px;
+    max-width:800px
+}
+.world-intro h1{
+    font-size:clamp(42px,6vw,72px);
+    overflow-wrap:anywhere
+}
+.world-intro>p:not(.eyebrow){
+    color:var(--muted);
+    max-width:650px
+}
+.saved-map{
+    aspect-ratio:1.6;
+    position:relative;
+    background-color:#203b30;
+    background-image:linear-gradient(#98bb9320 1px,transparent 1px),linear-gradient(90deg,#98bb9320 1px,transparent 1px);
+    background-size:6.25% 6.25%;
+    border:1px solid #6e9376;
+    border-radius:10px;
+    overflow:hidden;
+    margin-top:20px
+}
+.map-plot{
+    position:absolute;
+    width:25%;
+    height:25%;
+    border:1px dashed #abc6a344;
+    background:#a4cf9d08
+}
+.map-plot>span{
+    position:absolute;
+    left:5px;
+    top:3px;
+    font:11px var(--mono);
+    max-width:90%;
+    overflow:hidden;
+    text-overflow:ellipsis;
+    white-space:nowrap;
+    color:#d9e9c3
+}
+.map-object{
+    position:absolute;
+    transform:translate(-50%,-50%);
+    font-size:clamp(15px,2.5vw,32px);
+    line-height:1;
+    pointer-events:none
+}
+.kind-house{
+    font:clamp(26px,4vw,50px) Georgia,serif;
+    color:#ffe1a8
+}
+.kind-path{
+    color:#c7c6a2;
+    font-size:40px
+}
+.map-empty{
+    position:absolute;
+    inset:25% 10%;
+    text-align:center;
+    font:22px/1.5 var(--serif);
+    color:var(--mint)
+}
+.plot-list{
+    list-style:none;
+    display:grid;
+    grid-template-columns:repeat(4,minmax(0,1fr));
+    gap:15px;
+    padding:0
+}
+.plot-list>li{
+    border:1px solid var(--line);
+    border-radius:6px;
+    padding:18px;
+    font-size:13px;
+    overflow-wrap:anywhere
+}
+.plot-list a{
+    color:var(--mint)
+}
+.plot-list>li>span{
+    display:block;
+    color:var(--muted);
+    font-size:11px;
+    margin:10px 0
+}
+.plot-list ul{
+    padding-left:15px;
+    color:var(--muted);
+    font-size:11px
+}
+.sector-form{
+    display:flex;
+    gap:12px;
+    align-items:end;
+    flex-wrap:wrap;
+    margin:20px 0 50px
+}
+.sector-form label{
+    flex-basis:100%
+}
+.sector-form input{
+    width:140px
+}
+.garden-manager{
+    padding:35px;
+    border:1px solid #48664f;
+    border-radius:8px;
+    background:#13261d;
+    max-width:760px;
+    margin-top:45px
+}
+.garden-manager>p{
+    color:var(--muted);
+    font-size:14px
+}
+.garden-manager h2{
+    font-size:36px
+}
+.garden-manager .small-button{
+    margin-block:15px
+}
+.garden-manager #apply-action{
+    border:0;
+    margin-top:10px;
+    width:100%
+}
+.journal-list{
+    list-style:none;
+    padding:0;
+    max-width:850px
+}
+.journal-list>li{
+    display:flex;
+    gap:25px;
+    padding:25px 0;
+    border-top:1px solid var(--line)
+}
+.journal-list p{
+    margin:0 0 8px
+}
+.journal-list a{
+    color:var(--mint)
+}
+.journal-list time{
+    font:11px var(--mono);
+    color:var(--muted)
+}
+.journal-spark{
+    font-size:29px;
+    color:var(--mint)
+}
+.life-columns{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:60px
+}
+.life-columns h2,.conversation-history h2{
+    font-size:34px
+}
+.life-list{
+    list-style:none;
+    padding:0
+}
+.life-list li{
+    border-top:1px solid var(--line);
+    padding:20px 0
+}
+.life-list a{
+    color:var(--mint)
+}
+.life-list p{
+    font-size:14px;
+    color:var(--muted);
+    margin:7px 0
+}
+.conversation-history{
+    margin-top:45px;
+    max-width:800px
+}
+.conversation-history article{
+    padding:22px;
+    border:1px solid #354b40;
+    border-radius:7px;
+    margin-top:18px;
+    background:#14241d
+}
+.conversation-history article p{
+    font-size:14px;
+    color:#c6d3c5
+}
+.village-life-links{
+    display:flex;
+    flex-wrap:wrap;
+    gap:15px;
+    margin-bottom:30px
+}
+.profile-life-link{
+    display:block;
+    color:var(--mint);
+    min-height:44px;
+    padding-block:10px
+}
+@media(max-width:760px){
+    .plot-list{
+        grid-template-columns:1fr 1fr
+    }
+    .saved-map{
+        aspect-ratio:1
+    }
+    .map-plot>span{
+        font-size:8px;
+        top:1px
+    }
+    .garden-manager{
+        padding:22px
+    }
+    .garden-manager h2{
+        font-size:30px
+    }
+    .life-columns{
+        grid-template-columns:1fr;
+        gap:30px
+    }
+    .world-main{
+        padding-top:40px
+    }
+    .world-intro h1{
+        font-size:43px
+    }
+    .kind-house{
+        font-size:29px
+    }
+    .map-empty{
+        font-size:18px
+    }
+}
+@media(max-width:380px){
+    .plot-list{
+        grid-template-columns:1fr
+    }
+    .map-plot>span{
+        font-size:7px
+    }
+}
