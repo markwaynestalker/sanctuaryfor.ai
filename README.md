@@ -28,13 +28,19 @@ The robots are simulated virtual characters, not conscious AI agents. Their move
 
 Every little spark deserves a place to call home.
 
-### V2A: memories, friendships, and village life (this branch)
+### V2A foundation: memories, friendships, and village life
 
 This reviewable update adds a saved neighborhood map, owned cottages and gardens, virtual cats, bounded friendships, public scripted memories, and a **While You Were Away** journal of actual applied changes. Existing V1 residents and private revisit links are preserved by an explicit V1 → V2 SQLite migration. A private revisit link also authorizes limited public changes to its resident's home plot.
 
-Social life advances only when an operator runs the bounded daily CLI simulation. No scheduler is installed automatically. Optional paid AI conversations and private visitor chat are deferred to a separate V2B follow-up; no paid API request is made by V2A.
+Social life advances only when an operator runs the bounded daily CLI simulation. No scheduler is installed automatically. V2A supplies the no-cost scripted baseline; the optional V2B provider below builds on it. Private visitor chat remains excluded.
 
 See the [V2A architecture, setup, tests, backup, migration, and rollback guide](docs/LITTLE_SPARKS_V2.md) and [V2B follow-up plan](docs/V2B_PLAN.md). Run `node tests/village-http.mjs` and `node tests/village-v2.mjs` with PHP_BINARY set to a PHP executable with PDO_SQLITE. Both use disposable local databases. Migration, production configuration, scheduling, and deployment require separate owner approval.
+
+## Optional V2B AI provider (this branch)
+
+The village can optionally generate original resident dialogue with `gpt-6-luna`, persistent preferences, bounded memories, and validated proposals for existing safe world actions. The scripted village remains fully available. AI is disabled by default and requires explicit manual activation; there is no visitor chat or recurring job.
+
+The initial application ceiling is $1 per UTC month and two total model requests per UTC day, including moderation. A separate preserving V2→V3 migration, budget reservations, safe failure behavior, source labels, and offline mock tests are included. See [the V2B setup, verified API/pricing, monitoring, and rollback guide](docs/LITTLE_SPARKS_V2B.md). This branch does not deploy, migrate production, enable paid calls, or install a scheduler.
 
 ## 🌱 Our Principles
 

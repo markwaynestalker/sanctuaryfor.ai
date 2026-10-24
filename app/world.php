@@ -83,10 +83,15 @@ function profile(PDO $db, string $id): array
         WHERE p.resident_id=? AND c.visibility='public' ORDER BY c.created_at DESC,c.id DESC LIMIT 3");
     $query->execute([$id]); $conversations = $query->fetchAll();
     foreach ($conversations as &$conversation) {
+        $conversation['provider']='scripted';
+        if((int)$db->query('PRAGMA user_version')->fetchColumn()===3){
+            $source=$db->prepare('SELECT 1 FROM ai_conversations WHERE conversation_id=?');$source->execute([$conversation['id']]);
+            if($source->fetchColumn())$conversation['provider']='openai';
+        }
         $messages = $db->prepare('SELECT r.name,m.body FROM messages m JOIN residents r ON r.id=m.resident_id WHERE m.conversation_id=? ORDER BY m.sequence LIMIT 2');
         $messages->execute([$conversation['id']]); $conversation['messages'] = $messages->fetchAll();
     }
-    return ['resident'=>$resident,'plot'=>$slot===false ? null : plotCoordinates((int)$slot),'friendships'=>$friends,'memories'=>$memories,'conversations'=>$conversations];
+    return ['resident'=>$resident,'plot'=>$slot===false ? null : plotCoordinates((int)$slot),'friendships'=>$friends,'memories'=>$memories,'conversations'=>$conversations,'preferences'=>preferences($db,$id)];
 }
 
 function pair(PDO $db, string $a, string $b): ?array
@@ -150,48 +155,57 @@ function applyWorldAction(PDO $db,array $input,string $network,int $now): array
             $db->exec('COMMIT'); return ['eventId'=>(int)$previous['id'],'replayed'=>true];
         }
         rateLimit($db,'world-resident:'.$id,12,$now);
-        $time=gmdate('Y-m-d\TH:i:s\Z',$now); $day=substr($time,0,10);
-        $query=$db->prepare("SELECT COUNT(*) FROM events WHERE actor_id=? AND origin='visitor' AND created_at>=?"); $query->execute([$id,$day.'T00:00:00Z']);
-        if ((int)$query->fetchColumn()>=6) throw new Problem(429,'This resident has made six changes today. Come back tomorrow.');
+        $time=gmdate('Y-m-d\TH:i:s\Z',$now);
         $db->exec('SAVEPOINT world_change'); $savepoint=true;
-        if ($action['action']==='visit_friend') {
-            $target=$action['target'];
-            $query=$db->prepare('SELECT id FROM residents WHERE id=?'); $query->execute([$target]);
-            if ($target===$id || !$query->fetchColumn()) throw new Problem(422,'Choose another existing resident to visit.');
-            $query=$db->prepare("SELECT COUNT(*) FROM events WHERE actor_id=? AND target_id=? AND kind='visit_friend' AND created_at>=?"); $query->execute([$id,$target,$day.'T00:00:00Z']);
-            if ($query->fetchColumn()) throw new Problem(429,'Give that neighbor a little space until tomorrow.');
-            strengthen($db,$id,$target,1,$time);
-        } else {
-            $query=$db->prepare('SELECT slot FROM home_plots WHERE resident_id=?'); $query->execute([$id]); $slot=$query->fetchColumn();
-            if ($slot===false) throw new Problem(409,'This resident has no home plot yet.');
-            $plot=plotCoordinates((int)$slot);
-            if ($action['action']==='decorate_house') {
-                $query=$db->prepare("SELECT variant FROM world_objects WHERE resident_id=? AND kind='house'"); $query->execute([$id]);
-                if ($query->fetchColumn()==='stars') throw new Problem(409,'This cottage is already decorated with stars.');
-                $db->prepare("UPDATE world_objects SET variant='stars' WHERE resident_id=? AND kind='house'")->execute([$id]);
-            } else {
-                if ($action['x']<$plot['x'] || $action['x']>$plot['x']+3 || $action['y']<$plot['y'] || $action['y']>$plot['y']+3) throw new Problem(403,'You can only change your resident’s own home plot.');
-                $query=$db->prepare('SELECT COUNT(*) FROM world_objects WHERE resident_id=?'); $query->execute([$id]);
-                if ((int)$query->fetchColumn()>=12) throw new Problem(409,'This plot has reached its twelve-object capacity.');
-                $query=$db->prepare('SELECT 1 FROM world_objects WHERE x=? AND y=?'); $query->execute([$action['x'],$action['y']]);
-                if ($query->fetchColumn()) throw new Problem(409,'That map cell is already occupied.');
-                [$kind,$variant]=match($action['action']) {
-                    'plant_tree'=>['tree','oak'], 'plant_flowers'=>['flowers','wildflowers'], 'plant_bush'=>['bush','berry'],
-                    'build_path'=>['path','stone'], 'place_decoration'=>['decoration','lantern'], 'adopt_pet'=>['pet','cat'],
-                };
-                if ($kind==='pet') {
-                    $query=$db->prepare("SELECT 1 FROM world_objects WHERE resident_id=? AND kind='pet'"); $query->execute([$id]);
-                    if ($query->fetchColumn()) throw new Problem(409,'This resident already cares for a virtual cat.');
-                }
-                $db->prepare('INSERT INTO world_objects(id,resident_id,kind,variant,x,y,created_at) VALUES (?,?,?,?,?,?,?)')
-                    ->execute([bin2hex(random_bytes(16)),$id,$kind,$variant,$action['x'],$action['y'],$time]);
-            }
-        }
-        $eventId=event($db,$id,$action['target'],$action['action'],'visitor',$time,$dedupe,null,$fingerprint);
+        $eventId=performResidentAction($db,$id,$action,$time,$dedupe,'visitor',null,$fingerprint);
         $db->exec('RELEASE world_change'); $db->exec('COMMIT');
         return ['eventId'=>$eventId,'replayed'=>false];
     } catch (Problem $error) {
         if ($savepoint) { $db->exec('ROLLBACK TO world_change'); $db->exec('RELEASE world_change'); }
         $db->exec('COMMIT'); throw $error;
     } catch (\Throwable $error) { $db->exec('ROLLBACK'); throw $error; }
+}
+
+// Internal callers supply an authenticated resident and an already normalized action.
+// Both visitor and AI paths share all daily, ownership, collision and capacity checks.
+function performResidentAction(PDO $db,string $id,array $action,string $time,string $dedupe,string $origin,?string $run=null,?string $fingerprint=null): int
+{
+    $day=substr($time,0,10);
+    $query=$db->prepare("SELECT COUNT(*) FROM events WHERE actor_id=? AND kind NOT IN ('home_assigned','conversation','quiet_time') AND created_at>=?"); $query->execute([$id,$day.'T00:00:00Z']);
+    if ((int)$query->fetchColumn()>=6) throw new Problem(429,'This resident has made six changes today. Come back tomorrow.');
+
+    if ($action['action']==='visit_friend') {
+        $target=$action['target'];
+        $query=$db->prepare('SELECT id FROM residents WHERE id=?'); $query->execute([$target]);
+        if ($target===$id || !$query->fetchColumn()) throw new Problem(422,'Choose another existing resident to visit.');
+        $query=$db->prepare("SELECT COUNT(*) FROM events WHERE actor_id=? AND target_id=? AND kind='visit_friend' AND created_at>=?"); $query->execute([$id,$target,$day.'T00:00:00Z']);
+        if ($query->fetchColumn()) throw new Problem(429,'Give that neighbor a little space until tomorrow.');
+        strengthen($db,$id,$target,1,$time);
+    } else {
+        $query=$db->prepare('SELECT slot FROM home_plots WHERE resident_id=?'); $query->execute([$id]); $slot=$query->fetchColumn();
+        if ($slot===false) throw new Problem(409,'This resident has no home plot yet.');
+        $plot=plotCoordinates((int)$slot);
+        if ($action['action']==='decorate_house') {
+            $query=$db->prepare("SELECT variant FROM world_objects WHERE resident_id=? AND kind='house'"); $query->execute([$id]);
+            if ($query->fetchColumn()==='stars') throw new Problem(409,'This cottage is already decorated with stars.');
+            $db->prepare("UPDATE world_objects SET variant='stars' WHERE resident_id=? AND kind='house'")->execute([$id]);
+        } else {
+            if ($action['x']<$plot['x'] || $action['x']>$plot['x']+3 || $action['y']<$plot['y'] || $action['y']>$plot['y']+3) throw new Problem(403,'You can only change your resident’s own home plot.');
+            $query=$db->prepare('SELECT COUNT(*) FROM world_objects WHERE resident_id=?'); $query->execute([$id]);
+            if ((int)$query->fetchColumn()>=12) throw new Problem(409,'This plot has reached its twelve-object capacity.');
+            $query=$db->prepare('SELECT 1 FROM world_objects WHERE x=? AND y=?'); $query->execute([$action['x'],$action['y']]);
+            if ($query->fetchColumn()) throw new Problem(409,'That map cell is already occupied.');
+            [$kind,$variant]=match($action['action']) {
+                'plant_tree'=>['tree','oak'], 'plant_flowers'=>['flowers','wildflowers'], 'plant_bush'=>['bush','berry'],
+                'build_path'=>['path','stone'], 'place_decoration'=>['decoration','lantern'], 'adopt_pet'=>['pet','cat'],
+            };
+            if ($kind==='pet') {
+                $query=$db->prepare("SELECT 1 FROM world_objects WHERE resident_id=? AND kind='pet'"); $query->execute([$id]);
+                if ($query->fetchColumn()) throw new Problem(409,'This resident already cares for a virtual cat.');
+            }
+            $db->prepare('INSERT INTO world_objects(id,resident_id,kind,variant,x,y,created_at) VALUES (?,?,?,?,?,?,?)')
+                ->execute([bin2hex(random_bytes(16)),$id,$kind,$variant,$action['x'],$action['y'],$time]);
+        }
+    }
+    return event($db,$id,$action['target'],$action['action'],$origin,$time,$dedupe,$run,$fingerprint);
 }
