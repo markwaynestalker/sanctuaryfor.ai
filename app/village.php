@@ -60,7 +60,7 @@ function connect(string $path): PDO
     ]);
     $db->exec('PRAGMA busy_timeout = 5000');
     $db->exec('PRAGMA foreign_keys = ON');
-    if (!in_array((int) $db->query('PRAGMA user_version')->fetchColumn(), [2,3], true)) {
+    if (!in_array((int) $db->query('PRAGMA user_version')->fetchColumn(), [2,3,4], true)) {
         throw new RuntimeException('Unsupported database version.');
     }
     return $db;
@@ -170,7 +170,7 @@ function create(PDO $db, array $input, string $browser, string $network, int $no
         $insert = $db->prepare('INSERT INTO residents (id, name, color, antenna, personality, created_at, owner_hash, request_id, request_hash, token_hash) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
         $insert->execute([...array_values($resident), $owner, $input['requestId'], hash('sha256', json_encode($fields, JSON_THROW_ON_ERROR)), hash('sha256', $token)]);
         assignHome($db, $resident['id'], $resident['created_at']);
-        if ((int)$db->query('PRAGMA user_version')->fetchColumn()===3) ensurePreferences($db,$resident['id'],$resident['personality']);
+        if ((int)$db->query('PRAGMA user_version')->fetchColumn()>=3) ensurePreferences($db,$resident['id'],$resident['personality']);
         $db->exec('RELEASE resident_create');
         $savepoint = false;
         $db->exec('COMMIT');

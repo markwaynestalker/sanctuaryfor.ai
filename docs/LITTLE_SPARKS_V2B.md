@@ -1,5 +1,7 @@
 # Little Sparks V2B: optional OpenAI simulation provider
 
+This guide describes V3 daily runs. After an explicitly approved V4 migration, use the [V2C opportunity runner and operations guide](LITTLE_SPARKS_V2C.md) for new activity; V3 dates remain replayable. V2B's model/pricing, budget and secure CLI-key guidance still applies.
+
 This release adds an optional AI dialogue provider, persistent individual preferences, bounded public context, moderated original exchanges, and one validated world-action proposal per generated encounter. It does **not** add visitor chat, arbitrary public prompts, accounts, recurring jobs, deployment, or automatic paid activation. The robots remain virtual characters, not conscious beings. The V2A scripted provider remains available on V2 and V3 databases.
 
 ## Verified API and pricing sources

@@ -26,7 +26,7 @@ function simulateOptionalAiDay(PDO $db,string $period,bool $allowPaid=false,?AiT
     if(!$date||$date->format('Y-m-d')!==$period)throw new Problem(422,'Choose a valid UTC date.');
     $query=$db->prepare('SELECT id,status,provider,interaction_count FROM simulation_runs WHERE period=?');$query->execute([$period]);
     if($existing=$query->fetch()){
-        if((int)$db->query('PRAGMA user_version')->fetchColumn()===3){
+        if((int)$db->query('PRAGMA user_version')->fetchColumn()>=3){
             $query=$db->prepare("SELECT id FROM ai_attempts WHERE period=? AND estimated_microusd IS NOT NULL AND state='settled'");$query->execute([$period]);
             if($id=$query->fetchColumn()){
                 $applied=$existing['status']==='completed'&&$existing['provider']==='openai'&&$existing['id']===$id;
@@ -35,13 +35,14 @@ function simulateOptionalAiDay(PDO $db,string $period,bool $allowPaid=false,?AiT
         }
         return $existing+['replayed'=>true];
     }
+    if((int)$db->query('PRAGMA user_version')->fetchColumn()>=4)throw new Problem(422,'Use the V4 opportunity runner for new activity.');
     if($period>gmdate('Y-m-d',$now)||$period<gmdate('Y-m-d',$now-6*86400))throw new Problem(422,'New periods must be today or one of the previous six UTC days.');
     if(getenv('LITTLE_SPARKS_AI_ENABLED')!=='1'||!$allowPaid)return aiFallback($db,$period,'disabled',$now);
     if($transport===null && (!extension_loaded('curl')||getenv('OPENAI_API_KEY')===false||getenv('OPENAI_API_KEY')===''))return aiFallback($db,$period,'credentials_unavailable',$now);
     $attempt=null;$usage=null;
     try{
         $config=aiConfiguration($now);
-        if((int)$db->query('PRAGMA user_version')->fetchColumn()!==3)throw new AiGuard('migration_required');
+        if(!in_array((int)$db->query('PRAGMA user_version')->fetchColumn(),[3,4],true))throw new AiGuard('migration_required');
         $pair=selectAiPair($db,$period);if(!$pair)return aiFallback($db,$period,'no_eligible_pair',$now);
         $choices=aiActionChoices($db,$pair[0]['id'],$pair[1]['id'],$now);
         $context=aiContext($db,$pair,$choices);$body=aiRequestBody($config,$context);

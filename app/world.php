@@ -84,7 +84,7 @@ function profile(PDO $db, string $id): array
     $query->execute([$id]); $conversations = $query->fetchAll();
     foreach ($conversations as &$conversation) {
         $conversation['provider']='scripted';
-        if((int)$db->query('PRAGMA user_version')->fetchColumn()===3){
+        if((int)$db->query('PRAGMA user_version')->fetchColumn()>=3){
             $source=$db->prepare('SELECT 1 FROM ai_conversations WHERE conversation_id=?');$source->execute([$conversation['id']]);
             if($source->fetchColumn())$conversation['provider']='openai';
         }

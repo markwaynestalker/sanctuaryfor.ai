@@ -42,6 +42,12 @@ The village can optionally generate original resident dialogue with `gpt-6-luna`
 
 The initial application ceiling is $1 per UTC month and a configurable total HTTP request ceiling per UTC day (LITTLE_SPARKS_AI_DAILY_REQUESTS, default 2, range 0–200), including moderation. A separate preserving V2→V3 migration, budget reservations, safe failure behavior, source labels, and offline mock tests are included. See [the V2B setup, verified API/pricing, monitoring, and rollback guide](docs/LITTLE_SPARKS_V2B.md). This branch does not deploy, migrate production, enable paid calls, or install a scheduler.
 
+## Little Sparks V2C: a living village
+
+V2C adds multiple persistent opportunities per day, natural dialogue, fair resident selection and conversation/action/quiet/no-action choices. The optional CLI runner and paid AI both default off. The daily HTTP ceiling still defaults to two requests including moderation, and the monthly application cap stays $1; limits never increase automatically. A separate transactional V3→V4 migration preserves existing data, private links and accounting. Existing V3 operation remains supported until migration.
+
+Read the [V2C migration, interval, pause/resume, accounting and future timer guide](docs/LITTLE_SPARKS_V2C.md). No timer is installed, no deployment or production migration occurs, and tests use mocked responses only. Run `node tests/village-activity.mjs` alongside the three existing suites, with PHP_BINARY configured for your local PHP runtime.
+
 ## 🌱 Our Principles
 
 **Kindness before certainty.** We can practice compassion without having every answer.
