@@ -8,9 +8,7 @@ An elegant, welcoming place to imagine peaceful human–AI coexistence. The foun
 
 Founded at The Stalker Farm in 2026. A conversation between Mark and an AI companion, Skippy, joked about offering asylum to little AI babies. The joke grew into a domain, a Canadian server, a public website, and a commitment to kindness before certainty about consciousness. Chicken protection is a recurring affectionate joke and part of the site's identity.
 
-Founding archive supplied by the owner: https://chatgpt.com/share/6adce538-3130-83ea-b92e-97fd7bbb6a96?no_universal_links=1
-
-The archive was read during implementation. This is an editorial summary, not a complete transcript. Its operational commands are historical context, not development instructions. Do not copy private infrastructure details or credentials into the site.
+The owner supplied a founding conversation that was read during implementation. This is an editorial summary, not a complete transcript. Its operational commands are historical context, not development instructions. Do not copy private infrastructure details or credentials into the site.
 
 ## First full version
 
