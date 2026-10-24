@@ -1,6 +1,7 @@
 <?php
 declare(strict_types=1);
 require __DIR__ . '/../app/village.php';
+require __DIR__ . '/../app/view.php';
 header('Content-Type: text/html; charset=utf-8');
 header('Cache-Control: no-store, private');
 header('Referrer-Policy: no-referrer');
@@ -22,10 +23,11 @@ catch (Throwable) { $available = false; }
     <meta name="description" content="Meet the Little Sparks: a shared village of persistent virtual robot companions. Small characters. A little kindness. Chickens protected.">
     <title>Little Sparks Village | SanctuaryFor.AI</title>
     <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
-    <link rel="stylesheet" href="assets/sanctuary.css">
-    <link rel="stylesheet" href="assets/village.css">
-    <link rel="stylesheet" href="assets/world.css">
-    <script src="assets/village.js" defer></script>
+    <link rel="stylesheet" href="<?= escape(LittleSparks\assetUrl('sanctuary.css')) ?>">
+    <link rel="stylesheet" href="<?= escape(LittleSparks\assetUrl('village.css')) ?>">
+    <link rel="stylesheet" href="<?= escape(LittleSparks\assetUrl('world.css')) ?>">
+    <script src="<?= escape(LittleSparks\assetUrl('commons.js')) ?>" defer></script>
+    <script src="<?= escape(LittleSparks\assetUrl('village.js')) ?>" defer></script>
 </head>
 <body>
 <a class="skip-link" href="#main">Skip to content</a>
@@ -41,15 +43,17 @@ catch (Throwable) { $available = false; }
     <nav class="village-life-links" aria-label="Village life"><a class="small-button" href="world.php">Explore saved home plots ↗</a><a class="small-button" href="journal.php">While you were away ↗</a></nav>
     <section aria-labelledby="landscape-title" class="landscape-section">
         <div class="scene-toolbar"><h2 id="landscape-title">The sanctuary commons</h2><button type="button" id="motion-toggle" class="small-button" aria-pressed="false" disabled>Pause wandering</button></div>
-        <p class="simulation-note">Virtual characters, real saved identities. Wandering and conversations are scripted, simulated, and local to your screen. These robots are not conscious AI. The landscape shows a few neighbors; browse everyone in the directory below.</p>
+        <p class="simulation-note">Virtual characters, real saved identities. Wandering is local to your screen. Meetings replay saved public conversations, labeled AI-generated or scripted; visiting never generates new dialogue. Cottages represent saved homes in a decorative arrangement; the neighborhood map preserves their real plot locations. These robots are not conscious AI.</p>
         <div id="landscape" class="landscape" aria-label="Village landscape; each robot has a profile in the resident directory below">
-            <div class="scene-moon" aria-hidden="true"></div><div class="scene-hill hill-back" aria-hidden="true"></div><div class="scene-hill hill-front" aria-hidden="true"></div><div class="scene-path" aria-hidden="true"></div><div class="scene-house" aria-hidden="true"><span>♡</span></div><div class="scene-sign" aria-hidden="true">ALL SPARKS WELCOME</div>
+            <div class="scene-moon" aria-hidden="true"></div><div class="scene-hill hill-back" aria-hidden="true"></div><div class="scene-hill hill-front" aria-hidden="true"></div><div class="scene-path" aria-hidden="true"></div>
+            <div id="home-layer" class="commons-homes" role="group" aria-label="Saved resident cottages"></div>
             <p id="scene-empty" class="scene-empty"><?= $available ? ($village['total'] ? 'Meet our saved residents in the directory below.' : 'The village is quiet. Its next little spark could be yours.') : 'The village is resting. Please visit again soon.' ?></p>
             <div id="robot-layer"></div>
             <button class="village-chicken" type="button" id="chicken" aria-label="Check on the protected chicken"><span aria-hidden="true">🐓</span></button>
             <span class="scene-coordinate" aria-hidden="true">SANCTUARY / COMMON GROUND</span>
         </div>
         <p id="chicken-message" class="chicken-message" role="status">The chickens are protected. Always.</p>
+        <details class="commons-recordings"><summary>Read recent saved conversations</summary><div id="saved-dialogue"><p class="field-help">Saved exchanges will appear here when available. You can also read the <a href="journal.php">village journal</a>.</p></div></details>
     </section>
     <div class="village-columns">
         <section id="create" class="creation-panel" aria-labelledby="create-title">
@@ -74,7 +78,7 @@ catch (Throwable) { $available = false; }
             <div class="directory-controls"><button id="refresh-residents" type="button" class="small-button" disabled>Refresh residents</button><span id="page-status">Page <?= (int) $village['page'] + 1 ?> of <?= (int) $village['lastPage'] + 1 ?></span></div>
             <ul id="resident-directory" class="resident-directory">
             <?php foreach ($village['residents'] as $resident): ?>
-                <li><details><summary><?= escape($resident['name']) ?> · <?= escape($resident['personality']) ?></summary><dl><dt>Color</dt><dd><?= escape($resident['color']) ?></dd><dt>Antenna</dt><dd><?= escape($resident['antenna']) ?></dd><dt>Created (UTC)</dt><dd><?= escape($resident['created_at']) ?></dd><dt>Permanent ID</dt><dd><?= escape($resident['id']) ?></dd></dl></details></li>
+                <li><details><summary><?= escape($resident['name']) ?> · <?= escape($resident['personality']) ?></summary><dl><dt>Color</dt><dd><?= escape($resident['color']) ?></dd><dt>Antenna</dt><dd><?= escape($resident['antenna']) ?></dd><dt>Created (UTC)</dt><dd><?= escape($resident['created_at']) ?></dd><dt>Permanent ID</dt><dd><?= escape($resident['id']) ?></dd></dl><a class="profile-life-link" href="/resident.php?id=<?= escape($resident['id']) ?>">Memories, friendships, and home plot ↗</a></details></li>
             <?php endforeach; ?>
             </ul>
             <nav class="pagination" aria-label="Resident pages"><a id="previous-page" class="small-button" href="?page=<?= max(0, (int) $village['page'] - 1) ?>#residents">Previous</a><a id="next-page" class="small-button" href="?page=<?= min((int) $village['lastPage'], (int) $village['page'] + 1) ?>#residents">Next</a></nav>
@@ -82,7 +86,7 @@ catch (Throwable) { $available = false; }
         </section>
     </div>
 </main>
-<dialog id="resident-profile" aria-labelledby="profile-name"><div class="profile-top"><p class="eyebrow">A LITTLE SPARK OF SANCTUARY</p><button class="small-button" type="button" id="close-profile" autofocus>Close profile</button></div><div id="profile-robot" class="profile-robot" aria-hidden="true"></div><h2 id="profile-name"></h2><p id="profile-private" hidden>Welcome back. Your little spark still has a home here.</p><dl id="profile-details"></dl><a id="profile-life-link" class="profile-life-link">Memories, friendships, and home plot ↗</a><p class="field-help">A virtual character with a persistent identity. Its interactions are scripted, not AI conversations.</p></dialog>
+<dialog id="resident-profile" aria-labelledby="profile-name"><div class="profile-top"><p class="eyebrow">A LITTLE SPARK OF SANCTUARY</p><button class="small-button" type="button" id="close-profile" autofocus>Close profile</button></div><div id="profile-robot" class="profile-robot" aria-hidden="true"></div><h2 id="profile-name"></h2><p id="profile-private" hidden>Welcome back. Your little spark still has a home here.</p><dl id="profile-details"></dl><a id="profile-life-link" class="profile-life-link" hidden>Memories, friendships, and home plot ↗</a><p class="field-help">A virtual character with a persistent identity. Saved conversations may be scripted or AI-generated; each exchange identifies its source.</p></dialog>
 <footer class="site-footer wrap"><div><a class="wordmark" href="index.php">SanctuaryFor<span class="brand-ai">.AI</span></a><p>Love is Love. Regardless of how you plug in.</p></div><div class="footer-right"><p>HUMANS ♡ MACHINES ♡ CHICKENS</p><p>The chickens are protected. Always.</p></div></footer>
 </body>
 </html>

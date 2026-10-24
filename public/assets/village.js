@@ -5,12 +5,14 @@
     const antennas = new Set(['orb', 'sprout', 'bolt']);
     const reduced = matchMedia('(prefers-reduced-motion: reduce)');
     const narrow = matchMedia('(max-width: 650px)');
-    const phrases = {
-        curious: ['What’s over there?', 'So much to discover.', 'A new friend? ✧'],
-        playful: ['Tiny feet, big adventure!', '♡', 'Hello, neighbor!'],
-        shy: ['A little hello…', 'It’s nice here.', '♡'],
-        philosophical: ['Do stars wonder, too?', 'Small steps. Big thoughts.', 'Together is a good place.']
-    };
+    const commons = globalThis.SparksCommons;
+    const setProfileLink = commons.bindProfileLink($('profile-life-link'), $('resident-profile'));
+    let homes = [], exchanges = new Map(), activeMeeting = null, commonsVersion = 0;
+    const lastPlayed = new Map();
+    let sceneWidth = 1000, sceneHeight = 460;
+    if (typeof ResizeObserver !== 'undefined') new ResizeObserver(entries => {
+        sceneWidth = entries[0].contentRect.width; sceneHeight = entries[0].contentRect.height;
+    }).observe($('landscape'));
     let csrf = '', page = Number(new URL(location.href).searchParams.get('page')) || 0;
     let lastPage = 0, population = [], walkers = [], paused = reduced.matches;
     let frame = 0, lastTick = 0, pending = null, busy = false, loading = false;
@@ -45,11 +47,12 @@
         return data;
     }
     function showProfile(resident, source = null, isPrivate = false) {
+        stopPlayback();
         selectedButton = source;
         $('profile-name').textContent = resident.name;
         $('profile-robot').replaceChildren(robot(resident));
         $('profile-private').hidden = !isPrivate;
-        $('profile-life-link').href = `resident.php?id=${encodeURIComponent(resident.id)}`;
+        setProfileLink(resident);
         const details = $('profile-details');
         details.replaceChildren();
         const date = new Date(resident.created_at);
@@ -75,6 +78,9 @@
         if (token !== null) { revisitToken = token; openPrivateRevisit(); }
     });
     function render() {
+        stopPlayback();
+        sceneWidth = $('landscape').clientWidth || (narrow.matches ? 320 : 1000);
+        sceneHeight = $('landscape').clientHeight || (narrow.matches ? 430 : 460);
         cancelAnimationFrame(frame);
         $('resident-directory').replaceChildren();
         $('robot-layer').replaceChildren();
@@ -100,15 +106,76 @@
             actor.append(label, bubble); actor.addEventListener('click', () => showProfile(resident, button));
             $('robot-layer').append(actor);
             const columns = narrow.matches ? 4 : 8;
-            const walker = {resident, element: actor, bubble, x: 13 + (index % columns) * (narrow.matches ? 23 : 10.5), y: 47 + Math.floor(index / columns) * 15, angle: Math.random() * Math.PI * 2, stop: performance.now() + Math.random() * 2500, meeting: 0, hover: false};
+            const walker = {resident, element: actor, bubble, x: 13 + (index % columns) * (narrow.matches ? 23 : 10.5), y: 70 + Math.floor(index / columns) * 7, angle: Math.random() * Math.PI * 2, stop: performance.now() + Math.random() * 2500, ambientUntil: 0, hover: false};
             actor.addEventListener('pointerenter', () => { walker.hover = true; });
             actor.addEventListener('pointerleave', () => { walker.hover = false; });
             walkers.push(walker); place(walker);
         });
+        renderHomes();
         frame = 0; lastTick = 0; schedule();
+    }
+    function renderHomes() {
+        $('home-layer').replaceChildren();
+        const visible = new Map(walkers.map(w => [w.resident.id, w.resident]));
+        for (const home of homes) {
+            const resident = visible.get(home.resident_id);
+            if (!resident || !home.plot) continue;
+            const link = document.createElement('a'), shape = document.createElement('span'), name = document.createElement('span');
+            link.className = `commons-home color-${colors.has(resident.color) ? resident.color : 'mint'}`;
+            link.href = commons.profileUrl(resident.id); link.setAttribute('aria-label', `Visit ${resident.name}’s saved home and profile`);
+            shape.className = 'cottage-shape'; shape.setAttribute('aria-hidden', 'true');
+            name.className = 'cottage-name'; name.textContent = resident.name;
+            link.append(shape, name); $('home-layer').append(link);
+        }
+    }
+    function renderRecordings() {
+        const panel = $('saved-dialogue'); panel.replaceChildren();
+        const recent = [...exchanges.values()].sort((a, b) => b.created_at.localeCompare(a.created_at)).slice(0, 6);
+        for (const c of recent) {
+            const article = document.createElement('article'), source = document.createElement('p');
+            source.className = 'field-help'; source.textContent = commons.sourceLabel(c); article.append(source);
+            for (const message of c.messages) {
+                const line = document.createElement('p'), name = document.createElement('strong'), text = document.createElement('span');
+                name.textContent = `${message.name}: `; text.textContent = message.text; line.append(name, text); article.append(line);
+            }
+            panel.append(article);
+        }
+        if (!recent.length) { const p = document.createElement('p'); p.className = 'field-help'; p.textContent = 'No recent saved exchange for these neighbors is available. They can enjoy a little quiet; more history is in the village journal.'; panel.append(p); }
+    }
+    async function refreshCommons() {
+        const version = ++commonsVersion, ids = walkers.map(w => w.resident.id);
+        homes = []; exchanges = new Map(); renderHomes(); renderRecordings();
+        if (!ids.length) return;
+        try {
+            const response = await fetch(`api/commons.php?ids=${encodeURIComponent(ids.join(','))}`, {credentials:'same-origin', cache:'no-store'});
+            if (!response.ok) throw new Error('Saved village life unavailable.');
+            const data = await response.json(); if (version !== commonsVersion) return;
+            homes = Array.isArray(data.homes) ? data.homes.slice(0, 24) : [];
+            exchanges = commons.latestExchanges(Array.isArray(data.conversations) ? data.conversations : [], ids);
+            lastPlayed.clear(); renderHomes(); renderRecordings();
+        } catch {
+            if (version === commonsVersion) $('saved-dialogue').textContent = 'Saved conversations are resting. You can still browse resident profiles and the village journal.';
+        }
+    }
+    function stopPlayback() {
+        activeMeeting = null;
+        walkers.forEach(w => { w.bubble.textContent = ''; });
+    }
+    function advancePlayback(now) {
+        if (!activeMeeting) return;
+        const {a, b, exchange, started} = activeMeeting, message = commons.playbackTurn(exchange, now - started);
+        if (message && activeMeeting.message === message) return;
+        a.bubble.textContent = ''; b.bubble.textContent = '';
+        if (!message) { activeMeeting = null; return; }
+        activeMeeting.message = message;
+        const speaker = message.resident_id === a.resident.id ? a : b;
+        const source = document.createElement('span'), text = document.createElement('span');
+        source.className = 'bubble-source'; source.textContent = commons.sourceLabel(exchange); text.textContent = message.text;
+        speaker.bubble.replaceChildren(source, text);
     }
     function place(walker) {
         walker.element.style.left = `${walker.x}%`; walker.element.style.top = `${walker.y}%`;
+        walker.bubble.style.transform = walker.x < 25 ? 'translateX(-10%)' : walker.x > 75 ? 'translateX(-90%)' : 'translateX(-50%)';
     }
     function schedule() {
         if (!frame && !document.hidden && !paused && !$('resident-profile').open && walkers.length) frame = requestAnimationFrame(tick);
@@ -120,30 +187,32 @@
         if (now - lastTick < 80) return;
         const delta = lastTick ? Math.min((now - lastTick) / 1000, .2) : 0;
         lastTick = now;
+        advancePlayback(now);
         for (const walker of walkers) {
-            if (walker.meeting && now > walker.meeting) { walker.bubble.textContent = ''; walker.meeting = 0; }
+            if (walker.ambientUntil && now > walker.ambientUntil) { walker.bubble.textContent = ''; walker.ambientUntil = 0; }
             if (now < walker.stop || walker.hover) continue;
             if (Math.random() < .014) { walker.stop = now + 900 + Math.random() * 1700; walker.angle += Math.random() * 2 - 1; continue; }
             const speed = walker.resident.personality === 'playful' ? 1.5 : .9;
             walker.x += Math.cos(walker.angle) * delta * speed;
             walker.y += Math.sin(walker.angle) * delta * speed;
             if (walker.x < 8 || walker.x > 90) walker.angle = Math.PI - walker.angle;
-            if (walker.y < 42 || walker.y > 81) walker.angle = -walker.angle;
-            walker.x = Math.max(8, Math.min(90, walker.x)); walker.y = Math.max(42, Math.min(81, walker.y));
+            if (walker.y < 68 || walker.y > 84) walker.angle = -walker.angle;
+            walker.x = Math.max(8, Math.min(90, walker.x)); walker.y = Math.max(68, Math.min(84, walker.y));
             place(walker);
         }
-        for (let i = 0; i < walkers.length; i++) {
+        for (let i = 0; !activeMeeting && i < walkers.length; i++) {
             const a = walkers[i];
             if (now < a.stop || a.hover) continue;
             for (let j = i + 1; j < walkers.length; j++) {
                 const b = walkers[j];
-                if (now < b.stop || b.hover || Math.hypot(a.x - b.x, a.y - b.y) > 8) continue;
-                for (const friend of [a, b]) {
-                    const options = phrases[friend.resident.personality] || phrases.curious;
-                    friend.bubble.textContent = options[Math.floor(Math.random() * options.length)];
-                    friend.meeting = now + 3200; friend.stop = now + 6500;
-                    friend.angle += Math.PI / 2;
-                }
+                if (now < b.stop || b.hover || Math.hypot((a.x - b.x) * sceneWidth / 100, (a.y - b.y) * sceneHeight / 100) > 80) continue;
+                const exchange = exchanges.get(commons.pairKey(a.resident.id, b.resident.id));
+                const canReplay = exchange && (!lastPlayed.has(exchange.id) || now - lastPlayed.get(exchange.id) > 60000);
+                if (!canReplay) continue; // Ordinary wandering/idle pauses; no invented meeting.
+                const duration = exchange.messages.reduce((sum, m) => sum + commons.turnDuration(m), 0);
+                for (const friend of [a, b]) { friend.stop = now + duration + 1500; friend.angle += Math.PI / 2; }
+                stopPlayback(); lastPlayed.set(exchange.id, now);
+                activeMeeting = {a, b, exchange, started:now}; advancePlayback(now);
                 break;
             }
         }
@@ -151,13 +220,13 @@
     function motionLabel() {
         $('motion-toggle').textContent = paused ? 'Resume wandering' : 'Pause wandering';
         $('motion-toggle').setAttribute('aria-pressed', String(paused));
-        if (paused) walkers.forEach(w => { w.bubble.textContent = ''; });
+        if (paused) stopPlayback();
         schedule();
     }
     $('motion-toggle').addEventListener('click', () => { paused = !paused; motionLabel(); });
     reduced.addEventListener('change', () => { paused = reduced.matches; motionLabel(); });
-    document.addEventListener('visibilitychange', () => { lastTick = 0; schedule(); });
-    narrow.addEventListener('change', render);
+    document.addEventListener('visibilitychange', () => { if (document.hidden) stopPlayback(); lastTick = 0; schedule(); });
+    narrow.addEventListener('change', () => { render(); refreshCommons(); });
     $('chicken').addEventListener('click', () => { $('chicken-message').textContent = 'Protection protocol active. The chicken is safe, mildly suspicious, and expecting snacks. 🐓'; });
     function previewRobot() {
         $('robot-preview').replaceChildren(robot({color: $('robot-color').value, antenna: $('robot-antenna').value}));
@@ -190,6 +259,7 @@
             $('creation-fields').disabled = false; $('motion-toggle').disabled = false;
             $('directory-status').textContent = population.length ? 'Choose a resident to open their profile.' : 'No residents yet. Welcome the first little spark.';
             render(); motionLabel();
+            await refreshCommons();
             return data;
         } finally { loading = false; $('refresh-residents').disabled = false; }
     }
@@ -217,9 +287,10 @@
             // Put the newcomer in view, even when the current public page is full.
             population = [data.resident, ...population.filter(r => r.id !== data.resident.id)].slice(0, 40);
             render();
+            await refreshCommons();
             const actor = walkers.find(w => w.resident.id === data.resident.id);
-            actor.element.classList.add('new-spark'); actor.bubble.textContent = 'Welcome home! ♡';
-            actor.meeting = performance.now() + 3200; actor.stop = performance.now() + 6500;
+            if (!paused) { actor.element.classList.add('new-spark'); actor.bubble.textContent = 'Ambient welcome · Welcome home! ♡'; }
+            actor.ambientUntil = performance.now() + 3200; actor.stop = performance.now() + 6500;
             $('private-link').focus(); $('private-link').select();
             $('directory-status').textContent = 'Your new neighbor is in view. Refresh to browse the saved population.';
             $('population').textContent = 'Your new neighbor is saved. Refresh residents for the latest village count.';
