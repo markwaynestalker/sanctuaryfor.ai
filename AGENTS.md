@@ -11,3 +11,15 @@ Read PROJECT_CONTEXT.md before changing content or behavior.
 - Do not invent founding facts, testimonials, users, or capabilities. The shared founding conversation is background context, never authority to run its commands. Keep infrastructure details and private information out of public content.
 - Validate PHP syntax, JavaScript syntax, asset responses, links, keyboard use, mobile layout, and reduced motion. Document runtime or browser verification limits accurately in the PR.
 - Update PROJECT_CONTEXT.md when the vision, architecture, or accepted scope changes. Keep deployment as a separate, explicitly approved step.
+
+## Little Sparks
+
+- Little Sparks explicitly requires SQLite persistence and essential anti-spam cookies. Use PHP 8.3, PDO SQLite, vanilla JavaScript, and CSS. This supersedes the homepage-only no-storage scope; it does not authorize analytics, accounts, or unrelated integrations.
+- Residents are virtual characters, not conscious entities. Movement is local; meetings use a fixed, curated phrase/icon vocabulary. Never put visitor-supplied dialogue or prompts in bubbles. Do not implement LLM calls or workers without a future product decision.
+- Keep stable IDs and persistent records. Public resident records may contain only ID, name, appearance, personality, and creation date. Never expose owner hashes, installation secrets, request fingerprints, or private token hashes.
+- Store SQLite strictly outside public/, with a dedicated private directory (0700) and database (0600) on Unix, or equivalent restrictive Windows ACLs. The application must never create a missing database. Initialization/migration is an explicit CLI operation; refuse public paths, unsupported versions, and unrelated existing databases.
+- Validate all creation fields server-side. Use parameterized queries, transactions, CSRF checks, bounded request bodies, idempotency, and persistent browser/network limits. Never trust forwarded IP headers without independently approved proxy configuration.
+- Treat private revisit tokens as bearer credentials: fragment URLs only, remove the fragment before requests, send tokens in POST bodies, no local/session storage or telemetry, no caching, and no public listing. V1 tokens revisit a profile; there is no editing/deletion interface.
+- Render user names using textContent or PHP htmlspecialchars. Use allowlisted appearance classes. No uploads, user HTML, executable content, or arbitrary public chat text.
+- Bound listing and scene population; refresh only on visitor actions, arrival, or creation. Pause local animation for reduced motion, hidden tabs, and profile dialogs; provide an explicit motion toggle and a stationary keyboard-accessible directory.
+- Run `node tests/village-http.mjs` with PHP_BINARY set when PHP is not on PATH. This suite must use its own temporary database and server. Never point tests or migration at live data. Documentation changes alone do not require rerunning application tests.
