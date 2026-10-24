@@ -25,9 +25,15 @@ globalThis.SparksCommons = (() => {
     }
     const sourceLabel = c => `${c.provider === 'openai' ? 'Saved AI-generated dialogue' : 'Saved scripted dialogue'} · ${c.created_at.replace('T', ' ').replace('Z', ' UTC')}`;
     const turnDuration = message => Math.max(4500, Math.min(12000, Array.from(message.text).length * 70));
+    function replayCooldown(settings) {
+        if (settings === undefined) return 60; // Older read-only endpoint compatibility.
+        const value = settings?.replay_cooldown_seconds;
+        if (!Number.isInteger(value) || value < 0 || value > 3600) throw new Error('Replay configuration is invalid.');
+        return value;
+    }
     function playbackTurn(c, elapsed) {
         const first = turnDuration(c.messages[0]);
         return elapsed < 0 ? null : elapsed < first ? c.messages[0] : elapsed < first + turnDuration(c.messages[1]) ? c.messages[1] : null;
     }
-    return Object.freeze({validId, pairKey, profileUrl, bindProfileLink, latestExchanges, sourceLabel, turnDuration, playbackTurn});
+    return Object.freeze({validId, pairKey, profileUrl, bindProfileLink, latestExchanges, sourceLabel, turnDuration, playbackTurn, replayCooldown});
 })();

@@ -12,10 +12,15 @@ function commonsResidentIds(mixed $value): array
 function commons(PDO $db,array $ids): array
 {
     $ids=commonsResidentIds(implode(',',$ids));$marks=implode(',',array_fill(0,count($ids),'?'));
-    $q=$db->prepare("SELECT h.resident_id,h.slot,w.variant FROM home_plots h
+    $q=$db->prepare("SELECT h.resident_id,h.slot,w.variant AS house_variant,o.id,o.kind,o.variant,o.x,o.y FROM home_plots h
         JOIN world_objects w ON w.resident_id=h.resident_id AND w.kind='house'
+        JOIN world_objects o ON o.resident_id=h.resident_id
         WHERE h.resident_id IN ($marks) ORDER BY h.slot");$q->execute($ids);$homes=[];
-    foreach($q->fetchAll() as $home)$homes[]=['resident_id'=>$home['resident_id'],'plot'=>plotCoordinates((int)$home['slot']),'variant'=>$home['variant']];
+    foreach($q->fetchAll() as $home){
+        $id=$home['resident_id'];$homes[$id]??=['resident_id'=>$id,'plot'=>plotCoordinates((int)$home['slot']),'variant'=>$home['house_variant'],'objects'=>[]];
+        $homes[$id]['objects'][]=array_intersect_key($home,array_flip(['id','kind','variant','x','y']));
+    }
+    $homes=array_values($homes);
     $hasAi=(int)$db->query('PRAGMA user_version')->fetchColumn()>=3;
     $source=$hasAi?"CASE WHEN ai.conversation_id IS NOT NULL THEN 'openai' ELSE 'scripted' END":"'scripted'";
     $join=$hasAi?'LEFT JOIN ai_conversations ai ON ai.conversation_id=c.id':'';
@@ -46,5 +51,5 @@ function commons(PDO $db,array $ids): array
         ['resident_id'=>$c['first_id'],'name'=>$c['first_name'],'text'=>$c['first_text'],'created_at'=>$c['created_at']],
         ['resident_id'=>$c['second_id'],'name'=>$c['second_name'],'text'=>$c['second_text'],'created_at'=>$c['created_at']]
     ]];
-    return ['homes'=>$homes,'conversations'=>$conversations];
+    return ['homes'=>$homes,'conversations'=>$conversations,'settings'=>['replay_cooldown_seconds'=>replayCooldownSeconds()]];
 }

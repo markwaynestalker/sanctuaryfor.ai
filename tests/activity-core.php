@@ -100,7 +100,7 @@ try{
     putenv('LITTLE_SPARKS_AI_ENABLED=1');$hundred=new ActivityMock('conversation',$one);
     for($i=1;$i<=100;$i++){ $r=LittleSparks\simulateOpportunity($one,$at($i),true,$hundred);check($r['outcome']==='conversation'&&$r['provider']==='openai','100 AI encounters possible within explicit mocked budgets'); }
     check(count($hundred->calls)===200,'100 encounters reserve and dispatch exactly 200 HTTP requests including moderation');
-    $q=$one->query('SELECT r.id,(SELECT COUNT(*) FROM simulation_opportunities o WHERE o.resident_a=r.id OR o.resident_b=r.id) AS n FROM residents r');foreach($q->fetchAll() as $row)check((int)$row['n']<=LittleSparks\RESIDENT_DAILY_MAX,'Per-resident daily activity cap');
+    $q=$one->query('SELECT r.id,(SELECT COUNT(*) FROM simulation_opportunities o WHERE o.resident_a=r.id OR o.resident_b=r.id) AS n FROM residents r');foreach($q->fetchAll() as $row)check((int)$row['n']<=LittleSparks\activityConfiguration()['resident_daily'],'Per-resident daily activity cap');
     try{LittleSparks\simulateOpportunity($one,$at(101));throw new LogicException('Global cap ignored');}catch(LittleSparks\Problem $e){check($e->status===429,'100 daily opportunities cap');}
     $small=$dir.'/small-village.sqlite';cli('migrate-village.php',['--database='.$small]);cli('migrate-ai.php',['--database='.$small]);cli('migrate-activity.php',['--database='.$small]);$two=LittleSparks\connect($small);
     for($i=0;$i<2;$i++)LittleSparks\create($two,['name'=>'Restful '.$i,'color'=>'mint','antenna'=>'orb','personality'=>'shy','requestId'=>str_pad(dechex($i),32,'0',STR_PAD_LEFT),'website'=>''],'quiet-browser-'.$i,'quiet-network-'.$i,time(),true);

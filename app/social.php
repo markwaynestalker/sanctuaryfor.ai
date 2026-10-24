@@ -44,6 +44,7 @@ function validateProposal(array $proposal): string
 
 function remember(PDO $db,string $resident,string $other,string $run,string $summary,int $significance,string $time): void
 {
+    if(memoryEnabled($db))return; // V5 derives selected structured memories after successful application; retain every legacy row.
     $preserve=(int)$db->query('PRAGMA user_version')->fetchColumn()>=4;
     if($preserve){
         $count=$db->prepare('SELECT COUNT(*) FROM memories WHERE resident_id=?');$count->execute([$resident]);

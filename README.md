@@ -97,3 +97,9 @@ No robot overlords. No poultry exceptions.
 *Made with curiosity, caffeine, PHP, and possibly too much enthusiasm.*
 
 **SanctuaryFor.AI · Founded 2026**
+
+## Little Sparks V2D: the village remembers
+
+V5 adds stable friendship identities, source-linked personal memories and bounded multi-hop stories, with public provenance trails and grounded saved yards. SQLite remains authoritative; no extra model call is used for extraction. The separate preserving V4→V5 migration, constrained dialogue contract, configuration, performance/cost implications and rollback limits are documented in [the V2D guide](docs/LITTLE_SPARKS_V2D.md). Run tests/village-memory.mjs alongside all six previous suites. Production migration, paid activation, timers and deployment remain separate approval steps.
+
+Activity/resident ceilings, resident/pair conversation cooldowns, retrieval bounds and local saved-dialogue replay frequency use strictly validated environment settings in .env.example. Existing defaults and AI spending limits are preserved. Run tests/activity-limits.mjs for configuration and concurrent-worker checks.
