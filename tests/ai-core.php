@@ -93,6 +93,8 @@ try{
     $fresh=function(?string $template=null)use($base,$directory,&$counter):PDO{$path=$directory.'/case-'.(++$counter).'.sqlite';check(copy($template??$base,$path),'Copy quiescent disposable fixture');return LittleSparks\connect($path);};
     $today=gmdate('Y-m-d');$yesterday=gmdate('Y-m-d',time()-86400);
     putenv('LITTLE_SPARKS_AI_PRICING_CONFIRMED='.LittleSparks\AI_PRICING_VERSION);putenv('LITTLE_SPARKS_AI_MODEL=gpt-6-luna');putenv('LITTLE_SPARKS_AI_MONTHLY_MICROUSD=1000000');
+    putenv('LITTLE_SPARKS_AI_DAILY_REQUESTS');
+    check(LittleSparks\aiConfiguration(time())['daily_requests']===2,'Unset daily ceiling defaults to two');
     $db=$fresh();$mock=new MockOpenAi();$result=LittleSparks\simulateOptionalAiDay($db,$today,true,$mock);
     check(!$mock->calls&&$result['provider']==='scripted','Disabled provider falls back with zero calls');
     $historical=LittleSparks\simulateOptionalAiDay($db,'2000-01-01',true,$mock);check($historical['replayed']&&!$mock->calls,'Historical completed periods replay without spending');
@@ -107,8 +109,10 @@ try{
     if($mock->selectedAction!=='none'){
         $savedAction=$db->prepare('SELECT COUNT(*) FROM events WHERE run_id=? AND kind=?');$savedAction->execute([$attempt['id'],$mock->selectedAction]);check((int)$savedAction->fetchColumn()===1,'Exactly the validated proposed action is journaled');
     }
+    putenv('LITTLE_SPARKS_AI_DAILY_REQUESTS=200');
     $eventCount=$db->query('SELECT COUNT(*) FROM events')->fetchColumn();$replay=LittleSparks\simulateOptionalAiDay($db,$today,true,$mock);
     check($replay['replayed']&&count($mock->calls)===2&&$eventCount===$db->query('SELECT COUNT(*) FROM events')->fetchColumn(),'Rerun does not spend or duplicate events');
+    putenv('LITTLE_SPARKS_AI_DAILY_REQUESTS=2');
     $fallback=LittleSparks\simulateOptionalAiDay($db,$yesterday,true,$mock);
     check($fallback['provider']==='scripted'&&$fallback['ai_blocked']==='daily_request_cap'&&count($mock->calls)===2,'Daily ceiling survives reruns and blocks extra requests');
     $profile=LittleSparks\profile($db,$attempt['resident_a']);check(!str_contains(json_encode($profile),$token)&&!str_contains(json_encode($profile),'pricing_version'),'Public profile excludes credential and billing internals');
@@ -122,6 +126,34 @@ try{
     check($actionResult['status']==='completed'&&$actionMock->selectedAction==='plant_flowers','Eligible proposed action completes');
     check((int)$actionDb->query("SELECT COUNT(*) FROM world_objects WHERE kind='flowers'")->fetchColumn()===1,'AI action saves exactly one new flower object');
     echo "PASS disabled/manual activation, Responses contract, bounded context, moderated dialogue, memory/action persistence, accounting, replay and daily cap\n";
+    foreach(['0','1','','-1','+2','2.5','1e2',' 2','2 ','201','999999999999999999999','unlimited','02'] as $value){
+        putenv('LITTLE_SPARKS_AI_DAILY_REQUESTS='.$value);
+        $db=$fresh();$mock=new MockOpenAi();$result=LittleSparks\simulateOptionalAiDay($db,$today,true,$mock);
+        $reason=in_array($value,['0','1'],true)?'daily_request_cap':'configuration_invalid';
+        check(!$mock->calls&&$result['ai_blocked']===$reason,'Daily configuration fails closed for '.json_encode($value));
+        check((int)$db->query('SELECT COUNT(*) FROM ai_attempts')->fetchColumn()===0,'Blocked configuration reserves no slots');
+        $status=json_decode(cli('ai-status.php',['--database='.$directory.'/case-'.$counter.'.sqlite']),true,512,JSON_THROW_ON_ERROR);
+        check($status['configured_daily_requests']===(in_array($value,['0','1'],true)?(int)$value:null),'Status reports validated daily limit without secrets');
+    }
+    putenv('LITTLE_SPARKS_AI_DAILY_REQUESTS=200');check(LittleSparks\aiConfiguration(time())['daily_requests']===200,'Conservative maximum accepted');
+    $db=$fresh();$pair=LittleSparks\selectAiPair($db,$today);
+    $usage=['model'=>'gpt-6-luna','service_tier'=>'default','usage'=>['input_tokens'=>100,'output_tokens'=>10,'total_tokens'=>110]];
+    putenv('LITTLE_SPARKS_AI_DAILY_REQUESTS=2');$config=LittleSparks\aiConfiguration(time());
+    $first=LittleSparks\reserveAi($db,$today,$pair,$config,time());
+    LittleSparks\recordAiUsage($db,$first,$usage,$config);LittleSparks\finishAi($db,$first,'rejected','invalid_proposal');
+    foreach([2,3,4] as $limit){
+        putenv('LITTLE_SPARKS_AI_DAILY_REQUESTS='.$limit);$config=LittleSparks\aiConfiguration(time());
+        try{
+            $second=LittleSparks\reserveAi($db,$yesterday,$pair,$config,time());
+            check($limit===4,'Both HTTP slots must fit the configured ceiling');
+            LittleSparks\recordAiUsage($db,$second,$usage,$config);LittleSparks\finishAi($db,$second,'rejected','invalid_proposal');
+        }catch(LittleSparks\AiGuard $error){check($limit<4&&$error->reason==='daily_request_cap','Two slots, including moderation, count even after failure');}
+    }
+    check((int)$db->query('SELECT SUM(request_slots) FROM ai_attempts')->fetchColumn()===4,'Environment change permits four reserved HTTP slots without a code change');
+    putenv('LITTLE_SPARKS_AI_DAILY_REQUESTS=2');
+    try{LittleSparks\reserveAi($db,gmdate('Y-m-d',time()-2*86400),$pair,LittleSparks\aiConfiguration(time()),time());throw new LogicException('Lowered ceiling ignored');}
+    catch(LittleSparks\AiGuard $error){check($error->reason==='daily_request_cap','Lowering the ceiling preserves existing reservations');}
+    echo "PASS configurable daily ceiling: unset/default, zero, invalid/oversized input, odd limits, environment changes, reservation retention, status and same-period replay\n";
     foreach(['invalid_action','markup','extra','key_text','incomplete','refusal','flagged','moderation_missing','moderation_timeout','lease_expired','missing_usage','zero_usage','over_usage','missing_tier','wrong_model','timeout','collision','overlap'] as $mode){
         $db=$fresh($mode==='collision'?$directory.'/action-template.sqlite':null);$mock=new MockOpenAi($mode,$db);$snapshot=stateDigest($db);$result=LittleSparks\simulateOptionalAiDay($db,$today,true,$mock);
         if($mode==='overlap'){check($result['status']==='completed','Lease prevents overlap without blocking owning run');continue;}
@@ -148,7 +180,9 @@ try{
     $month=gmdate('Y-m');$otherDay=$month.(substr($today,-2)==='01'?'-02':'-01');
     $db->prepare("INSERT INTO ai_attempts(id,period,day,month,resident_a,resident_b,model,pricing_version,input_rate,output_rate,reserved_microusd,estimated_microusd,state,created_at) VALUES ('budget-fixture','2000-01-01',?,?,?,?,?,?,125000,500000,999999,999999,'applied','fixture')")
         ->execute([$otherDay,$month,$pair[0]['id'],$pair[1]['id'],'gpt-6-luna',LittleSparks\AI_PRICING_VERSION]);
-    $mock=new MockOpenAi();$result=LittleSparks\simulateOptionalAiDay($db,$today,true,$mock);check(!$mock->calls&&$result['ai_blocked']==='monthly_budget_cap','Monthly ledger cap includes previous spend');
+    putenv('LITTLE_SPARKS_AI_DAILY_REQUESTS=200');
+    $mock=new MockOpenAi();$result=LittleSparks\simulateOptionalAiDay($db,$today,true,$mock);check(!$mock->calls&&$result['ai_blocked']==='monthly_budget_cap','Higher daily ceiling cannot bypass the monthly ledger cap');
+    putenv('LITTLE_SPARKS_AI_DAILY_REQUESTS=2');
     $db=$fresh();$pair=LittleSparks\selectAiPair($db,$today);$boundary=strtotime(gmdate('Y-m-d').' 23:59:50 UTC');
     try{LittleSparks\reserveAi($db,$today,$pair,$config,$boundary);throw new LogicException('Boundary request accepted');}catch(LittleSparks\AiGuard $error){check($error->reason==='day_boundary','Boundary blocks dispatch');}
     $db=$fresh();$pair=LittleSparks\selectAiPair($db,$today);$held=LittleSparks\reserveAi($db,$today,$pair,$config,time());

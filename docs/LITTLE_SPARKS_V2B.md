@@ -25,6 +25,7 @@ No new package is required. PHP 8.3 needs PDO_SQLITE and cURL for the real trans
 | LITTLE_SPARKS_AI_ENABLED | Disabled unless exactly `1`. |
 | LITTLE_SPARKS_AI_MODEL | `gpt-6-luna`; also supports the explicitly priced `gpt-6.1-sol`. Unknown models fall back without a request. |
 | LITTLE_SPARKS_AI_MONTHLY_MICROUSD | `1000000` = $1.00. May be lowered, including zero; values above $1 are refused. |
+| LITTLE_SPARKS_AI_DAILY_REQUESTS | `2` when unset. Canonical unsigned decimal integer `0`–`200`; empty, signed, padded, fractional or larger values block paid calls as invalid configuration. `0` or `1` prevents a two-request encounter from starting. Includes Responses and moderation HTTP requests. |
 | LITTLE_SPARKS_AI_MAX_OUTPUT_TOKENS | 512; configurable from 128 to 512, never above 512. An incomplete result is rejected, not retried automatically. |
 | LITTLE_SPARKS_AI_PRICING_CONFIRMED | Empty/disabled until set to the verified pricing version above after operator review. |
 
@@ -44,11 +45,33 @@ php scripts/simulate-village.php --database=/absolute/private/staging.sqlite --p
 
 Set LITTLE_SPARKS_AI_ENABLED=0 and omit --allow-paid to disable future requests. Disabling does not revoke an already dispatched request, cancel a current transaction, or erase spend/history. Before rollback or maintenance, wait for the short bounded request/lease and verify status. No timer/systemd configuration is included.
 
+## Secure key access for PHP CLI
+
+PHP-FPM pool `env[...]` settings configure FPM workers; a separately launched PHP CLI process does not inherit those pool settings. FPM normally clears its worker environment before adding pool variables. See the [official PHP-FPM configuration reference](https://www.php.net/manual/en/install.fpm.configuration.php). A working FPM key therefore does not establish CLI access.
+
+For a later approved CLI invocation, prefer your secret manager injecting `OPENAI_API_KEY` directly into a dedicated, least-privilege process. Do not read or source FPM pool configuration from shell, loosen its permissions, copy credentials into this repository, or print environment dumps/phpinfo. Keep tracing/debug logs off. Environment secrets remain accessible to sufficiently privileged processes; restrict the execution identity accordingly.
+
+If an operator approves a private secret file instead, provision it separately through the existing secret-management process, outside the repository and public directory, with directory mode 0700 and file mode 0600 owned by the dedicated CLI identity (or equivalent restrictive Windows ACLs). Never paste the key in command arguments or shell history. The following POSIX-shell presence check reads a single-line private file without printing the key, changing application configuration, or contacting OpenAI:
+
+```sh
+(
+    set +x
+    unset OPENAI_API_KEY
+    IFS= read -r OPENAI_API_KEY < /absolute/private/openai-api-key || test -n "$OPENAI_API_KEY" || exit 1
+    export OPENAI_API_KEY
+    php -r 'exit(getenv("OPENAI_API_KEY") ? 0 : 1);'
+)
+```
+
+Exit 0 confirms only a nonempty CLI environment value, not credential validity or API access. The subshell discards its environment on exit. Load the nonsecret budget/activation variables separately into the intended CLI environment; FPM settings do not configure them either. Leave `LITTLE_SPARKS_AI_ENABLED=0` and omit `--allow-paid` until separately approved. This PR neither provisions secrets nor changes FPM/CLI production configuration.
+
 ## Budget, request ceiling, and uncertain outcomes
 
-The application hard ceiling is **$1 per UTC calendar month** in integer micro-USD. **Two total model HTTP requests per actual UTC day** are reserved together, including moderation: normally one Responses generation plus one moderation call. Thus this conservative initial release generates at most one AI encounter per day, not two encounters plus hidden moderation calls. The remainder of the bounded daily simulation uses V2A scripts. Failed or unused reserved request slots are not refunded, so retries cannot bypass the daily ceiling. The simulated period can be an eligible recent date, but it cannot backdate the billing day/month.
+The application hard ceiling is **$1 per UTC calendar month** in integer micro-USD, independent of the daily ceiling. `LITTLE_SPARKS_AI_DAILY_REQUESTS` defaults to **two total HTTP requests per actual UTC day**. Each attempt reserves two slots together: one Responses generation plus one moderation call, even though moderation is currently free. The remainder of the bounded daily simulation uses V2A scripts. Failed or unused reserved request slots are not refunded, so retries cannot bypass the ceiling. The simulated period can be an eligible recent date, but it cannot backdate the billing day/month. Changing the process environment changes the ceiling without code or schema changes; restart an already-running process to load its new environment. An invalid value blocks paid attempts; it never means unlimited requests.
 
-A BEGIN IMMEDIATE reservation transaction checks the monthly ledger, two-slot day limit, unique period, unresolved accounting, ledger capacity, and global lease before any network dispatch. It reserves the maximum output and 32,768 input tokens at conservative confirmed cache-write input rates. The complete text-only request body is capped at 16 KiB, leaving substantial room in that input allowance for UTF-8 tokenization and framing/schema overhead. No tools, files, images, external state, previous_response_id, or hidden conversation history can enlarge the input. Generation requests use default pricing explicitly, never auto/fast/priority. The monthly reservation includes all currently held commitments, not just successful conversations.
+Increasing this ceiling does **not** increase the number of AI encounters in the ordinary daily run. The simulation still permits one run per UTC period and at most one AI encounter in that run; repeating the period only replays its saved result. This variable is an HTTP safety ceiling, not an encounter-count setting. Explicit catch-up runs for different eligible periods can share an actual billing day if slots remain, but each period still has the same one-run/one-AI-encounter limit. No recurring scheduler is added.
+
+A BEGIN IMMEDIATE reservation transaction checks the monthly ledger, configured daily ceiling against existing slots plus the two-slot reservation, unique period, unresolved accounting, ledger capacity, and global lease before any network dispatch. It reserves the maximum output and 32,768 input tokens at conservative confirmed cache-write input rates. The complete text-only request body is capped at 16 KiB, leaving substantial room in that input allowance for UTF-8 tokenization and framing/schema overhead. No tools, files, images, external state, previous_response_id, or hidden conversation history can enlarge the input. Generation requests use default pricing explicitly, never auto/fast/priority. The monthly reservation includes all currently held commitments, not just successful conversations.
 
 The normal Luna reservation at 512 output tokens is 4,352 micro-USD ($0.004352). Known valid usage is reconciled upward to the next micro-dollar using the conservative input rate and all output tokens; cached-input discounts are deliberately not assumed. Validated input/output/total usage, matching model family, actual default tier, and bounded usage are mandatory. Missing/invalid usage, unexpected pricing/model/tier, or generation transport uncertainty retains the full reservation and blocks **all subsequent paid attempts**, including a later month, pending operator review. A hard application estimate depends on confirmed rates; it does not constrain unrelated apps, keys, other databases, taxes, account charges, or later pricing changes. OpenAI project spending alerts are notifications, **not a hard spending cap**. Use a dedicated project/key and review pricing before activation.
 
@@ -84,7 +107,7 @@ php scripts/migrate-ai.php --database=/absolute/private/staging.sqlite
 
 ## Monitoring and manual test checklist
 
-`scripts/ai-status.php` is CLI-only and reads the approved private V3 database. It reports UTC request slots/dispatches, monthly known-or-reserved commitments, unresolved attempt count, lease expiry, and recent safe usage/error codes. It never prints credentials, prompts, model bodies, or private revisit tokens.
+`scripts/ai-status.php` is CLI-only and reads the approved private V3 database. It reports UTC request slots/dispatches, `configured_daily_requests` (null for invalid configuration), monthly known-or-reserved commitments, unresolved attempt count, lease expiry, and recent safe usage/error codes. It never prints credentials, prompts, model bodies, or private revisit tokens.
 
 ```sh
 php scripts/ai-status.php --database=/absolute/private/staging.sqlite
@@ -92,7 +115,7 @@ php scripts/ai-status.php --database=/absolute/private/staging.sqlite
 
 Inspect reserved/uncertain/settled states after a timeout/crash. Wait for lease expiry before scripted recovery. For unknown usage, compare the dedicated project's actual usage/billing privately with the recorded attempt time, model, and reservation. Do not guess costs, reset the cap, or delete accounting rows to reenable spending. Reconciliation/repair requires a reviewed operator decision; no automatic spending-unlock/reset command is included. Monitor ledger/journal capacity and retain the original database/ledger across restarts and deployments.
 
-The approved paid staging smoke test should make one explicit generation/moderation pair, verify original dialogue/preferences/memory continuity and a safe optional action, inspect costs/status/source labels, rerun the same period to confirm no extra calls, then test a second period to see the daily request block and scripted fallback. Disable paid mode afterward. A generation that uses its output budget, fails moderation, or cannot report usage must leave no AI world changes; paid charges can still occur and must remain recorded/reserved. Do not perform this checklist against production or without a spending authorization.
+The approved paid staging smoke test should make one explicit generation/moderation pair, verify original dialogue/preferences/memory continuity and a safe optional action, inspect costs/status/source labels, rerun the same period to confirm no extra calls, then test a second period with the default daily ceiling of two to see the request block and scripted fallback. Disable paid mode afterward. A generation that uses its output budget, fails moderation, or cannot report usage must leave no AI world changes; paid charges can still occur and must remain recorded/reserved. Do not perform this checklist against production or without a spending authorization.
 
 ## Offline verification
 
@@ -104,4 +127,4 @@ PHP_BINARY=/path/to/php node tests/village-ai.mjs
 
 On PowerShell set `$env:PHP_BINARY='C:\path\to\php.exe'` before the Node commands. Tests create their own disposable SQLite/session directories and clear OPENAI_API_KEY. Provider tests inject a mock transport, never the real cURL transport; loopback HTTP checks serve fixture data only. No paid API request is made.
 
-Coverage includes populated V2 preservation/private revisits, repeated/failed DDL rollback, new V3 resident preferences, disabled/manual activation, strict Responses payload and bounded context, generated dialogue and validated action application, exact provenance, known integer usage/cost, replay/daily/monthly caps, unknown/stale configuration, unknown usage/tier/model, incomplete/refused/HTML/tool-like/flagged output, moderation failure, timeouts, expired leases, live collision revalidation, concurrent workers, crash reservations/reconciliation, and public HTTP privacy. Existing V1/V2A suites remain required. PHP/JavaScript syntax and whitespace checks are also required. Available local development PHP was 8.2.12; verify the reviewed code on PHP 8.3/cURL in approved staging before rollout. No real API compatibility/safety evaluation was performed because paid calls are intentionally disabled.
+Coverage includes populated V2 preservation/private revisits, repeated/failed DDL rollback, new V3 resident preferences, disabled/manual activation, strict Responses payload and bounded context, generated dialogue and validated action application, exact provenance, known integer usage/cost, replay/daily/monthly caps, unset/default and invalid daily limits, environment-only limit changes, odd/zero limits and lowered ceilings, unknown/stale configuration, unknown usage/tier/model, incomplete/refused/HTML/tool-like/flagged output, moderation failure, timeouts, expired leases, live collision revalidation, concurrent workers, crash reservations/reconciliation, and public HTTP privacy. Existing V1/V2A suites remain required. PHP/JavaScript syntax and whitespace checks are also required. Available local development PHP was 8.2.12; verify the reviewed code on PHP 8.3/cURL in approved staging before rollout. No real API compatibility/safety evaluation was performed because paid calls are intentionally disabled.

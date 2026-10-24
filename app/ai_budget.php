@@ -14,6 +14,15 @@ const AI_INPUT_CEILING=32768;
 const AI_BODY_BYTES=16384;
 const AI_MONTHLY_CAP=1000000; // integer micro-USD: exactly $1.00
 
+function aiDailyRequestLimit(): int
+{
+    $value=getenv('LITTLE_SPARKS_AI_DAILY_REQUESTS');
+    if($value===false)return 2;
+    // Canonical unsigned decimal only; empty, signed and oversized values fail closed.
+    if(!preg_match('/\A(?:0|[1-9][0-9]{0,2})\z/',$value) || (int)$value>200)throw new AiGuard('configuration_invalid');
+    return (int)$value;
+}
+
 function aiConfiguration(int $now): array
 {
     if(getenv('LITTLE_SPARKS_AI_PRICING_CONFIRMED')!==AI_PRICING_VERSION
@@ -27,7 +36,7 @@ function aiConfiguration(int $now): array
     $monthly=getenv('LITTLE_SPARKS_AI_MONTHLY_MICROUSD');$monthly=$monthly===false?'1000000':$monthly;
     if(!ctype_digit($output)|| (int)$output<128 || (int)$output>512 || !ctype_digit($monthly) || strlen($monthly)>7 || (int)$monthly>AI_MONTHLY_CAP)throw new AiGuard('configuration_invalid');
     [$inputRate,$outputRate,$effort]=$models[$model];
-    return ['model'=>$model,'input_rate'=>$inputRate,'output_rate'=>$outputRate,'effort'=>$effort,'max_output'=>(int)$output,'monthly_cap'=>(int)$monthly];
+    return ['model'=>$model,'input_rate'=>$inputRate,'output_rate'=>$outputRate,'effort'=>$effort,'max_output'=>(int)$output,'monthly_cap'=>(int)$monthly,'daily_requests'=>aiDailyRequestLimit()];
 }
 
 function estimatedAiCost(int $input,int $output,int $inputRate,int $outputRate): int
@@ -48,7 +57,7 @@ function reserveAi(PDO $db,string $period,array $pair,array $config,int $now): a
         if($query->fetchColumn())throw new AiGuard('period_recorded');
         $day=gmdate('Y-m-d',$now);$month=gmdate('Y-m',$now);
         $query=$db->prepare('SELECT COALESCE(SUM(request_slots),0) FROM ai_attempts WHERE day=?');$query->execute([$day]);
-        if((int)$query->fetchColumn()+2>2)throw new AiGuard('daily_request_cap');
+        if((int)$query->fetchColumn()+2>$config['daily_requests'])throw new AiGuard('daily_request_cap');
         $reserved=estimatedAiCost(AI_INPUT_CEILING,$config['max_output'],$config['input_rate'],$config['output_rate']);
         $query=$db->prepare('SELECT COALESCE(SUM(COALESCE(estimated_microusd,reserved_microusd)),0) FROM ai_attempts WHERE month=?');$query->execute([$month]);
         if((int)$query->fetchColumn()+$reserved>min(AI_MONTHLY_CAP,$config['monthly_cap']))throw new AiGuard('monthly_budget_cap');

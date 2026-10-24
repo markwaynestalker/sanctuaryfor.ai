@@ -40,7 +40,7 @@ See the [V2A architecture, setup, tests, backup, migration, and rollback guide](
 
 The village can optionally generate original resident dialogue with `gpt-6-luna`, persistent preferences, bounded memories, and validated proposals for existing safe world actions. The scripted village remains fully available. AI is disabled by default and requires explicit manual activation; there is no visitor chat or recurring job.
 
-The initial application ceiling is $1 per UTC month and two total model requests per UTC day, including moderation. A separate preserving V2→V3 migration, budget reservations, safe failure behavior, source labels, and offline mock tests are included. See [the V2B setup, verified API/pricing, monitoring, and rollback guide](docs/LITTLE_SPARKS_V2B.md). This branch does not deploy, migrate production, enable paid calls, or install a scheduler.
+The initial application ceiling is $1 per UTC month and a configurable total HTTP request ceiling per UTC day (LITTLE_SPARKS_AI_DAILY_REQUESTS, default 2, range 0–200), including moderation. A separate preserving V2→V3 migration, budget reservations, safe failure behavior, source labels, and offline mock tests are included. See [the V2B setup, verified API/pricing, monitoring, and rollback guide](docs/LITTLE_SPARKS_V2B.md). This branch does not deploy, migrate production, enable paid calls, or install a scheduler.
 
 ## 🌱 Our Principles
 
