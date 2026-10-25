@@ -4,6 +4,7 @@ import vm from 'node:vm';
 import {readFile} from 'node:fs/promises';
 const helperSource=await readFile(new URL('../public/assets/commons.js',import.meta.url),'utf8');
 const villageSource=await readFile(new URL('../public/assets/village.js',import.meta.url),'utf8');
+const meadowSource=await readFile(new URL('../public/assets/meadow.js',import.meta.url),'utf8');
 const a='a'.repeat(32),b='b'.repeat(32),c='c'.repeat(32);
 const residents=[{id:a,name:'Sparky',color:'mint',antenna:'orb',personality:'playful',created_at:'2026-10-24T10:00:00Z'},
     {id:b,name:'Skippy Jr',color:'lavender',antenna:'sprout',personality:'curious',created_at:'2026-10-24T10:00:00Z'}];
@@ -21,6 +22,12 @@ assert.equal(h.playbackTurn(exchange,24001),null);
 assert.equal(h.replayCooldown(undefined),60);
 for(const value of [0,15,3600])assert.equal(h.replayCooldown({replay_cooldown_seconds:value}),value);
 for(const value of [-1,3601,'60',null,1.5,Infinity])assert.throws(()=>h.replayCooldown({replay_cooldown_seconds:value}));
+let stored;const storage={getItem:()=>stored,setItem:(key,value)=>{stored=value;}};let played=h.replayHistory(storage);
+assert.ok(played.canPlay('first',1000,60));played.record('first',1000);assert.ok(!played.canPlay('first',100000,0),'Played dialogue never repeats');
+assert.ok(!played.canPlay('fresh',60999,60));assert.ok(played.canPlay('fresh',61000,60),'Cooldown gates a different new exchange at its exact boundary');
+played=h.replayHistory(storage);assert.ok(!played.canPlay('first',200000,0),'Navigation/reload preserves per-tab public history');
+for(let i=0;i<1023;i++)played.record('id-'+i,1000);assert.ok(!played.canPlay('more',200000,0),'Bounded history fills safely, without evicting played IDs');
+const denied=h.replayHistory({getItem(){throw new Error('denied');},setItem(){throw new Error('denied');}});denied.record('first',1000);assert.ok(!denied.canPlay('first',200000,0),'Storage-denied fallback remains quiet');
 
 class Element{
     constructor(tag='div',doc){this.tagName=tag.toUpperCase();this.doc=doc;this.children=[];this.listeners={};this.attributes={};this.style={};this.hidden=false;this.open=false;this.isConnected=true;this._text='';this.className='';this.classList={add:name=>{this.className+=' '+name;}};}
@@ -44,8 +51,8 @@ async function meadow({mobile=false,reduced=false,third=false,conversation=excha
         addEventListener(){},requestAnimationFrame(f){frames.set(++sequence,f);return sequence;},cancelAnimationFrame(id){frames.delete(id);},
         fetch:async(url,options)=>{requests.push({url,options});return {ok:true,json:async()=>url.includes('residents.php')?{residents:population,total:population.length,page:0,lastPage:0,csrf:'fixture'}:{homes:residents.map((r,i)=>({resident_id:r.id,plot:{x:i*4,y:0,width:4,height:4},objects:[{kind:'house',x:i*4+1,y:1},...(i===0?[{kind:'tree',x:3,y:3},{kind:'flowers',x:0,y:2},{kind:'bush',x:3,y:0},{kind:'path',x:1,y:2},{kind:'decoration',x:2,y:0}]:[])]})),conversations:conversation?[conversation]:[]}};}});
     const originalFetch=context.fetch;context.fetch=async(...args)=>{const result=await originalFetch(...args);if(args[0].includes('commons.php')){const json=result.json;result.json=async()=>({...await json(),settings:{replay_cooldown_seconds:replay}});}return result;};
-    vm.runInContext(helperSource,context);vm.runInContext(villageSource,context);await new Promise(setImmediate);
-    return {$,document,requests,frames,media,step(){clock+=80;const callbacks=[...frames.values()];frames.clear();for(const f of callbacks)f(clock);},clock:()=>clock};
+    vm.runInContext(helperSource,context);vm.runInContext(meadowSource,context);vm.runInContext(villageSource,context);await new Promise(setImmediate);
+    return {$,document,requests,frames,media,setConversation(value){conversation=value;},step(){clock+=80;const callbacks=[...frames.values()];frames.clear();for(const f of callbacks)f(clock);},clock:()=>clock};
 }
 for(const mobile of [false,true]){
     const m=await meadow({mobile});assert.equal(m.requests.length,2,'one listing and one read-only saved-life request');assert.equal(m.$('home-layer').children.length,2);
@@ -73,6 +80,12 @@ const hostile={...exchange,messages:exchange.messages.map(m=>({...m,text:'<img s
 for(const replay of [0,3600]){
     const m=await meadow({replay});let episodes=0,wasSpeaking=false;
     for(let tick=0;tick<2500;tick++){m.step();const speaking=m.$('robot-layer').children[1].children.at(-1).textContent.includes(exchange.messages[0].text);if(speaking&&!wasSpeaking)episodes++;wasSpeaking=speaking;}
-    assert.ok(replay===0?episodes>1:episodes===1,'Server-provided replay cooldown changes local playback without code changes');assert.equal(m.requests.length,2,'Replay never creates server activity');
+    assert.equal(episodes,1,'Previously shown dialogue stays silent even when the cooldown expires');assert.equal(m.requests.length,2,'Replay never creates server activity');
 }
+const refreshed=await meadow({replay:0});for(let tick=0;tick<2000;tick++)refreshed.step();
+refreshed.$('refresh-residents').click();await new Promise(setImmediate);await new Promise(setImmediate);
+for(let tick=0;tick<2000;tick++){refreshed.step();assert.ok(refreshed.$('robot-layer').children.every(el=>!el.children.at(-1).textContent),'Explicit refresh never resets played public IDs');}
+const freshExchange={...exchange,id:'newly-saved',messages:exchange.messages.map(m=>({...m,text:'A new saved thought about moonflowers.'}))};refreshed.setConversation(freshExchange);refreshed.$('refresh-residents').click();await new Promise(setImmediate);await new Promise(setImmediate);
+let foundFresh=false;for(let tick=0;tick<1500;tick++){refreshed.step();if(refreshed.$('robot-layer').children.some(el=>el.children.at(-1).textContent.includes(freshExchange.messages[0].text)))foundFresh=true;}
+assert.ok(foundFresh,'Explicit read-only refresh discovers and replays a new saved ID');assert.equal(refreshed.requests.length,6,'Two requests per explicit refresh, no polling');
 console.log('PASS desktop/mobile modal navigation, real cottages, latest pair selection, sequential saved speech, literal text, idle fallback, reduced motion and zero background polling');

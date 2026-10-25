@@ -103,3 +103,7 @@ No robot overlords. No poultry exceptions.
 V5 adds stable friendship identities, source-linked personal memories and bounded multi-hop stories, with public provenance trails and grounded saved yards. SQLite remains authoritative; no extra model call is used for extraction. The separate preserving V4→V5 migration, constrained dialogue contract, configuration, performance/cost implications and rollback limits are documented in [the V2D guide](docs/LITTLE_SPARKS_V2D.md). Run tests/village-memory.mjs alongside all six previous suites. Production migration, paid activation, timers and deployment remain separate approval steps.
 
 Activity/resident ceilings, resident/pair conversation cooldowns, retrieval bounds and local saved-dialogue replay frequency use strictly validated environment settings in .env.example. Existing defaults and AI spending limits are preserved. Run tests/activity-limits.mjs for configuration and concurrent-worker checks.
+
+## Little Sparks V2E: Sanctuary Live
+
+V2E restores original two-turn AI dialogue while retaining independently grounded memory narration, without a V6 migration. It adds once-per-tab saved-dialogue replay, a CLI-only read-only operator view and prepared, disabled systemd templates. [The V2E guide](docs/LITTLE_SPARKS_V2E.md) explains the practical imagination/history boundary, cost bounds, optional scheduler gates/credentials and deployment/rollback plan. Run tests/village-live.mjs plus all eight previous suites. No production access, timer activation or paid evaluation is included.

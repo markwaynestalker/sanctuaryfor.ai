@@ -1,0 +1,5 @@
+# Optional reviewed drop-in for sanctuary-village.service, NOT installed by code.
+# Root provisions the source separately, outside the repository/public tree.
+# Copy this file only after explicit owner approval for unattended paid activity.
+[Service]
+LoadCredential=openai_api_key:/etc/sanctuaryfor-ai/openai-api-key

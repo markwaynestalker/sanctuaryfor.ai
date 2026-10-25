@@ -1,0 +1,35 @@
+# Template only. Review paths and permissions before any installation.
+[Unit]
+Description=One bounded SanctuaryFor.AI village opportunity
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=www-data
+Group=www-data
+WorkingDirectory=/srv/sanctuaryfor.ai
+EnvironmentFile=/etc/sanctuaryfor-ai/simulation.env
+ExecStart=/usr/bin/php /srv/sanctuaryfor.ai/scripts/scheduled-village.php
+TimeoutStartSec=50s
+Restart=no
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/sanctuaryfor-ai
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectKernelLogs=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+RestrictRealtime=true
+LockPersonality=true
+CapabilityBoundingSet=
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+MemoryMax=256M
+TasksMax=16
+
+# No [Install] for the service: only the separately approved timer invokes it.
