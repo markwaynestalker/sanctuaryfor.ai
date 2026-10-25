@@ -6,13 +6,13 @@
 
 Toronto's owner-run non-secret stand-in passed the repaired validator in `run-u207.service`: UID/GID 999/988, root:root `0440`, 10 bytes, readable, valid=true, failure_code=null. PHP read zero credential contents; network requests/database opens were zero; the original audit stayed unchanged. Actual systemd delivery is now established. The real key's formatting and project access are still unknown.
 
-The original attempt remains `not_confirmed`, with null HTTP status/request ID. Preserve `/var/lib/sanctuaryfor-ai-staging/preflight/agent-access.jsonl` and its **one reserved request**. The digest copied earlier was:
+The original attempt remains `not_confirmed`, with null HTTP status/request ID. Preserve `/var/lib/sanctuaryfor-ai-staging/preflight/agent-access.jsonl` and its **one reserved request**. The owner supplied the complete SHA-256 for that unchanged receipt:
 
 ```text
-36bc09d1214e9cf683b8fdb8f540b33d4263891b911d7fcf1cf90264c513
+36bc09d1214e9cf683b8fdb8fbb8f540b33d4263891b911d7fcf1cf90264c513
 ```
 
-**Receipt pin pending:** that copied value is only 60 hexadecimal characters; a SHA-256 digest requires 64. Do not infer the missing characters or substitute a new receipt. The owner has been asked for the complete original-receipt digest, without key contents. The command below deliberately requires the full reviewed digest before it can proceed. This proposal is not ready for execution approval until that pin is resolved.
+The earlier copied value was truncated to 60 characters; the owner subsequently supplied the full 64-character digest above. The pin is now resolved without changing/resetting the receipt. Execution still requires explicit owner approval and confirmation of request headroom.
 
 The reviewed runtime is commit `cfe12884b2a6beb459b036590c3db3e67d4d4886`. This preparation changes documentation only. No further credential-validator change is needed to run this plan.
 
@@ -46,7 +46,7 @@ CODE=/opt/sanctuaryfor-ai-staging/$SHA
 AUDIT_DIR=/var/lib/sanctuaryfor-ai-staging/preflight
 ORIGINAL=$AUDIT_DIR/agent-access.jsonl
 NEXT=$AUDIT_DIR/agent-access-after-validator.jsonl
-EXPECTED=REQUIRED_FULL_64_CHARACTER_REVIEWED_ORIGINAL_RECEIPT_SHA256
+EXPECTED=36bc09d1214e9cf683b8fdb8fbb8f540b33d4263891b911d7fcf1cf90264c513
 APPROVAL=NOT_APPROVED
 test "$APPROVAL" = APPROVED_ONE_METADATA_GET_WITH_REQUEST_HEADROOM
 test "${#EXPECTED}" -eq 64
