@@ -28,7 +28,7 @@
     position:absolute;
     width:25%;
     height:25%;
-    border:1px dashed #abc6a344;
+    border:1px dashed var(--shell,#abc6a344);
     background:#a4cf9d08
 }
 .map-plot>span{

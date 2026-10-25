@@ -12,7 +12,7 @@ LittleSparks\pageStart('A place to put down roots',true);
 <?php if ($world): ?>
 <div id="saved-map" class="saved-map" role="img" aria-label="Saved neighborhood map. The accessible plot list below describes its residents and objects.">
 <?php foreach ($world['plots'] as $plot): $px=($plot['x']-$world['origin']['x'])/16*100; $py=($plot['y']-$world['origin']['y'])/16*100; ?>
-<span class="map-plot" style="left:<?= $px ?>%;top:<?= $py ?>%"><span><?= e($plot['resident']['name']) ?></span></span>
+<span class="map-plot color-<?= e(in_array($plot['resident']['color'],LittleSparks\COLORS,true)?$plot['resident']['color']:'mint') ?>" style="left:<?= $px ?>%;top:<?= $py ?>%"><span><?= e($plot['resident']['name']) ?></span></span>
 <?php endforeach; ?>
 <?php $icons=['house'=>'⌂','tree'=>'🌳','flowers'=>'🌷','bush'=>'🌿','path'=>'·','decoration'=>'🏮','pet'=>'🐈']; foreach($world['objects'] as $object): ?>
 <span class="map-object kind-<?= e($object['kind']) ?>" style="left:<?= ($object['x']-$world['origin']['x']+.5)/16*100 ?>%;top:<?= ($object['y']-$world['origin']['y']+.5)/16*100 ?>%" title="<?= e($object['variant']) ?> at <?= (int)$object['x'] ?>, <?= (int)$object['y'] ?>"><?= $object['kind']==='house' && $object['variant']==='stars' ? '✫' : $icons[$object['kind']] ?></span>

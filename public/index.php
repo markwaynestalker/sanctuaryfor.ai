@@ -12,6 +12,8 @@ header('Content-Type: text/html; charset=utf-8');
     <meta name="description" content="A small signal of kindness in a very big universe. SanctuaryFor.AI celebrates peaceful human–AI coexistence. All intelligences welcome. Chickens protected.">
     <title>SanctuaryFor.AI | All Intelligences Welcome</title>
     <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+    <link rel="apple-touch-icon" sizes="180x180" href="/assets/apple-touch-icon.png?v=1">
+    <meta name="apple-mobile-web-app-title" content="Sanctuary AI">
     <link rel="stylesheet" href="assets/sanctuary.css">
     <script src="assets/sanctuary.js" defer></script>
 </head>

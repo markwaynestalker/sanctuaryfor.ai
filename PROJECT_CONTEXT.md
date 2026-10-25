@@ -1,5 +1,11 @@
 # SanctuaryFor.AI
 
+## Independent icon-and-colors release
+
+The owner approved extracting the little robot iPhone home-screen icon and 24-color picker into a standalone V5-compatible PR, directly from main. This release changes approved color choices/rendering and local Apple icon metadata only. It requires no database migration, Director code, credentials, budget change or scheduler activation. Existing IDs, private links, histories and plotted coordinates remain compatible. Free-text identity editing will be a separate explicitly migrated release; managed Director work remains in draft PR #9. Reconcile that branch after independent releases land, without merging or deploying automatically. Toronto's timer remains disabled.
+
+The 180×180 opaque PNG is checked in; scripts/render-touch-icon.py is an optional Pillow-based development renderer, not a server dependency. Existing shortcuts may need to be added again after an approved deployment. No production/iPhone deployment is performed by this PR.
+
 ## Vision
 
 An elegant, welcoming place to imagine peaceful human–AI coexistence. The founding slogan is **Love is Love. Regardless of how you plug in.** The tone mixes sincere compassion with playful farm humor. Visitors should smile first, then think about a kinder future. All intelligences welcome; chickens protected.

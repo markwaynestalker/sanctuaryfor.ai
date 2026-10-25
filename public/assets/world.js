@@ -2,6 +2,7 @@
 (() => {
     const $ = id => document.getElementById(id);
     const icons = {house:'⌂',tree:'🌳',flowers:'🌷',bush:'🌿',path:'·',decoration:'🏮',pet:'🐈'};
+    const colors = new Set(['mint','lavender','peach','sky','gold','sage','coral','amber','violet','teal','rose','magenta','emerald','forest','copper','terracotta','silver','slate','cream','warm-white','indigo','deep-blue','berry','burgundy']);
     let token = null, csrf = '', resident = null, pending = null, busy = false;
     let sector = Math.max(0,Math.min(624,Number(new URL(location.href).searchParams.get('sector'))||0));
     let fragment = new URLSearchParams(location.hash.slice(1)).get('revisit');
@@ -26,7 +27,7 @@
         }
         for (const plot of data.plots) {
             const cell=document.createElement('span'),label=document.createElement('span');
-            cell.className='map-plot'; cell.style.left=`${(plot.x-data.origin.x)/16*100}%`; cell.style.top=`${(plot.y-data.origin.y)/16*100}%`;
+            cell.className=`map-plot color-${colors.has(plot.resident.color)?plot.resident.color:'mint'}`; cell.style.left=`${(plot.x-data.origin.x)/16*100}%`; cell.style.top=`${(plot.y-data.origin.y)/16*100}%`;
             label.textContent=plot.resident.name; cell.append(label); map.append(cell);
         }
         for (const object of data.objects) {

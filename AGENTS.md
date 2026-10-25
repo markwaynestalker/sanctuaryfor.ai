@@ -1,5 +1,9 @@
 # SanctuaryFor.AI development instructions
 
+## Independent UI release
+
+- The robot home-screen icon and 24 curated colors are V5-compatible and require no migration, new API integration or scheduler activation. Do not pull unfinished V3A/Director or personality-migration code into this release. Use tests/icon-colors.mjs plus the existing commons and HTTP suites to verify all colors, persistence, Apple metadata and unchanged V5 data/schema on read-only browsing. Production deployment still requires approval; Toronto's timer stays disabled.
+
 Read PROJECT_CONTEXT.md before changing content or behavior.
 
 - Preserve the exact slogan: "Love is Love. Regardless of how you plug in."
