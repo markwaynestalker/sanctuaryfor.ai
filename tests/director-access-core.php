@@ -76,6 +76,7 @@ $originalAt='2026-10-25T15:45:02Z';$successorAt='2026-10-25T16:32:54Z';
 foreach([[$dir.'/credential.jsonl',$original,$originalAt],[$dir.'/good.jsonl',$successor,$successorAt]] as [$source,$target,$at]){
     $rows=array_map(fn($line)=>json_decode($line,true,16,JSON_THROW_ON_ERROR),explode("\n",trim((string)file_get_contents($source))));
     foreach($rows as &$row)$row['at']=$at;unset($row);
+    if($target===$original)unset($rows[1]['failure_code']); // Exact original v76d900c writer format predates this optional field.
     file_put_contents($target,implode("\n",array_map(fn($r)=>json_encode($r,JSON_THROW_ON_ERROR),$rows))."\n");
 }
 $originalHash=hash_file('sha256',$original);$successorHash=hash_file('sha256',$successor);
@@ -88,7 +89,7 @@ try{LittleSparks\reconcileDirectorAccess($auditDir,str_repeat('0',64),$successor
 if(hash_file('sha256',$original)!==$originalHash||hash_file('sha256',$successor)!==$successorHash)throw new RuntimeException('Read-only reconciliation modified receipt');
 $badDir=$dir.'/invalid-reconciliation';mkdir($badDir,0700);copy($original,$badDir.'/agent-access.jsonl');
 $validRows=array_map(fn($line)=>json_decode($line,true,16,JSON_THROW_ON_ERROR),explode("\n",trim((string)file_get_contents($successor))));
-foreach(['duplicate_id','wrong_agent','extra_request','generated','mismatched_time','unconfirmed','wrong_model','extra_row'] as $mode){
+foreach(['duplicate_id','wrong_agent','extra_request','generated','mismatched_time','unconfirmed','extra_row','wrong_model'] as $mode){
     $rows=$validRows;
     foreach($rows as &$row){
         if($mode==='duplicate_id')$row['check_id']=$reconciled['receipts'][0]['check_id'];

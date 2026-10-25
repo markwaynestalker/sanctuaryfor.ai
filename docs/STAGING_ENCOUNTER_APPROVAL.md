@@ -49,6 +49,8 @@ Descriptions are proposed test data for owner review, not a claim that the owner
 
 ## No-cost owner preparation
 
+If preparation already created the experiment directory and then reconciliation failed, **do not rerun the create-directory block or replace any file**. Follow [the focused reconciliation/continuation procedure](STAGING_RECONCILIATION_RECOVERY.md). It uses the existing setup, retains the failed output and stops if database/registration/permit work has already started.
+
 Use a new root-owned read-only checkout of the **reviewed updated PR #9 commit**, not the older cfe1288 checkout. The new code fingerprint changes the permit binding; do not reuse an old permit. Fill SHA below with that reviewed full SHA. These commands prepare a **new isolated staging DB only**, make no API request, load no credential and cannot generate dialogue. No production migration or scheduler change is included. Codex has not executed these on Toronto.
 
 Run in the owner's existing privileged shell. Keep a failed preparation directory/evidence for diagnosis; do not delete/reset it to repeat a paid test.

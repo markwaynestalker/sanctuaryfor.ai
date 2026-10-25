@@ -67,36 +67,47 @@ function agentAccessPreflight(string $auditPath,AgentAccessReadTransport $transp
     }finally{fclose($handle);}
 }
 
+final class AccessReconciliationFailure extends \RuntimeException
+{
+    public function __construct(public readonly string $stage,public readonly ?string $receipt=null,public readonly ?string $field=null,public readonly ?int $row=null)
+    {parent::__construct('Invalid access evidence.');}
+}
 /** Read existing metadata receipts only. No key, HTTP, SQLite or receipt writes. */
 function reconcileDirectorAccess(string $directory,string $originalHash,string $authorizedHash):array
 {
     $records=[];
     foreach(['agent-access.jsonl'=>$originalHash,'agent-access-after-validator.jsonl'=>$authorizedHash] as $name=>$expected){
-        if(!preg_match('/\A[a-f0-9]{64}\z/',$expected))throw new \RuntimeException('Invalid access evidence.');
-        $path=databasePath($directory.'/'.$name);
-        if(is_link($path)||!is_file($path)||filesize($path)>8192)throw new \RuntimeException('Invalid access evidence.');
+        $fail=static fn(string $stage,?string $field=null,?int $row=null)=>throw new AccessReconciliationFailure($stage,$name,$field,$row);
+        if(!preg_match('/\A[a-f0-9]{64}\z/',$expected))$fail('hash_format_invalid','sha256');
+        try{$path=databasePath($directory.'/'.$name);}catch(\Throwable){$fail('private_path_or_permissions');}
+        if(is_link($path)||!is_file($path)||filesize($path)>8192)$fail('file_safety');
         $raw=@file_get_contents($path,false,null,0,8193);
-        if(!is_string($raw)||strlen($raw)>8192||!hash_equals($expected,hash('sha256',$raw)))throw new \RuntimeException('Invalid access evidence.');
-        $lines=explode("\n",rtrim($raw,"\r\n"));if(count($lines)!==2)throw new \RuntimeException('Invalid access evidence.');
-        $start=json_decode($lines[0],true,16,JSON_THROW_ON_ERROR);$end=json_decode($lines[1],true,16,JSON_THROW_ON_ERROR);
-        if(!is_array($start)||!is_array($end)||($start['state']??null)!=='started'
-            ||!is_string($start['check_id']??null)||!preg_match('/\A[a-f0-9]{32}\z/',$start['check_id'])
-            ||!is_string($start['at']??null)||!preg_match('/\A[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z\z/',$start['at'])
-            ||gmdate('Y-m-d\TH:i:s\Z',strtotime($start['at'])?:0)!==$start['at'])throw new \RuntimeException('Invalid access evidence.');
+        if(!is_string($raw)||strlen($raw)>8192)$fail('file_read');
+        if(!hash_equals($expected,hash('sha256',$raw)))$fail('hash_mismatch','sha256');
+        $lines=explode("\n",rtrim($raw,"\r\n"));if(count($lines)!==2)$fail('line_count');
+        try{$start=json_decode($lines[0],true,16,JSON_THROW_ON_ERROR);$end=json_decode($lines[1],true,16,JSON_THROW_ON_ERROR);}
+        catch(\JsonException){$fail('json_invalid');}
+        if(!is_array($start)||!is_array($end))$fail('row_shape');
+        if(($start['state']??null)!=='started')$fail('intent_invalid','state',0);
+        if(!is_string($start['check_id']??null)||!preg_match('/\A[a-f0-9]{32}\z/',$start['check_id']))$fail('intent_invalid','check_id',0);
+        if(!is_string($start['at']??null)||!preg_match('/\A[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z\z/',$start['at'])
+            ||gmdate('Y-m-d\TH:i:s\Z',strtotime($start['at'])?:0)!==$start['at'])$fail('intent_invalid','at',0);
         foreach(['schema'=>'sanctuary.agent-access.v1','check_id'=>$start['check_id'],'agent_id'=>ACCESS_CHECK_AGENT,
             'method'=>'GET','path'=>'/v1/agents/'.ACCESS_CHECK_AGENT,'http_requests_reserved'=>1,'generation_requests'=>0,'database_opened'=>false,'at'=>$start['at']] as $key=>$value)
-            if(($start[$key]??null)!==$value||($end[$key]??null)!==$value)throw new \RuntimeException('Invalid access evidence.');
+            foreach([$start,$end] as $index=>$row)if(($row[$key]??null)!==$value)$fail('shared_field_mismatch',$key,$index);
         $successful=$name==='agent-access-after-validator.jsonl';
-        if(($end['state']??null)!==($successful?'authorized':'not_confirmed')||($end['authorized']??null)!==$successful)throw new \RuntimeException('Invalid access evidence.');
+        if(($end['state']??null)!==($successful?'authorized':'not_confirmed'))$fail('outcome_invalid','state',1);
+        if(($end['authorized']??null)!==$successful)$fail('outcome_invalid','authorized',1);
         if($successful){
             foreach(['model_matches','tools_disabled','subagents_disabled','configuration_matches'] as $field)
-                if(($end[$field]??null)!==true)throw new \RuntimeException('Invalid access evidence.');
-            if(($end['http_status']??null)!==200)throw new \RuntimeException('Invalid access evidence.');
+                if(($end[$field]??null)!==true)$fail('authorization_field_invalid',$field,1);
+            if(($end['http_status']??null)!==200)$fail('authorization_field_invalid','http_status',1);
         }
         $records[]=['receipt'=>$name,'sha256'=>$expected,'check_id'=>$start['check_id'],'at'=>$start['at'],
             'day'=>substr($start['at'],0,10),'state'=>$end['state'],'http_requests_reserved'=>1];
     }
-    if($records[0]['check_id']===$records[1]['check_id']||$records[1]['at']<$records[0]['at'])throw new \RuntimeException('Invalid access evidence.');
+    if($records[0]['check_id']===$records[1]['check_id'])throw new AccessReconciliationFailure('duplicate_checks',null,'check_id');
+    if($records[1]['at']<$records[0]['at'])throw new AccessReconciliationFailure('chronology_invalid',null,'at');
     $days=[];foreach($records as $r)$days[$r['day']]=($days[$r['day']]??0)+1;
     return ['schema'=>'sanctuary.access-reconciliation.v1','receipts'=>$records,'reserved_by_utc_day'=>$days,
         'total_requests_reserved'=>2,'new_http_requests'=>0,'generation_requests'=>0,'credential_loaded'=>false,'database_opened'=>false];
