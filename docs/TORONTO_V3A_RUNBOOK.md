@@ -1,4 +1,42 @@
-# Toronto V3A maintenance runbook — prepared, NOT executed
+# Toronto maintenance runbook — owner-run deployment only
+
+## Current lifecycle fix and production hotfix (2026-10-25)
+
+Production is already V6. The owner reports the following current overrides; this PR does not change them:
+
+```dotenv
+LITTLE_SPARKS_AI_DAILY_REQUESTS=200
+LITTLE_SPARKS_RESIDENT_DAILY_MAX=100
+LITTLE_SPARKS_DIRECTOR_ENABLED=1
+LITTLE_SPARKS_DIRECTOR_RUNTIME=agents
+LITTLE_SPARKS_SIMULATION_INTERVAL_MINUTES=15
+LITTLE_SPARKS_SCHEDULER_ALLOW_PAID=1
+LITTLE_SPARKS_AI_ENABLED=1
+```
+
+`sanctuary-village.timer` is enabled and active. `sanctuary-village.service` has `TimeoutStartSec=50s`. Do not install, disable, restart or reconfigure the production timer as part of this PR. No production command or paid evaluation was executed while preparing it.
+
+**The production checkout is dirty.** The owner applied and syntax-checked this uncommitted change in `scripts/scheduled-village.php`:
+
+```php
+if($paid){LittleSparks\aiConfiguration(time());LittleSparks\loadScheduledCredential();}
+```
+
+The PR contains this exact condition. V6 identities must not skip protected credential loading. The existing CLI loader reads systemd's `CREDENTIALS_DIRECTORY/openai_api_key` only after paid gates/configuration validation; it does not depend on PHP-FPM credentials, return the key or log it. The process environment is restored in `finally`. `--check` reads neither a credential nor SQLite.
+
+Owner deployment checklist:
+
+1. Inspect `git status --short` and `git diff -- scripts/scheduled-village.php` in `/var/www/sanctuaryfor.ai`. Save the complete local diff and current file into a unique, owner-selected private backup outside `public/`. Stop if there are additional/unexpected edits. Never use `git reset --hard` or overwrite the dirty file blindly.
+2. Coordinate the existing deployment procedure with the active timer and an idle service. Inspect `systemctl is-active sanctuary-village.service` and `systemctl list-timers sanctuary-village.timer`; use the owner's safe deployment window/atomic release process without changing the timer or environment. Preserve an approved consistent V6 SQLite backup using the existing backup procedure. This patch requires **no migration**.
+3. After reviewing/backing up the exact one-line hotfix, the owner can stash only that file with `git stash push -m 'Preserve Toronto scheduler credential hotfix' -- scripts/scheduled-village.php`, recording the resulting stash ID. Then deploy the reviewed PR through the existing procedure. Keep the backup/stash until verification; the new source already contains the hotfix, so do not blindly pop the stash over it.
+4. Run `php8.3 -l scripts/scheduled-village.php` and invoke `php8.3 scripts/scheduled-village.php --check` in the existing approved service environment (a bare shell may report default paused settings). The latter only validates configuration and reports readiness. Do not run the paid scheduler manually as a deployment check. Verify the deployed condition matches the saved hotfix and the service/timer retain their pre-deployment state.
+5. Monitor the next ordinarily scheduled, eligible opportunity and its private ledger/journal. Do not replay `op:2026-10-25T21:15:00Z`, clear earlier uncertainty, invent billing evidence, or insert the already-generated Luna/Max exchange manually. Existing unresolved accounting holds can still block new work; this patch does not reconcile them.
+
+Polling retains the existing eight-slot envelope: fresh session create + inspection (or reused-session inspection + one input submission), up to three read-only turn inspections spaced four seconds apart, output retrieval, moderation, and a final observation when capacity/time remains. An empty early page or the prior reused-session turn is not completion. Every inspection is durably counted; no request limit, monthly allocation, simulation interval, schema or resident data changes. The lifecycle stops within a 45-second process budget (30-second polling cutoff), leaving time for finishing work and five seconds below the systemd timeout. Timeout/cancellation retains unknown charges and never resends generation.
+
+Rollback is code-only through the owner's existing release procedure, preserving the scheduler hotfix. Do not restore an older SQLite file or reset ledgers/history to roll back this code change.
+
+## Historical V3A preparation (superseded by the current production state above)
 
 **Current decision: do not merge/deploy the live managed Director yet.** See V3A_MANAGED_SAFETY.md for the unresolved provider-bound and staging gates. These are exact future operator steps, not authorization to execute them. No production connection, configuration change, backup, migration, paid call or service operation was performed in preparing this document.
 

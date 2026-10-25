@@ -12,7 +12,8 @@ try{
  const inspection=JSON.parse(run(['scripts/inspect-identity.php','--database='+join(dir,'village.sqlite')]));assert.equal(inspection.identity_edits,1);assert.equal(inspection.integrity,'ok');
  assert.equal(JSON.parse(run(['tests/identity-core.php',dir,'daily'])).daily_checks,'passed');
  const paid={LITTLE_SPARKS_SCHEDULER_ENABLED:'1',LITTLE_SPARKS_SCHEDULER_ALLOW_PAID:'1',LITTLE_SPARKS_SIMULATION_ENABLED:'1',LITTLE_SPARKS_AI_ENABLED:'1',LITTLE_SPARKS_DB:join(dir,'village.sqlite'),CREDENTIALS_DIRECTORY:join(dir,'nonexistent-credentials')};
- const paused=JSON.parse(run(['scripts/scheduled-village.php'],paid));assert.equal(paused.reason,'identity_runtime_pending','No credential loading even with legacy paid flags armed');
+ const rejected=spawnSync(php,['scripts/scheduled-village.php'],{cwd:root,env:{...env,...paid},encoding:'utf8'});assert.notEqual(rejected.status,0,'Explicitly paid scheduler now validates configuration/credentials for identity-enabled schemas too');
+ const paused=JSON.parse(run(['scripts/scheduled-village.php'],{...paid,LITTLE_SPARKS_SCHEDULER_ALLOW_PAID:'0'}));assert.equal(paused.reason,'identity_runtime_pending','Identity-only schema remains paused without a paid invocation');
  const sessions=join(dir,'sessions');await mkdir(sessions,{mode:0o700});
  const port=await new Promise(ok=>{const s=createServer();s.listen(0,'127.0.0.1',()=>{const p=s.address().port;s.close(()=>ok(p));});});
  server=spawn(php,['-d',`session.save_path=${sessions}`,'-S',`127.0.0.1:${port}`,'-t','public'],{cwd:root,env:{...env,LITTLE_SPARKS_DB:join(dir,'village.sqlite'),LITTLE_SPARKS_SECURE_COOKIES:'0'},stdio:'ignore'});

@@ -90,53 +90,8 @@ function assertManagedSession(array $remote,array $registered,string $id,bool $r
 }
 function managedDirectorEncounter(PDO $db,DirectorTransport $transport,array $attempt,array $session,array $registered,array $prepared,array $choices):array
 {
-    $sid=$session['provider_session_id'];$step=0;
-    $request=function(string $method,string $path,?array $body=null,?string $key=null)use($db,$transport,$attempt,&$step):array{
-        if($step++>4)throw new AiGuard('daily_request_cap');
-        $sequence=startManagedHttp($db,$attempt,$method,$path);
-        try{$result=$transport->request($method,$path,$body,$attempt['expires'],$key);finishManagedHttp($db,$attempt,$sequence,$result['_http']??[]);unset($result['_http']);return $result;}
-        catch(\Throwable $e){finishManagedHttp($db,$attempt,$sequence,$e instanceof ManagedHttpFailure?['status'=>$e->status,'request_id'=>$e->requestId,'succeeded'=>false,'validation'=>$e->validation]:null);throw $e;}
-    };
-    try{
-        if($sid!==null){
-            $remote=$request('GET','agents/sessions/'.$sid);
-            assertManagedSession($remote,$registered,$sid,true);
-            $request('POST','agents/sessions/'.$sid.'/events',['events'=>[['type'=>'agent.session.input.message','input'=>[['role'=>'user','content'=>[['type'=>'input_text','text'=>json_encode($prepared['context'],JSON_THROW_ON_ERROR|JSON_UNESCAPED_UNICODE)]]]]]]],$attempt['id']);
-        }else{
-            $external=json_decode($registered['configuration'],true,16,JSON_THROW_ON_ERROR);
-            $body=managedDirectorPrototype($external,$prepared['context'],$choices);
-            $body['metadata']=['sanctuary_attempt_id'=>$attempt['id'],'contract'=>'sanctuary.director.v1'];
-            $remote=$request('POST','agents/sessions',$body,$attempt['id']);
-            $sid=$remote['id']??null;
-            if(!is_string($sid)||!preg_match('/\A[a-zA-Z0-9_-]{1,128}\z/',$sid))throw new AiGuard('transport_uncertain');
-            $db->prepare("UPDATE director_sessions SET provider_session_id=?,state='ready',updated_at=? WHERE id=?")->execute([$sid,gmdate('Y-m-d\TH:i:s\Z'),$session['id']]);
-            assertManagedSession($remote,$registered,$sid,false);
-        }
-        // One bounded inspection, never a polling loop or automatic resend.
-        $turns=$request('GET','agents/sessions/'.$sid.'/turns?limit=1&order=desc');$turn=$turns['data'][0]??null;
-        if(!is_array($turn)||($turn['status']??null)!=='completed'||($turn['session_id']??null)!==$sid||($turn['agent_id']??null)!==$registered['agent_id']||($turn['subagent_id']??null)!==null
-            ||($turn['error']??null)!==null||!is_string($turn['id']??null)||$turn['id']===$session['last_turn_id']||!preg_match('/\A[a-zA-Z0-9_-]{1,128}\z/',$turn['id']))throw new AiGuard('usage_unknown');
-        if(observeManagedUsage($db,$attempt,$turn['id'],$turn['usage']??null,aiConfiguration(time()))===null)throw new AiGuard('usage_unknown');
-        recordManagedOutcome($db,$attempt,$sid,$turn['id'],'completed');
-        $items=$request('GET','agents/sessions/'.$sid.'/turns/'.$turn['id'].'/items?limit=20&order=asc');
-        if(($items['has_more']??true)!==false||!is_array($items['data']??null))throw new AiGuard('usage_unknown');
-        $texts=[];foreach($items['data'] as $item){
-            if(($item['type']??null)==='reasoning')continue;
-            if(($item['type']??null)==='message'&&($item['role']??null)==='user')continue;
-            if(($item['type']??null)!=='message'||($item['role']??null)!=='assistant')throw new AiGuard('invalid_proposal');
-            if(($item['phase']??null)!=='final_answer'||($item['status']??null)!=='completed'||($item['turn_id']??null)!==$turn['id'])throw new AiGuard('invalid_proposal');
-            foreach($item['content']??[] as $c){if(($c['type']??null)!=='output_text'||!is_string($c['text']??null))throw new AiGuard('invalid_proposal');$texts[]=$c['text'];}
-        }
-        if(count($texts)!==1||strlen($texts[0])>4096)throw new AiGuard('invalid_proposal');
-        $decoded=json_decode($texts[0],true,12,JSON_THROW_ON_ERROR);if(!is_array($decoded))throw new AiGuard('invalid_proposal');
-        $proposal=parseDirectorProposal($decoded,$prepared['context']['participants'],$choices);
-        $moderation=$request('POST','moderations',['model'=>'omni-moderation-latest','input'=>json_encode([$prepared['context'],$decoded],JSON_THROW_ON_ERROR|JSON_UNESCAPED_UNICODE)]);
-        if(count($moderation['results']??[])!==1||($moderation['results'][0]['flagged']??null)!==false)throw new AiGuard('moderation_rejected');
-        $db->prepare('UPDATE director_sessions SET turns=turns+1,last_turn_id=? WHERE id=?')->execute([$turn['id'],$session['id']]);
-        return ['proposal'=>$proposal,'observed_usage'=>$turn['usage']??null,'turn_id'=>$turn['id']];
-    }catch(\Throwable $e){
-        $db->prepare("UPDATE director_sessions SET state=? WHERE id=?")->execute([$e instanceof AiGuard&&$e->reason==='session_unavailable'?'unavailable':'uncertain',$session['id']]);throw $e;
-    }
+    // Both managed adapters share the same audited wait and cancellation bounds.
+    return stagingManagedEncounter($db,$transport,$attempt,$session,$registered,$prepared,$choices,null,null,false,true);
 }
 
 function simulateDirectorOpportunity(PDO $db,string $at,bool $allowPaid,?AiTransport $responses=null,?DirectorTransport $managed=null,?int $now=null,?DirectorContextProvider $contextProvider=null,bool $conversationOnly=false,?StagingPermit $staging=null,bool $configuredManaged=false,?string $stagingContinueAfter=null):array
@@ -180,13 +135,13 @@ function simulateDirectorOpportunity(PDO $db,string $at,bool $allowPaid,?AiTrans
         $pricing['director_session']=$session['id'];$pricing['director_runtime']=$cfg['runtime'];
         $pricing['director_once']=$staging!==null;
         $pricing['director_context']=hash('sha256',json_encode($prepared['context'],JSON_THROW_ON_ERROR|JSON_UNESCAPED_UNICODE));
-        if($managed!==null)$pricing['director_slots']=$session['provider_session_id']===null?4:5;
+        if($managed!==null)$pricing['director_slots']=8; // Creation/submission, bounded reads, items, moderation, cleanup.
         if($configuredManaged)$pricing['director_slots']=8; // Bounded wire lifecycle, not a daily ceiling.
         if($stagingContinueAfter!==null)$pricing['staging_continue_after']=$stagingContinueAfter;
         if($staging!==null){$staging->assertEncounter($db,$at,$registered,$prepared);$pricing['director_slots']=8;$pricing['staging_allocation']=100000;}
         $attempt=reserveAi($db,$claim['id'],$claim['pair'],$pricing,$now);
         if($managed!==null){
-            $result=($staging!==null||$configuredManaged)?stagingManagedEncounter($db,$managed,$attempt,$session,$registered,$prepared,$choices,null,null,$conversationOnly):managedDirectorEncounter($db,$managed,$attempt,$session,$registered,$prepared,$choices);$proposal=$result['proposal'];
+            $result=($staging!==null||$configuredManaged)?stagingManagedEncounter($db,$managed,$attempt,$session,$registered,$prepared,$choices,null,null,$conversationOnly,$staging===null):managedDirectorEncounter($db,$managed,$attempt,$session,$registered,$prepared,$choices);$proposal=$result['proposal'];
             if($configuredManaged&&$staging===null)$proposal['managed_commitment']=$attempt['reserved'];
             // Best-effort usage is not final billing. Successful configured calls
             // retain their full commitment; experimental/failed outcomes keep holds.

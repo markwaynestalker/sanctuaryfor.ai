@@ -70,12 +70,12 @@ final class OpenAiManagedTransport implements DirectorTransport
                 if(strlen($response)+strlen($chunk)>262144)return 0;$response.=$chunk;return strlen($chunk);
             }]);
         if($encoded!==null)curl_setopt($curl,CURLOPT_POSTFIELDS,$encoded);
-        try{
+        $status=null;try{
             $ok=curl_exec($curl);$status=(int)curl_getinfo($curl,CURLINFO_RESPONSE_CODE);
             if($ok===false||$status<200||$status>299)throw new ManagedHttpFailure($status?:null,$requestId,$ok===false?null:managedValidationError($status,$response));
             $data=json_decode($response,true,32,JSON_THROW_ON_ERROR);if(!is_array($data)||array_is_list($data))throw new ManagedHttpFailure($status,$requestId);
             $data['_http']=['status'=>$status,'request_id'=>$requestId];return $data;
-        }catch(ManagedHttpFailure $e){throw $e;}catch(\Throwable){throw new ManagedHttpFailure(null,$requestId);}
+        }catch(ManagedHttpFailure $e){throw $e;}catch(\Throwable){throw new ManagedHttpFailure($status?:null,$requestId);}
         finally{curl_close($curl);unset($key,$headers,$response);}
     }
 }
