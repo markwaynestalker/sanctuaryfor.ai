@@ -33,6 +33,7 @@ final class LifecycleTransport implements LittleSparks\DirectorTransport
             if($this->mode==='changed_turn'&&$this->inspections>1)$r['data'][0]['id']='turn_changed';
             if($this->mode==='old_created')$r['data'][0]['created_at']=$this->clock->now-100;
             if($this->mode==='missing_created')unset($r['data'][0]['created_at']);
+            if($this->mode==='usage_missing')unset($r['data'][0]['usage']);
             return $r;
         }
         $r=$this->inner->request($method,$path,$body,$deadline,$key);
@@ -46,7 +47,7 @@ try{
     putenv('LITTLE_SPARKS_AI_DAILY_REQUESTS=200');putenv('LITTLE_SPARKS_AI_MONTHLY_MICROUSD=1000000');
     $cases=[
         'immediate'=>[['completed'],true,false], 'queued'=>[['queued','completed'],true,false],
-        'running'=>[['queued','in_progress','completed'],true,false], 'empty'=>[['empty','completed'],true,false], 'waiting'=>[['waiting','completed'],true,false],
+        'running'=>[['queued','in_progress','completed'],true,false], 'usage_missing'=>[['queued','in_progress','completed'],true,false], 'empty'=>[['empty','completed'],true,false], 'waiting'=>[['waiting','completed'],true,false],
         'reused'=>[['stale','in_progress','completed'],true,true], 'stale'=>[['stale'],false,true],
         'never'=>[['in_progress'],false,false], 'deadline'=>[['in_progress'],false,false],
         'http_error'=>[['in_progress'],false,false], 'wrong_session'=>[['completed'],false,false],
@@ -81,7 +82,8 @@ try{
         if($success)check(!$transport->cancelled&&$db->query('SELECT state FROM director_sessions LIMIT 1')->fetchColumn()==='ready','Continuity committed only with valid result: '.$mode);
         if(in_array($mode,['never','cancel_uncertain'],true))check($transport->inspections>=3&&$transport->cancelled,'Exhaust bounded read-only observations before one cancellation');
         if($mode==='cancel_uncertain')check($db->query('SELECT status FROM director_managed_outcomes ORDER BY id DESC LIMIT 1')->fetchColumn()==='cancel_uncertain','Cancellation acknowledgement/outcome never invented');
-        if($mode==='running')check(count($transport->calls)===8,'Delayed success fits full eight-request envelope');
+        if(in_array($mode,['running','usage_missing'],true))check(count($transport->calls)===8,'Delayed success fits full eight-request envelope');
+        if($mode==='usage_missing')check($r['usage_uncertain']&&$db->query('SELECT state FROM ai_attempts LIMIT 1')->fetchColumn()==='uncertain','Three-poll completed turn saves without usage at any inspection');
     }
     // An exhausted scheduler process budget must refuse before any HTTP dispatch.
     define('LITTLE_SPARKS_SCHEDULED_DEADLINE',time()-1);

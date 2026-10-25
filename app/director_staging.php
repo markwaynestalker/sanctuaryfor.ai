@@ -164,7 +164,10 @@ function stagingManagedEncounter(PDO $db,DirectorTransport $transport,array $att
         }
         if(!$terminal)throw new AiGuard('usage_unknown');
         if($turn['status']!=='completed'||($turn['error']??null)!==null)throw new AiGuard('invalid_proposal');
-        if($observed===null)throw new AiGuard('usage_unknown');
+        // Completed output and best-effort billing metadata are independent.
+        // Missing usage stays unknown; malformed supplied usage still fails closed.
+        $usageUncertain=$observed===null;
+        if($usageUncertain&&($turn['usage']??null)!==null)throw new AiGuard('usage_unknown');
         $items=$request('GET','agents/sessions/'.$sid.'/turns/'.$turnId.'/items?limit=20&order=asc');$proposalStage=null;
         try{
             $decoded=stagingItems($items,$turnId,$proposalStage);$proposalStage='proposal_content';
@@ -179,8 +182,10 @@ function stagingManagedEncounter(PDO $db,DirectorTransport $transport,array $att
         if(count($moderated['results']??[])!==1||($moderated['results'][0]['flagged']??null)!==false)throw new AiGuard('moderation_rejected');
         if($calls<8&&$clock()<$finishBy-2){$final=stagingTurn($request('GET','agents/sessions/'.$sid.'/turns?limit=1&order=desc',null,null,'final_turn',true),$sid,$registered,$turnId,$reusing);
             if($final['status']!=='completed'||($final['error']??null)!==null){recordManagedOutcome($db,$attempt,$sid,$turnId,'unresolved');throw new AiGuard('usage_unknown');}
-            if(observeManagedUsage($db,$attempt,$turnId,$final['usage']??null,aiConfiguration(time()))===null)throw new AiGuard('usage_unknown');}
-        $db->prepare('UPDATE director_sessions SET turns=turns+1,last_turn_id=? WHERE id=?')->execute([$turnId,$session['id']]);return ['proposal'=>$proposal,'observed_usage'=>$turn['usage']??null,'turn_id'=>$turnId];
+            if(observeManagedUsage($db,$attempt,$turnId,$final['usage']??null,aiConfiguration(time()))===null){
+                if(($final['usage']??null)!==null)throw new AiGuard('usage_unknown');$usageUncertain=true;
+            }}
+        $db->prepare('UPDATE director_sessions SET turns=turns+1,last_turn_id=? WHERE id=?')->execute([$turnId,$session['id']]);return ['proposal'=>$proposal,'observed_usage'=>$turn['usage']??null,'turn_id'=>$turnId,'usage_uncertain'=>$usageUncertain];
     }catch(\Throwable $e){
         $db->prepare('UPDATE director_sessions SET state=? WHERE id=?')->execute([$e instanceof AiGuard&&$e->reason==='session_unavailable'?'unavailable':'uncertain',$session['id']]);
         if(!$terminal&&$sid!==null&&$calls<8&&$clock()<$finishBy-2){

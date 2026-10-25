@@ -142,7 +142,7 @@ function simulateDirectorOpportunity(PDO $db,string $at,bool $allowPaid,?AiTrans
         $attempt=reserveAi($db,$claim['id'],$claim['pair'],$pricing,$now);
         if($managed!==null){
             $result=($staging!==null||$configuredManaged)?stagingManagedEncounter($db,$managed,$attempt,$session,$registered,$prepared,$choices,null,null,$conversationOnly,$staging===null):managedDirectorEncounter($db,$managed,$attempt,$session,$registered,$prepared,$choices);$proposal=$result['proposal'];
-            if($configuredManaged&&$staging===null)$proposal['managed_commitment']=$attempt['reserved'];
+            if($configuredManaged&&$staging===null&&!$result['usage_uncertain'])$proposal['managed_commitment']=$attempt['reserved'];
             // Best-effort usage is not final billing. Successful configured calls
             // retain their full commitment; experimental/failed outcomes keep holds.
             $usage=null; // Best-effort observations must remain uncertain even if apply later fails.

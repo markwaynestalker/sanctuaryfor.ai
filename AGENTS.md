@@ -1,5 +1,9 @@
 # SanctuaryFor.AI development instructions
 
+## Completed managed turns with missing usage
+
+Absent/null best-effort usage must not block retrieval, original dialogue validation, moderation or atomic conversation save for an otherwise verified completed turn. Keep missing observations/token estimates null and the full reserved cost/HTTP slots charged; a saved conversation can have uncertain accounting. A later missing usage observation is also nonblocking. Keep malformed supplied usage, turn identity/status/error, lease/deadline, idempotency and moderation checks intact. Use offline tests only; never replay production encounters or import trace usage as verified billing.
+
 ## Managed item extraction
 
 Turn item lists may contain user input, reasoning and assistant commentary alongside the final answer. Never parse inputs/commentary as proposals. Keep turn binding, exactly one completed assistant answer, bounded complete pages/text, original words, ordered resident IDs and moderation. Nullable answer phase is accepted only as a single unambiguous candidate; ambiguous/partial/tool outputs fail closed. Private proposal rejection receipts contain only item_envelope/proposal_json/proposal_content stage, never provider text. tests/director-items-core.php uses the exact owner-supplied Max/Princess proposal without private trace context; no production replay or live calls.

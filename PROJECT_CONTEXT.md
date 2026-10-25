@@ -1,5 +1,9 @@
 # SanctuaryFor.AI
 
+## Missing usage is independent of completed dialogue
+
+The 23:30 owner evidence identifies a pre-items usage_unknown gate despite a completed managed turn. Both pre-items and final best-effort usage absence/null now permit validated, moderated output to reach SQLite. The caller retains accounting uncertainty rather than marking the application hold settled: unknown observations/token estimates stay null, all eight reserved slots and full cost commitment remain. Missing usage never implies zero; trace token counts are not imported as billing evidence. Supplied invalid usage, identity, completion, moderation, deadlines, exact-once commit and autonomous scheduling protections remain. Tests cover initial/final/both missing metadata, moderation/identity rejection and a three-poll eight-request lifecycle. No migration or production replay/deployment/paid test is included.
+
 ## Managed item-envelope correction
 
 The supplied Max/Princess 23:00 trace has two 156-character messages that pass the unchanged proposal validator. It contains trace output, not the raw items HTTP response, so the precise historical envelope field cannot be proved from this artifact. A reproduced parser defect rejected documented user/commentary items alongside a valid final answer. Extraction now selects exactly one completed assistant answer, ignores input/commentary/reasoning as proposal sources, accepts documented nullable phase and concatenates bounded text parts within one message. Turn/identity validation, original words, moderation, autonomous scheduling and accounting remain. Private ai-status proposal_rejections distinguish envelope/JSON/content failures without logging text. The isolated exact-output fixture tests SQLite persistence; the production opportunity is never replayed.
