@@ -23,6 +23,8 @@ catch (Throwable) { $available = false; }
     <meta name="description" content="Meet the Little Sparks: a shared village of persistent virtual robot companions. Small characters. A little kindness. Chickens protected.">
     <title>Little Sparks Village | SanctuaryFor.AI</title>
     <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+    <link rel="apple-touch-icon" sizes="180x180" href="/assets/apple-touch-icon.png?v=1">
+    <meta name="apple-mobile-web-app-title" content="Sanctuary AI">
     <link rel="stylesheet" href="<?= escape(LittleSparks\assetUrl('sanctuary.css')) ?>">
     <link rel="stylesheet" href="<?= escape(LittleSparks\assetUrl('village.css')) ?>">
     <link rel="stylesheet" href="<?= escape(LittleSparks\assetUrl('world.css')) ?>">
@@ -64,7 +66,8 @@ catch (Throwable) { $available = false; }
             <form id="create-form">
                 <fieldset id="creation-fields" disabled><legend class="sr-only">Robot details</legend>
                     <label for="robot-name">Robot name <span>(1–24 characters)</span></label><input id="robot-name" name="name" type="text" maxlength="24" required autocomplete="off" aria-describedby="name-help"><p id="name-help" class="field-help">Letters, numbers, spaces, apostrophes, and hyphens.</p>
-                    <div class="form-row"><div><label for="robot-color">Color</label><select id="robot-color" name="color"><option value="mint">Mint</option><option value="lavender">Lavender</option><option value="peach">Peach</option><option value="sky">Sky</option><option value="gold">Gold</option></select></div><div><label for="robot-antenna">Antenna</label><select id="robot-antenna" name="antenna"><option value="orb">Little orb</option><option value="sprout">Garden sprout</option><option value="bolt">Lightning bolt</option></select></div></div>
+                    <div class="form-row"><div><label for="robot-color">Color</label><select id="robot-color" name="color"><?php foreach(LittleSparks\COLORS as $color): ?><option value="<?= escape($color) ?>"><?= escape(ucfirst(str_replace('-',' ',$color))) ?></option><?php endforeach; ?></select></div><div><label for="robot-antenna">Antenna</label><select id="robot-antenna" name="antenna"><option value="orb">Little orb</option><option value="sprout">Garden sprout</option><option value="bolt">Lightning bolt</option></select></div></div>
+                    <fieldset id="color-swatches" class="color-swatches"><legend>Or choose a color swatch</legend><?php foreach(LittleSparks\COLORS as $color): ?><button type="button" class="color-swatch color-<?= escape($color) ?>" data-color="<?= escape($color) ?>" aria-pressed="<?= $color==='mint'?'true':'false' ?>" aria-label="<?= escape(ucfirst(str_replace('-',' ',$color))) ?>"></button><?php endforeach; ?></fieldset>
                     <label for="robot-personality">Personality</label><select id="robot-personality" name="personality"><option value="curious">Curious · so much to discover</option><option value="playful">Playful · joy in small things</option><option value="shy">Shy · a gentle little hello</option><option value="philosophical">Philosophical · big thoughts, small feet</option></select>
                     <div class="honeypot" aria-hidden="true"><label for="robot-website">Leave this field empty</label><input id="robot-website" name="website" tabindex="-1" autocomplete="off"></div>
                     <div id="robot-preview" class="robot-preview" aria-label="Your robot preview"></div>

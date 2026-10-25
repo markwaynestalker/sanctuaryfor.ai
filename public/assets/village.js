@@ -1,7 +1,7 @@
 'use strict';
 (() => {
     const $ = (id) => document.getElementById(id);
-    const colors = new Set(['mint', 'lavender', 'peach', 'sky', 'gold']);
+    const colors = new Set(['mint','lavender','peach','sky','gold','sage','coral','amber','violet','teal','rose','magenta','emerald','forest','copper','terracotta','silver','slate','cream','warm-white','indigo','deep-blue','berry','burgundy']);
     const antennas = new Set(['orb', 'sprout', 'bolt']);
     const reduced = matchMedia('(prefers-reduced-motion: reduce)');
     const narrow = matchMedia('(max-width: 650px)');
@@ -31,6 +31,10 @@
     }
     let revisitToken = takePrivateFragment();
     const status = (message) => { $('form-status').textContent = message; };
+    const swatches = [...($('color-swatches')?.querySelectorAll?.('button') || [])];
+    const markColor = () => swatches.forEach(button => button.setAttribute('aria-pressed', String(button.dataset.color === $('robot-color').value)));
+    swatches.forEach(button => button.addEventListener('click', () => { $('robot-color').value = button.dataset.color; markColor(); previewRobot(); }));
+    $('robot-color').addEventListener('change', markColor);
     function robot(resident) {
         const element = document.createElement('span');
         element.className = `robot color-${colors.has(resident.color) ? resident.color : 'mint'} antenna-${antennas.has(resident.antenna) ? resident.antenna : 'orb'}`;
