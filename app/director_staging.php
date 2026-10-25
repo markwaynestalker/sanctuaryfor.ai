@@ -96,15 +96,29 @@ function stagingTurn(array $page,string $sid,array $registered,?string $prior,bo
         ||!in_array($turn['status']??null,['queued','in_progress','waiting','completed','failed','cancelled'],true))throw new AiGuard('usage_unknown');
     return $turn;
 }
-function stagingItems(array $items,string $turn):array
+function stagingItems(array $items,string $turn,?string &$failureStage=null):array
 {
-    if(($items['has_more']??true)!==false||!is_array($items['data']??null))throw new AiGuard('invalid_proposal');$texts=[];
+    $failureStage='item_envelope';
+    if(($items['has_more']??true)!==false||!is_array($items['data']??null)||!array_is_list($items['data'])||count($items['data'])>20)throw new AiGuard('invalid_proposal');$texts=[];
     foreach($items['data'] as $item){
+        if(!is_array($item)||($item['turn_id']??null)!==$turn)throw new AiGuard('invalid_proposal');
         if(($item['type']??null)==='reasoning')continue;
-        if(($item['type']??null)!=='message'||($item['role']??null)!=='assistant'||($item['phase']??null)!=='final_answer'||($item['status']??null)!=='completed'||($item['turn_id']??null)!==$turn)throw new AiGuard('invalid_proposal');
-        foreach($item['content']??[] as $c){if(($c['type']??null)!=='output_text'||!is_string($c['text']??null))throw new AiGuard('invalid_proposal');$texts[]=$c['text'];}
+        if(($item['type']??null)!=='message'||!in_array($item['role']??null,['user','assistant'],true)||($item['status']??null)!=='completed'
+            ||!array_key_exists('phase',$item)||!in_array($item['phase'],[null,'commentary','final_answer'],true)
+            ||!is_array($item['content']??null)||!array_is_list($item['content']))throw new AiGuard('invalid_proposal');
+        // A turn's item list includes inputs and intermediate messages. They are
+        // never proposals, even if their text happens to contain valid JSON.
+        if($item['role']==='user'||$item['phase']==='commentary')continue;
+        $text='';if(!$item['content'])throw new AiGuard('invalid_proposal');
+        foreach($item['content'] as $c){
+            if(!is_array($c)||($c['type']??null)!=='output_text'||!is_string($c['text']??null))throw new AiGuard('invalid_proposal');
+            $text.=$c['text'];if(strlen($text)>4096)throw new AiGuard('invalid_proposal');
+        }
+        $texts[]=$text;
     }
-    if(count($texts)!==1||strlen($texts[0])>4096)throw new AiGuard('invalid_proposal');$p=json_decode($texts[0],true,12,JSON_THROW_ON_ERROR);if(!is_array($p))throw new AiGuard('invalid_proposal');return $p;
+    if(count($texts)!==1)throw new AiGuard('invalid_proposal');
+    $failureStage='proposal_json';$p=json_decode($texts[0],true,12,JSON_THROW_ON_ERROR);
+    if(!is_array($p)||array_is_list($p))throw new AiGuard('invalid_proposal');return $p;
 }
 // At most three progress observations, one cancellation, no generation retry.
 function stagingManagedEncounter(PDO $db,DirectorTransport $transport,array $attempt,array $session,array $registered,array $prepared,array $choices,?callable $clock=null,?callable $pause=null,bool $conversationOnly=true,bool $reuse=false):array
@@ -151,9 +165,16 @@ function stagingManagedEncounter(PDO $db,DirectorTransport $transport,array $att
         if(!$terminal)throw new AiGuard('usage_unknown');
         if($turn['status']!=='completed'||($turn['error']??null)!==null)throw new AiGuard('invalid_proposal');
         if($observed===null)throw new AiGuard('usage_unknown');
-        $decoded=stagingItems($request('GET','agents/sessions/'.$sid.'/turns/'.$turnId.'/items?limit=20&order=asc'),$turnId);
-        $proposal=parseDirectorProposal($decoded,$prepared['context']['participants'],$choices);
-        if($conversationOnly&&($proposal['outcome']!=='conversation'||$proposal['world_action']!=='none'))throw new AiGuard('invalid_proposal');
+        $items=$request('GET','agents/sessions/'.$sid.'/turns/'.$turnId.'/items?limit=20&order=asc');$proposalStage=null;
+        try{
+            $decoded=stagingItems($items,$turnId,$proposalStage);$proposalStage='proposal_content';
+            $proposal=parseDirectorProposal($decoded,$prepared['context']['participants'],$choices);
+            if($conversationOnly&&($proposal['outcome']!=='conversation'||$proposal['world_action']!=='none'))throw new AiGuard('invalid_proposal');
+        }catch(\Throwable $e){
+            if(($e instanceof AiGuard&&$e->reason==='invalid_proposal')||$e instanceof \JsonException)
+                $db->prepare('INSERT INTO settings(name,value) VALUES (?,?)')->execute(['director_proposal_rejection:'.$attempt['id'],json_encode(['stage'=>$proposalStage],JSON_THROW_ON_ERROR)]);
+            throw $e;
+        }
         $moderated=$request('POST','moderations',['model'=>'omni-moderation-latest','input'=>json_encode([$prepared['context'],$decoded],JSON_THROW_ON_ERROR|JSON_UNESCAPED_UNICODE)]);
         if(count($moderated['results']??[])!==1||($moderated['results'][0]['flagged']??null)!==false)throw new AiGuard('moderation_rejected');
         if($calls<8&&$clock()<$finishBy-2){$final=stagingTurn($request('GET','agents/sessions/'.$sid.'/turns?limit=1&order=desc',null,null,'final_turn',true),$sid,$registered,$turnId,$reusing);

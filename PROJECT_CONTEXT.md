@@ -1,5 +1,9 @@
 # SanctuaryFor.AI
 
+## Managed item-envelope correction
+
+The supplied Max/Princess 23:00 trace has two 156-character messages that pass the unchanged proposal validator. It contains trace output, not the raw items HTTP response, so the precise historical envelope field cannot be proved from this artifact. A reproduced parser defect rejected documented user/commentary items alongside a valid final answer. Extraction now selects exactly one completed assistant answer, ignores input/commentary/reasoning as proposal sources, accepts documented nullable phase and concatenates bounded text parts within one message. Turn/identity validation, original words, moderation, autonomous scheduling and accounting remain. Private ai-status proposal_rejections distinguish envelope/JSON/content failures without logging text. The isolated exact-output fixture tests SQLite persistence; the production opportunity is never replayed.
+
 ## Autonomous continuity: latest owner direction
 
 The existing ENV flags and validated usage/activity limits authorize each independent opportunity. Historical accounting uncertainty is retained and budgeted, without requiring manual billing reconciliation or session inspection before future activity. Expired leases/claims recover transactionally, stale workers cannot dispatch/apply, and failed opportunity replays are handled scheduler outcomes. No dialogue fallback, retry/backlog, ledger reset, migration, production access/deployment or timer change is included. The read-only ai-status CLI distinguishes scheduler heartbeat, Director configuration, observed provider connectivity, successful conversations, failure categories, remaining allowances and future eligibility. See docs/AUTONOMOUS_VILLAGE.md; older global-lockout notes below are superseded.
