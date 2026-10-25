@@ -19,6 +19,8 @@ try{
         'unresolved_attempts'=>(int)$db->query("SELECT COUNT(*) FROM ai_attempts WHERE state IN ('reserved','uncertain','settled')")->fetchColumn(),
         'lease'=>$db->query('SELECT owner IS NOT NULL AS held,expires_at FROM ai_lease WHERE singleton=1')->fetch(),
         'recent'=>$db->query('SELECT id,period,model,state,input_tokens,output_tokens,estimated_microusd,reserved_microusd,error_code FROM ai_attempts ORDER BY created_at DESC,id DESC LIMIT 10')->fetchAll()];
+    $report['external_committed_microusd']=LittleSparks\directorExternalCommitment($db,$month);
+    $report['monthly_committed_microusd']+=$report['external_committed_microusd'];
     if($version>=4){
         try{$interval=LittleSparks\simulationInterval();}catch(LittleSparks\AiGuard){$interval=null;}
         try{$activityLimits=LittleSparks\activityConfiguration();}catch(LittleSparks\Problem){$activityLimits=null;}

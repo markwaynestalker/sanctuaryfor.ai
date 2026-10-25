@@ -82,9 +82,11 @@ function assertManagedSession(array $remote,array $registered,string $id,bool $r
 {
     $agent=$remote['agent']??[];
     if(($remote['id']??null)!==$id||($remote['object']??null)!=='agent.session'||($agent['id']??null)!==$registered['agent_id']
-        ||($agent['model']??null)!==$registered['model']||($agent['service_tier']??null)!=='default'||($agent['tools']??null)!==[]||($agent['multi_agent']['enabled']??null)!==false
+        ||($agent['model']??null)!==$registered['model']||!in_array($agent['service_tier']??null,['default','auto'],true)||($agent['tools']??null)!==[]||($agent['multi_agent']['enabled']??null)!==false
         ||($remote['environment']['type']??null)!=='none'||($remote['required_actions']??null)!==[]||($remote['vault_ids']??null)!==[]
         ||!in_array($remote['status']??null,$reusing?['idle']:['idle','in_progress'],true))throw new AiGuard('session_unavailable');
+    // "auto" is a supported session policy, not proof of a billed tier or cost.
+    // Usage/accounting stays provisional and never releases the full commitment.
 }
 function managedDirectorEncounter(PDO $db,DirectorTransport $transport,array $attempt,array $session,array $registered,array $prepared,array $choices):array
 {

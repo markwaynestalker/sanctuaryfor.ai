@@ -131,10 +131,22 @@ function recordDirectorAccessReservations(\PDO $db,array $reconciliation):void
 function directorAccessReservedRequests(\PDO $db,string $day):int
 {
     $used=0;
-    foreach($db->query("SELECT name,value FROM settings WHERE name LIKE 'director_access_request:%'") as $row){
+    foreach($db->query("SELECT name,value FROM settings WHERE name LIKE 'director_access_request:%' OR name LIKE 'director_external_request:%'") as $row){
         $r=json_decode($row['value'],true,16,JSON_THROW_ON_ERROR);
-        if(!is_array($r)||($r['http_requests_reserved']??null)!==1||$row['name']!=='director_access_request:'.($r['check_id']??'')
+        $prefix=str_starts_with($row['name'],'director_external_request:')?'director_external_request:':'director_access_request:';
+        if(!is_array($r)||($r['http_requests_reserved']??null)!==1||$row['name']!==$prefix.($r['check_id']??'')
             ||!is_string($r['day']??null)||!preg_match('/\A[0-9]{4}-[0-9]{2}-[0-9]{2}\z/',$r['day']))throw new \RuntimeException('Invalid access accounting.');
         if($r['day']===$day)$used++;
     }return $used;
+}
+/** External calls retain provisional allocations, never fabricated billed amounts. */
+function directorExternalCommitment(\PDO $db,string $month):int
+{
+    $total=0;foreach($db->query("SELECT name,value FROM settings WHERE name LIKE 'director_external_request:%'") as $row){
+        $r=json_decode($row['value'],true,16,JSON_THROW_ON_ERROR);
+        if(!is_array($r)||$row['name']!=='director_external_request:'.($r['check_id']??'')||($r['http_requests_reserved']??null)!==1
+            ||!is_string($r['day']??null)||!preg_match('/\A[0-9]{4}-[0-9]{2}-[0-9]{2}\z/',$r['day'])
+            ||!is_int($r['reserved_microusd']??null)||$r['reserved_microusd']<10000||$r['reserved_microusd']>1000000||($r['billing_state']??null)!=='unknown')throw new \RuntimeException('Invalid external accounting.');
+        if(substr($r['day'],0,7)===$month)$total+=$r['reserved_microusd'];
+    }return $total;
 }

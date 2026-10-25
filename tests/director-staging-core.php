@@ -80,7 +80,7 @@ try{
         $stage=$stageFresh();$p=$approved($stage);$grant=LittleSparks\StagingPermit::consume($stage,$p);$mock=new StagingMock($mode,$grant);
         $result=LittleSparks\simulateDirectorOpportunity($stage,$at,true,null,$mock,null,null,true,$grant);
         check(count($mock->calls)<=8&&count(array_filter($mock->calls,fn($c)=>$c[1]==='agents/sessions'))===1,'At most one generation/eight counted HTTP calls: '.$mode);
-        $count=(int)$stage->query('SELECT COUNT(*) FROM messages')->fetchColumn();check($count===(in_array($mode,['good','delayed'],true)?2:0),'Only successful moderated canonical dialogue saved: '.$mode);
+        $count=(int)$stage->query('SELECT COUNT(*) FROM messages')->fetchColumn();check($count===(in_array($mode,['good','delayed','auto_tier'],true)?2:0),'Only successful moderated canonical dialogue saved: '.$mode);
         $a=$stage->query('SELECT * FROM ai_attempts LIMIT 1')->fetch();check($a['state']==='uncertain'&&$a['estimated_microusd']===null&&(int)$a['reserved_microusd']===100000,'Full experimental allocation stays held pending billing: '.$mode);
         check((int)$stage->query('SELECT started_requests FROM director_attempts LIMIT 1')->fetchColumn()===count($mock->calls),'All requests counted including cancellation/moderation: '.$mode);
         try{LittleSparks\StagingPermit::consume($stage,$p);throw new LogicException('Permit reused after completion/failure');}catch(LittleSparks\AiGuard){}
@@ -88,7 +88,7 @@ try{
         if(in_array($mode,['good','delayed'],true)){check($result['status']==='completed','Completed experiment');$review=LittleSparks\reviewManagedBilling($stage,$a['id'],str_repeat('1',32),1000,str_repeat('a',64));check($review['commitment_microusd']===100000,'Final bill review never restores experimental headroom');}
         if(in_array($mode,['lost','cancel_failure','cancel_still_running'],true)){try{LittleSparks\reviewManagedBilling($stage,$a['id'],str_repeat('2',32),0,str_repeat('b',64));throw new LogicException('Unfinished provider work cleared by billing alone');}catch(LittleSparks\AiGuard $e){check($e->reason==='accounting_unresolved','Terminal proof required before billing release');}}
         if($mode==='incomplete'){check((int)$stage->query("SELECT COUNT(*) FROM director_http_calls WHERE kind='cancel'")->fetchColumn()===1,'One cancellation and terminal confirmation');}
-        if(in_array($mode,['auto_tier','priority_tier','missing_tier','inspect_tier'],true)){
+        if(in_array($mode,['priority_tier','missing_tier','inspect_tier'],true)){
             check(count(array_filter($mock->calls,fn($c)=>str_ends_with($c[1],'/events')))===1,'Unexpected tier attempts exactly one cancellation');
             check(!array_filter($mock->calls,fn($c)=>$c[1]==='moderations'||str_contains($c[1],'/items?')),'Unexpected tier never accepts or moderates dialogue');
         }
@@ -99,7 +99,7 @@ try{
         check(!$mock->calls&&(int)$stage->query('SELECT COUNT(*) FROM messages')->fetchColumn()===0,'Permit rejects non-default/missing tier, effort or streaming before dispatch');
         check((int)$stage->query('SELECT reserved_microusd FROM ai_attempts LIMIT 1')->fetchColumn()===100000,'Rejected tier keeps allocation and permit consumed');
     }
-    echo "PASS default session tier pinned before dispatch; missing/auto/priority returned tiers cancel once, stay silent and retain accounting; no saved-agent edits or live calls\n";
+    echo "PASS default tier requested; default/auto session policies accepted without spend_control; missing/priority policies cancel once and retain accounting; no saved-agent edits or live calls\n";
     $stage=$stageFresh();$grant=LittleSparks\StagingPermit::consume($stage,$approved($stage));$stage->exec("UPDATE resident_identities SET description='Changed after approval' WHERE resident_id=(SELECT id FROM residents LIMIT 1)");$mock=new StagingMock('good');LittleSparks\simulateDirectorOpportunity($stage,$at,true,null,$mock,null,null,true,$grant);check(!$mock->calls,'Identity changes after permit consumption block generation');
     foreach([['LITTLE_SPARKS_AI_DAILY_REQUESTS','7'],['LITTLE_SPARKS_AI_MONTHLY_MICROUSD','99999']] as [$variable,$value]){
         $stage=$stageFresh();$grant=LittleSparks\StagingPermit::consume($stage,$approved($stage));putenv($variable.'='.$value);$mock=new StagingMock('good');LittleSparks\simulateDirectorOpportunity($stage,$at,true,null,$mock,null,null,true,$grant);check(!$mock->calls,'Insufficient request/budget envelope fails before dispatch');putenv($variable.'='.($variable==='LITTLE_SPARKS_AI_DAILY_REQUESTS'?'8':'100000'));
@@ -194,9 +194,26 @@ try{
         check((int)$stage->query('SELECT SUM(request_slots) FROM director_attempts')->fetchColumn()===16,'Eighteen total daily slots remain reserved');
         $again=new StagingMock('good');LittleSparks\simulateDirectorOpportunity($stage,gmdate('Y-m-d\TH:i:00\Z',time()-60),true,null,$again,null,null,true,null,true,$oldId);
         check(!$again->calls&&(int)$stage->query('SELECT COUNT(*) FROM ai_attempts')->fetchColumn()===2,'Consumed continuation never permits a third attempt, even after a second HTTP 400');
+        if($nextMode==='validation_400'){
+            $ids=[$oldId,$result['id']];sort($ids);$allowlist=implode(',',$ids);
+            $frozen=[];foreach($ids as $frozenId){$q=$stage->prepare('SELECT * FROM ai_attempts WHERE id=?');$q->execute([$frozenId]);$frozen[$frozenId]=$q->fetch();}
+            foreach(['external_rejected','external_completed_1','external_completed_2'] as $ref){$key=substr(hash('sha256',$ref),0,32);$record=['check_id'=>$key,'day'=>$day,'http_requests_reserved'=>1,'reserved_microusd'=>10000,'billing_state'=>'unknown','source'=>'owner-confirmed'];$stage->prepare('INSERT INTO settings VALUES (?,?)')->execute(['director_external_request:'.$key,json_encode($record,JSON_THROW_ON_ERROR)]);}
+            check(LittleSparks\directorAccessReservedRequests($stage,$day)===5&&LittleSparks\directorExternalCommitment($stage,substr($day,0,7))===30000,'All external requests and provisional commitments count without fabricated bills');
+            foreach([[28,100000],[29,59999]] as $i=>[$daily,$monthly]){
+                putenv('LITTLE_SPARKS_AI_DAILY_REQUESTS='.$daily);putenv('LITTLE_SPARKS_AI_MONTHLY_MICROUSD='.$monthly);$mock=new StagingMock('good');
+                LittleSparks\simulateDirectorOpportunity($stage,gmdate('Y-m-d\TH:i:00\Z',time()-360-$i*60),true,null,$mock,null,null,true,null,true,$allowlist);
+                check(!$mock->calls,'Two rejected-create allowance still counts 21 prior requests and 50000 committed microUSD');
+            }
+            putenv('LITTLE_SPARKS_AI_DAILY_REQUESTS=29');putenv('LITTLE_SPARKS_AI_MONTHLY_MICROUSD=100000');$mock=new StagingMock('auto_tier');
+            $last=LittleSparks\simulateDirectorOpportunity($stage,gmdate('Y-m-d\TH:i:00\Z',time()-480),true,null,$mock,null,null,true,null,true,$allowlist);
+            check($last['status']==='completed'&&(int)$stage->query('SELECT COUNT(*) FROM messages')->fetchColumn()===2,'One fresh two-ID allowance saves moderated original dialogue with auto policy');
+            foreach($frozen as $frozenId=>$row){$q=$stage->prepare('SELECT * FROM ai_attempts WHERE id=?');$q->execute([$frozenId]);check($q->fetch()===$row,'Both earlier uncertain attempts remain unchanged');}
+            $mock=new StagingMock('good');LittleSparks\simulateDirectorOpportunity($stage,gmdate('Y-m-d\TH:i:00\Z',time()-540),true,null,$mock,null,null,true,null,true,$allowlist);
+            check(!$mock->calls&&(int)$stage->query('SELECT COUNT(*) FROM ai_attempts')->fetchColumn()===3,'Fresh allowlist consumed once; no fourth generation');
+        }
     }
     putenv($previousEnvironment===false?'LITTLE_SPARKS_ENVIRONMENT':'LITTLE_SPARKS_ENVIRONMENT='.$previousEnvironment);
-    echo "PASS one staging-only rejected-create continuation, retained uncertainty/slots/costs, budget enforcement, immutable old rows and no third attempt (mocked)\n";
+    echo "PASS staging-only one-ID/two-ID allowances consumed once, external reservations counted, immutable uncertain rows, budget enforcement and no grant reuse (mocked)\n";
     foreach(['LITTLE_SPARKS_AI_ENABLED','LITTLE_SPARKS_DIRECTOR_ENABLED','LITTLE_SPARKS_SIMULATION_ENABLED'] as $flag){putenv($flag.'=0');check(!LittleSparks\managedLiveAdmission()['allowed'],'Each activation flag controls admission');putenv($flag.'=1');}
     check(LittleSparks\managedLiveAdmission()['allowed'],'Explicit configured activation admits routine provider');
     putenv('LITTLE_SPARKS_AI_MONTHLY_MICROUSD=1000000');putenv('LITTLE_SPARKS_AI_DAILY_REQUESTS=200');

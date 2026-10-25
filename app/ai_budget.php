@@ -56,16 +56,19 @@ function estimatedAiCost(int $input,int $output,int $inputRate,int $outputRate):
 }
 
 /** A single staging continuation after a completed HTTP rejection, not a refund. */
-function assertRejectedCreateContinuation(PDO $db,string $id):void
+function assertRejectedCreateContinuation(PDO $db,string $ids):void
 {
-    if(PHP_SAPI!=='cli'||getenv('LITTLE_SPARKS_ENVIRONMENT')!=='staging'||!directorEnabled($db)||!preg_match('/\A[a-f0-9]{32}\z/',$id))throw new AiGuard('accounting_unresolved');
+    if(PHP_SAPI!=='cli'||getenv('LITTLE_SPARKS_ENVIRONMENT')!=='staging'||!directorEnabled($db)||!preg_match('/\A[a-f0-9]{32}(?:,[a-f0-9]{32})?\z/',$ids))throw new AiGuard('accounting_unresolved');
+    $list=explode(',',$ids);$sorted=$list;sort($sorted);if($list!==$sorted||count(array_unique($list))!==count($list))throw new AiGuard('configuration_invalid');
+    foreach($list as $id){
     $q=$db->prepare("SELECT a.state,d.state AS director_state,d.started_requests,s.provider_session_id FROM ai_attempts a JOIN director_attempts d ON d.id=a.id AND d.runtime='agents' JOIN director_sessions s ON s.id=d.session_id WHERE a.id=?");$q->execute([$id]);$a=$q->fetch();
     if(!$a||$a['state']!=='uncertain'||$a['director_state']!=='uncertain'||(int)$a['started_requests']!==1||$a['provider_session_id']!==null)throw new AiGuard('accounting_unresolved');
     $q=$db->prepare('SELECT kind,http_status,finished_at FROM director_http_calls WHERE attempt_id=?');$q->execute([$id]);$calls=$q->fetchAll();
     if(count($calls)!==1||$calls[0]['kind']!=='create'||(int)$calls[0]['http_status']!==400||$calls[0]['finished_at']===null)throw new AiGuard('accounting_unresolved');
     $q=$db->prepare('SELECT status FROM director_managed_outcomes WHERE attempt_id=? ORDER BY id DESC LIMIT 1');$q->execute([$id]);
     if($q->fetchColumn()!=='session_lost')throw new AiGuard('accounting_unresolved');
-    $q=$db->prepare('SELECT 1 FROM settings WHERE name=?');$q->execute(['director_rejected_create_continuation:'.$id]);
+    }
+    $q=$db->prepare('SELECT 1 FROM settings WHERE name=?');$q->execute(['director_rejected_create_continuation:'.$ids]);
     if($q->fetchColumn())throw new AiGuard('period_recorded');
 }
 
@@ -82,7 +85,7 @@ function reserveAi(PDO $db,string $period,array $pair,array $config,int $now): a
         $unresolved=$db->query("SELECT id FROM ai_attempts WHERE state IN ('reserved','uncertain','settled') ORDER BY id")->fetchAll(PDO::FETCH_COLUMN);
         $continuation=$config['staging_continue_after']??null;
         if($continuation!==null){
-            if(($config['director_runtime']??null)!=='agents'||($config['director_slots']??null)!==8||($config['director_once']??false)!==false||$unresolved!==[$continuation])throw new AiGuard('accounting_unresolved');
+            if(!is_string($continuation)||($config['director_runtime']??null)!=='agents'||($config['director_slots']??null)!==8||($config['director_once']??false)!==false||$unresolved!==explode(',',$continuation))throw new AiGuard('accounting_unresolved');
             assertRejectedCreateContinuation($db,$continuation);
         }elseif($unresolved)throw new AiGuard('accounting_unresolved');
         if(($config['director_once']??false)===true&&$db->query("SELECT 1 FROM director_attempts WHERE runtime='agents' LIMIT 1")->fetchColumn())throw new AiGuard('period_recorded');
@@ -101,7 +104,7 @@ function reserveAi(PDO $db,string $period,array $pair,array $config,int $now): a
             $reserved=100000;
         }
         $query=$db->prepare('SELECT COALESCE(SUM(COALESCE(estimated_microusd,reserved_microusd)),0) FROM ai_attempts WHERE month=?');$query->execute([$month]);
-        if((int)$query->fetchColumn()+$reserved>min(AI_MONTHLY_CAP,$config['monthly_cap']))throw new AiGuard('monthly_budget_cap');
+        if((int)$query->fetchColumn()+directorExternalCommitment($db,$month)+$reserved>min(AI_MONTHLY_CAP,$config['monthly_cap']))throw new AiGuard('monthly_budget_cap');
         if((int)$db->query('SELECT COUNT(*) FROM ai_attempts')->fetchColumn()>=4096)throw new AiGuard('ledger_capacity');
         $id=bin2hex(random_bytes(16));$expires=$now+60;
         $db->prepare("INSERT INTO ai_attempts(id,period,day,month,resident_a,resident_b,model,pricing_version,input_rate,output_rate,reserved_microusd,state,created_at)
