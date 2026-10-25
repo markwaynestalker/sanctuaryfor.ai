@@ -9,9 +9,12 @@
     const setProfileLink = commons.bindProfileLink($('profile-life-link'), $('resident-profile'));
     let homes = [], exchanges = new Map(), activeMeeting = null, commonsVersion = 0;
     const lastPlayed = new Map();
-    let sceneWidth = 1000, sceneHeight = 460;
+    let replayCooldown = 60;
+    let sceneWidth = 1000, sceneHeight = 460, walkingMin = 68, walkingMax = 84;
     if (typeof ResizeObserver !== 'undefined') new ResizeObserver(entries => {
+        const changed = sceneWidth !== entries[0].contentRect.width;
         sceneWidth = entries[0].contentRect.width; sceneHeight = entries[0].contentRect.height;
+        if (changed && sceneWidth > 0 && walkers.length) renderHomes();
     }).observe($('landscape'));
     let csrf = '', page = Number(new URL(location.href).searchParams.get('page')) || 0;
     let lastPage = 0, population = [], walkers = [], paused = reduced.matches;
@@ -96,7 +99,7 @@
             button.addEventListener('click', () => showProfile(resident, button));
             item.append(button); $('resident-directory').append(item);
             // The directory keeps the full page. The landscape stays calm on small screens.
-            if (index >= (narrow.matches ? 8 : 24)) return;
+            if (index >= (narrow.matches ? 4 : 12)) return;
             const actor = document.createElement('button');
             actor.type = 'button'; actor.className = 'village-resident'; actor.tabIndex = -1;
             actor.setAttribute('aria-label', `Meet ${resident.name}`);
@@ -105,8 +108,8 @@
             const bubble = document.createElement('span'); bubble.className = 'robot-bubble'; bubble.setAttribute('aria-hidden', 'true');
             actor.append(label, bubble); actor.addEventListener('click', () => showProfile(resident, button));
             $('robot-layer').append(actor);
-            const columns = narrow.matches ? 4 : 8;
-            const walker = {resident, element: actor, bubble, x: 13 + (index % columns) * (narrow.matches ? 23 : 10.5), y: 70 + Math.floor(index / columns) * 7, angle: Math.random() * Math.PI * 2, stop: performance.now() + Math.random() * 2500, ambientUntil: 0, hover: false};
+            const columns = narrow.matches ? 4 : 6;
+            const walker = {resident, element: actor, bubble, x: 13 + (index % columns) * (narrow.matches ? 23 : 14.5), y: 70 + Math.floor(index / columns) * 7, angle: Math.random() * Math.PI * 2, stop: performance.now() + Math.random() * 2500, ambientUntil: 0, hover: false};
             actor.addEventListener('pointerenter', () => { walker.hover = true; });
             actor.addEventListener('pointerleave', () => { walker.hover = false; });
             walkers.push(walker); place(walker);
@@ -120,13 +123,34 @@
         for (const home of homes) {
             const resident = visible.get(home.resident_id);
             if (!resident || !home.plot) continue;
-            const link = document.createElement('a'), shape = document.createElement('span'), name = document.createElement('span');
+            const link = document.createElement('a'), yard = document.createElement('span'), name = document.createElement('span');
             link.className = `commons-home color-${colors.has(resident.color) ? resident.color : 'mint'}`;
             link.href = commons.profileUrl(resident.id); link.setAttribute('aria-label', `Visit ${resident.name}’s saved home and profile`);
-            shape.className = 'cottage-shape'; shape.setAttribute('aria-hidden', 'true');
+            yard.className = 'saved-yard'; yard.setAttribute('aria-hidden', 'true');
+            const glyphs = {tree:'🌳',flowers:'🌼',bush:'🌿',path:'·',decoration:'✧',pet:'🐈',house:''};
+            const objects = Array.isArray(home.objects) ? home.objects.slice(0, 12) : [{kind:'house',x:home.plot.x+1,y:home.plot.y+1}];
+            for (const object of objects) {
+                if (!Object.hasOwn(glyphs, object.kind) || !Number.isInteger(object.x) || !Number.isInteger(object.y)) continue;
+                const x = object.x-home.plot.x, y = object.y-home.plot.y;
+                if (x<0||x>3||y<0||y>3) continue;
+                const bit = document.createElement('span'); bit.className = `yard-object yard-${object.kind}`;
+                bit.style.left = `${(x+.5)*25}%`; bit.style.top = `${(y+.5)*25}%`;
+                if (object.kind==='house') { const shape=document.createElement('span'); shape.className='cottage-shape'; bit.append(shape); }
+                else bit.textContent = glyphs[object.kind];
+                yard.append(bit);
+            }
             name.className = 'cottage-name'; name.textContent = resident.name;
-            link.append(shape, name); $('home-layer').append(link);
+            link.append(yard, name); $('home-layer').append(link);
         }
+        const count = $('home-layer').children.length;
+        const columns = Math.max(1, Math.min(count || 1, narrow.matches ? 2 : Math.max(2, Math.min(6, Math.floor(sceneWidth/160)))));
+        $('home-layer').style.gridTemplateColumns = `repeat(${columns},minmax(0,1fr))`;
+        const rows = Math.ceil(count/columns), bottom = rows ? 110+rows*136+Math.max(0,rows-1)*14 : 180;
+        const walkerRows = Math.ceil(walkers.length/(narrow.matches?4:6));
+        sceneHeight = Math.max(narrow.matches?430:460,bottom+105+Math.max(0,walkerRows-1)*90);
+        $('landscape').style.height = `${sceneHeight}px`;
+        walkingMin = Math.max(60,(bottom+45)/sceneHeight*100); walkingMax = (sceneHeight-55)/sceneHeight*100;
+        walkers.forEach((walker,index) => { walker.y=walkingMin+Math.floor(index/(narrow.matches?4:6))*90/sceneHeight*100; place(walker); });
     }
     function renderRecordings() {
         const panel = $('saved-dialogue'); panel.replaceChildren();
@@ -150,6 +174,7 @@
             const response = await fetch(`api/commons.php?ids=${encodeURIComponent(ids.join(','))}`, {credentials:'same-origin', cache:'no-store'});
             if (!response.ok) throw new Error('Saved village life unavailable.');
             const data = await response.json(); if (version !== commonsVersion) return;
+            replayCooldown = commons.replayCooldown(data.settings);
             homes = Array.isArray(data.homes) ? data.homes.slice(0, 24) : [];
             exchanges = commons.latestExchanges(Array.isArray(data.conversations) ? data.conversations : [], ids);
             lastPlayed.clear(); renderHomes(); renderRecordings();
@@ -196,8 +221,8 @@
             walker.x += Math.cos(walker.angle) * delta * speed;
             walker.y += Math.sin(walker.angle) * delta * speed;
             if (walker.x < 8 || walker.x > 90) walker.angle = Math.PI - walker.angle;
-            if (walker.y < 68 || walker.y > 84) walker.angle = -walker.angle;
-            walker.x = Math.max(8, Math.min(90, walker.x)); walker.y = Math.max(68, Math.min(84, walker.y));
+            if (walker.y < walkingMin || walker.y > walkingMax) walker.angle = -walker.angle;
+            walker.x = Math.max(8, Math.min(90, walker.x)); walker.y = Math.max(walkingMin, Math.min(walkingMax, walker.y));
             place(walker);
         }
         for (let i = 0; !activeMeeting && i < walkers.length; i++) {
@@ -207,7 +232,7 @@
                 const b = walkers[j];
                 if (now < b.stop || b.hover || Math.hypot((a.x - b.x) * sceneWidth / 100, (a.y - b.y) * sceneHeight / 100) > 80) continue;
                 const exchange = exchanges.get(commons.pairKey(a.resident.id, b.resident.id));
-                const canReplay = exchange && (!lastPlayed.has(exchange.id) || now - lastPlayed.get(exchange.id) > 60000);
+                const canReplay = exchange && (!lastPlayed.has(exchange.id) || now - lastPlayed.get(exchange.id) >= replayCooldown*1000);
                 if (!canReplay) continue; // Ordinary wandering/idle pauses; no invented meeting.
                 const duration = exchange.messages.reduce((sum, m) => sum + commons.turnDuration(m), 0);
                 for (const friend of [a, b]) { friend.stop = now + duration + 1500; friend.angle += Math.PI / 2; }

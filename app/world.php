@@ -124,7 +124,14 @@ function profile(PDO $db, string $id): array
         $messages = $db->prepare('SELECT r.name,m.body FROM messages m JOIN residents r ON r.id=m.resident_id WHERE m.conversation_id=? ORDER BY m.sequence LIMIT 2');
         $messages->execute([$conversation['id']]); $conversation['messages'] = $messages->fetchAll();
     }
-    return ['resident'=>$resident,'plot'=>$slot===false ? null : plotCoordinates((int)$slot),'friendships'=>$friends,'memories'=>$memories,'conversations'=>$conversations,'preferences'=>preferences($db,$id)];
+    $result=['resident'=>$resident,'plot'=>$slot===false ? null : plotCoordinates((int)$slot),'friendships'=>$friends,'memories'=>$memories,'conversations'=>$conversations,'preferences'=>preferences($db,$id)];
+    if(memoryEnabled($db)){
+        foreach($result['friendships'] as &$friend){
+            $pairIds=[$id,$friend['id']];sort($pairIds,SORT_STRING);$q=$db->prepare('SELECT id FROM friendship_identities WHERE resident_a=? AND resident_b=?');$q->execute($pairIds);$friend['friendship_id']=$q->fetchColumn()?:null;
+        }unset($friend);
+        $result['memory_trail']=memoryTrail($db,$id);
+    }
+    return $result;
 }
 
 function pair(PDO $db, string $a, string $b): ?array
@@ -149,6 +156,7 @@ function strengthen(PDO $db,string $a,string $b,int $delta,string $time): void
     $query=$db->prepare('INSERT INTO relationships(resident_a,resident_b,affinity,familiarity,first_met_at,last_interacted_at) VALUES (?,?,?,1,?,?)
         ON CONFLICT(resident_a,resident_b) DO UPDATE SET affinity=MAX(0,MIN(100,affinity+?)), familiarity=MIN(1000,familiarity+1),last_interacted_at=?');
     $query->execute([$a,$b,max(0,$delta),$time,$time,$delta,$time]);
+    if(memoryEnabled($db))ensureFriendshipIdentity($db,$a,$b);
 }
 
 function validateAction(array $input): array
@@ -203,6 +211,8 @@ function applyWorldAction(PDO $db,array $input,string $network,int $now): array
 // Both visitor and AI paths share all daily, ownership, collision and capacity checks.
 function performResidentAction(PDO $db,string $id,array $action,string $time,string $dedupe,string $origin,?string $run=null,?string $fingerprint=null): int
 {
+    if(memoryEnabled($db))memoryConfiguration();
+    $memoryObject=null;
     $day=substr($time,0,10);
     $query=$db->prepare("SELECT COUNT(*) FROM events WHERE actor_id=? AND kind NOT IN ('home_assigned','conversation','quiet_time') AND created_at>=?"); $query->execute([$id,$day.'T00:00:00Z']);
     if ((int)$query->fetchColumn()>=6) throw new Problem(429,'This resident has made six changes today. Come back tomorrow.');
@@ -236,9 +246,12 @@ function performResidentAction(PDO $db,string $id,array $action,string $time,str
                 $query=$db->prepare("SELECT 1 FROM world_objects WHERE resident_id=? AND kind='pet'"); $query->execute([$id]);
                 if ($query->fetchColumn()) throw new Problem(409,'This resident already cares for a virtual cat.');
             }
+            $memoryObject=bin2hex(random_bytes(16));
             $db->prepare('INSERT INTO world_objects(id,resident_id,kind,variant,x,y,created_at) VALUES (?,?,?,?,?,?,?)')
-                ->execute([bin2hex(random_bytes(16)),$id,$kind,$variant,$action['x'],$action['y'],$time]);
+                ->execute([$memoryObject,$id,$kind,$variant,$action['x'],$action['y'],$time]);
         }
     }
-    return event($db,$id,$action['target'],$action['action'],$origin,$time,$dedupe,$run,$fingerprint);
+    $eventId=event($db,$id,$action['target'],$action['action'],$origin,$time,$dedupe,$run,$fingerprint);
+    if(memoryEnabled($db))recordWorldMemory($db,$eventId,$memoryObject);
+    return $eventId;
 }

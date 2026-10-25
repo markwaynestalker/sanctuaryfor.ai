@@ -4,9 +4,6 @@ namespace LittleSparks;
 use PDO;
 require_once __DIR__.'/ai_simulation.php';
 
-const ACTIVITY_DAILY_MAX=100;
-const RESIDENT_DAILY_MAX=12;
-
 function simulationInterval(): int
 {
     $value=getenv('LITTLE_SPARKS_SIMULATION_INTERVAL_MINUTES');
@@ -64,8 +61,9 @@ function parseActivityProposal(array $response,array $choices): array
 
 // Called under the claim write lock. Lifetime opportunity counts prevent yesterday's
 // favorites from monopolizing today; same-day claims count even if they later fail.
-function selectActivityResidents(PDO $db,string $day): array
+function selectActivityResidents(PDO $db,string $day,?array $cfg=null,?int $now=null): array
 {
+    $cfg??=activityConfiguration();$now??=time();
     $query=$db->prepare("SELECT r.id,r.personality,
         (SELECT COUNT(*) FROM simulation_opportunities o WHERE o.resident_a=r.id OR o.resident_b=r.id) AS turns,
         (SELECT MAX(created_at) FROM simulation_opportunities o WHERE o.resident_a=r.id OR o.resident_b=r.id) AS last_turn
@@ -74,16 +72,24 @@ function selectActivityResidents(PDO $db,string $day): array
         ORDER BY turns,COALESCE(last_turn,''),r.created_at,r.id LIMIT 64");
     // COUNT has no column affinity: bind the ceiling as an integer, not PDO's
     // default string, or SQLite's storage-class ordering would bypass this bound.
-    $query->bindValue(1,$day,PDO::PARAM_STR);$query->bindValue(2,RESIDENT_DAILY_MAX,PDO::PARAM_INT);$query->execute();$candidates=$query->fetchAll();
+    $query->bindValue(1,$day,PDO::PARAM_STR);$query->bindValue(2,$cfg['resident_daily'],PDO::PARAM_INT);$query->execute();$candidates=$query->fetchAll();
     if(!$candidates)return [];
     // The actor is always the least served. Prefer an equally underserved partner
     // not met recently; friendship bounds may leave a resident with solitary activity.
     $a=array_shift($candidates);
+    $recent=$cfg['resident_cooldown']?latestResidentConversations($db,array_merge([$a['id']],array_column($candidates,'id'))):[];
+    $residentCutoff=gmdate('Y-m-d\TH:i:s\Z',$now-$cfg['resident_cooldown']);
+    if($cfg['resident_cooldown']&&($recent[$a['id']]??'')>$residentCutoff)return [$a];
+    $pairs=$cfg['pair_cooldown']?latestPairConversations($db,$a['id']):[];$pairCutoff=gmdate('Y-m-d\TH:i:s\Z',$now-$cfg['pair_cooldown']);
     usort($candidates,static function(array $x,array $y)use($db,$a):int{
         $rank=($x['turns']<=>$y['turns']);if($rank)return $rank;
         return strcmp(pair($db,$a['id'],$x['id'])['last_interacted_at']??'',pair($db,$a['id'],$y['id'])['last_interacted_at']??'')?:strcmp($x['id'],$y['id']);
     });
-    foreach($candidates as $b)if(hasSocialRoom($db,$a['id'],$b['id']))return [$a,$b];
+    foreach($candidates as $b){
+        if($cfg['resident_cooldown']&&($recent[$b['id']]??'')>$residentCutoff)continue;
+        if($cfg['pair_cooldown']&&($pairs[$b['id']]??'')>$pairCutoff)continue;
+        if(hasSocialRoom($db,$a['id'],$b['id']))return [$a,$b];
+    }
     return [$a];
 }
 
@@ -113,20 +119,21 @@ function recoverActivityClaims(PDO $db,int $now): void
 
 function claimActivity(PDO $db,string $at,int $now): array
 {
-    if((int)$db->query('PRAGMA user_version')->fetchColumn()!==4)throw new Problem(503,'Explicit V4 migration required.');
+    if(!in_array((int)$db->query('PRAGMA user_version')->fetchColumn(),[4,5],true))throw new Problem(503,'Explicit V4 migration required.');
     $id=opportunityId($at);$db->exec('BEGIN IMMEDIATE');
     try{
         recoverActivityClaims($db,$now);
         $existing=activityResultOrNull($db,$id);
         if($existing){$db->exec('COMMIT');return ['replay'=>$existing];}
+        $cfg=activityConfiguration();
         // Saved outcomes replay forever; only new work has the bounded catch-up window.
         if(strtotime($at)>$now||strtotime($at)<$now-7*86400)throw new Problem(422,'Choose an elapsed UTC minute within seven days.');
         assertSimulationLease($db);
         if($db->query("SELECT 1 FROM simulation_opportunities WHERE outcome='pending' LIMIT 1")->fetchColumn())throw new Problem(409,'Another opportunity is in progress.');
         $day=gmdate('Y-m-d',$now);$q=$db->prepare('SELECT COUNT(*) FROM simulation_opportunities WHERE day=?');$q->execute([$day]);
-        if((int)$q->fetchColumn()>=ACTIVITY_DAILY_MAX)throw new Problem(429,'The village is resting until tomorrow.');
+        if((int)$q->fetchColumn()>=$cfg['daily_opportunities'])throw new Problem(429,'The village is resting at its configured daily ceiling.');
         if((int)$db->query('SELECT COUNT(*) FROM simulation_runs')->fetchColumn()>=100000)throw new Problem(503,'Simulation archive requires review.');
-        $pair=selectActivityResidents($db,$day);$time=gmdate('Y-m-d\TH:i:s\Z',$now);
+        $pair=selectActivityResidents($db,$day,$cfg,$now);$time=gmdate('Y-m-d\TH:i:s\Z',$now);
         $db->prepare("INSERT INTO simulation_opportunities(id,scheduled_at,day,resident_a,resident_b,outcome,expires_at,created_at) VALUES (?,?,?,?,?,'pending',?,?)")
             ->execute([$id,$at,$day,$pair[0]['id']??null,$pair[1]['id']??null,$now+60,$time]);
         $db->exec('COMMIT');return ['id'=>$id,'pair'=>$pair,'created_at'=>$time];
@@ -166,6 +173,8 @@ function applyActivity(PDO $db,array $claim,array $proposal,array $choices,int $
         $q=$db->prepare("SELECT expires_at FROM simulation_opportunities WHERE id=? AND outcome='pending'");$q->execute([$claim['id']]);
         $expiry=$q->fetchColumn();if($expiry===false||(int)$expiry<time()||gmdate('Y-m-d',$now)!==gmdate('Y-m-d'))throw new AiGuard('apply_rejected');
         $run=$attempt['id']??bin2hex(random_bytes(16));$time=gmdate('Y-m-d\TH:i:s\Z',$now);$ai=$attempt!==null;$pair=$claim['pair'];$outcome=$proposal['outcome'];
+        $limits=activityConfiguration();assertAppliedActivityLimits($db,$pair,gmdate('Y-m-d',$now),$limits);
+        if($outcome==='conversation'&&(!isset($pair[1])||!conversationCooldownAllows($db,$pair[0]['id'],$pair[1]['id'],$limits,$now)))throw new Problem(429,'The neighbors are resting between conversations.');
         $db->prepare("INSERT INTO simulation_runs(id,period,status,provider,started_at,finished_at,interaction_count,input_tokens,output_tokens,cost_microusd) VALUES (?,?,'completed',?,?,?,?,?,?,?)")
             ->execute([$run,$claim['id'],$ai?'openai':'scripted',$claim['created_at'],$time,$outcome==='conversation'?1:0,$usage['input_tokens']??0,$usage['output_tokens']??0,$usage['cost_microusd']??0]);
         if($outcome==='conversation'){
@@ -186,6 +195,7 @@ function applyActivity(PDO $db,array $claim,array $proposal,array $choices,int $
             if(!$pair||!isset($choices[$proposal['world_action']]))throw new AiGuard('invalid_proposal');
             performResidentAction($db,$pair[0]['id'],$choices[$proposal['world_action']],$time,'activity:'.$claim['id'].':world','simulation',$run);
         }
+        if($outcome==='conversation'&&memoryEnabled($db))conversationMemory($db,$conversation,$proposal['shared_receipt']??null);
         if($outcome==='quiet'&&$pair)event($db,$pair[0]['id'],null,'quiet_time','simulation',$time,'activity:'.$claim['id'].':quiet',$run);
         $db->prepare('UPDATE simulation_opportunities SET run_id=?,outcome=?,finished_at=? WHERE id=?')->execute([$run,$outcome,$time,$claim['id']]);
         if($ai){
@@ -219,6 +229,7 @@ function simulateOpportunity(PDO $db,string $at,bool $allowPaid=false,?AiTranspo
 {
     $now??=time();
     if(getenv('LITTLE_SPARKS_SIMULATION_ENABLED')!=='1')return ['status'=>'paused','replayed'=>false];
+    if(memoryEnabled($db))memoryConfiguration();
     simulationInterval(); // Reject invalid configuration even for explicit/manual opportunities.
     $claim=claimActivity($db,$at,$now);
     if(isset($claim['replay']))return $claim['replay']+['replayed'=>true];
@@ -226,17 +237,18 @@ function simulateOpportunity(PDO $db,string $at,bool $allowPaid=false,?AiTranspo
     try{
         $pair=$claim['pair'];$choices=$pair?aiActionChoices($db,$pair[0]['id'],$pair[1]['id']??$pair[0]['id'],$now):['none'=>null];
         if(count($pair)<2)unset($choices['visit_friend']);
+        $prepared=memoryEnabled($db)&&count($pair)===2?prepareMemoryEncounter($db,$pair,$choices):null;
         if(getenv('LITTLE_SPARKS_AI_ENABLED')==='1'&&$allowPaid&&count($pair)===2){
             try{
                 if($transport===null&&(!extension_loaded('curl')||!is_string(getenv('OPENAI_API_KEY'))||getenv('OPENAI_API_KEY')===''))throw new AiGuard('credentials_unavailable');
-                $config=aiConfiguration($now);$context=aiContext($db,$pair,$choices);$body=activityRequestBody($config,$context);
+                $config=aiConfiguration($now);$context=$prepared['context']??aiContext($db,$pair,$choices);$body=$prepared?memoryRequestBody($config,$prepared):activityRequestBody($config,$context);
                 $attempt=reserveAi($db,$claim['id'],$pair,$config,$now);
             }catch(AiGuard $e){$blocked=$e->reason;}
         }
-        if($attempt===null)return applyActivity($db,$claim,scriptedActivity($db,$pair,$claim['id'],$choices),$choices,$now)+['ai_blocked'=>$blocked??'disabled_or_solitary'];
+        if($attempt===null)return applyActivity($db,$claim,$prepared?scriptedMemoryProposal($db,$pair,$choices,$prepared,$claim['id']):scriptedActivity($db,$pair,$claim['id'],$choices),$choices,$now)+['ai_blocked'=>$blocked??'disabled_or_solitary'];
         $transport??=new OpenAiTransport();
         startAiRequest($db,$attempt,'responses_started');$response=$transport->post('responses',$body,$attempt['expires']);
-        $usage=recordAiUsage($db,$attempt,$response,$config);$proposal=parseActivityProposal($response,$choices);
+        $usage=recordAiUsage($db,$attempt,$response,$config);$proposal=$prepared?parseMemoryProposal($db,$response,$choices,$pair,$prepared):parseActivityProposal($response,$choices);
         startAiRequest($db,$attempt,'moderation_started');
         $moderation=$transport->post('moderations',['model'=>'omni-moderation-latest','input'=>json_encode([$context,$proposal],JSON_THROW_ON_ERROR|JSON_UNESCAPED_UNICODE)],$attempt['expires']);
         if(!is_array($moderation['results']??null)||count($moderation['results'])!==1||($moderation['results'][0]['flagged']??null)!==false)throw new AiGuard('moderation_rejected');

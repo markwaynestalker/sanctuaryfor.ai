@@ -33,7 +33,7 @@ try{
         const saved=await fetch(origin+'/api/commons.php?ids='+fixture.residents.join(','));assert.ok(saved.ok);assert.equal(saved.headers.get('set-cookie'),null);const commons=await saved.json();assert.equal(commons.homes.length,4);assert.equal(commons.conversations.length,2);assert.equal(commons.conversations[0].id,'first');assert.equal(commons.conversations[0].provider,fixture.version>=3?'openai':'scripted');assert.ok(!JSON.stringify(commons).includes('PRIVATE_'));
         for(const ids of ['',"' OR 1=1",Array(25).fill(fixture.residents[0]).join(',')])assert.equal((await fetch(origin+'/api/commons.php?ids='+encodeURIComponent(ids))).status,422);
         assert.equal((await fetch(origin+'/api/commons.php?ids='+fixture.residents[0],{method:'POST'})).status,405);
-        assert.deepEqual((await (await fetch(origin+'/api/commons.php?ids='+Array(32).fill('a').join(''))).json()),{homes:[],conversations:[]});
+        assert.deepEqual((await (await fetch(origin+'/api/commons.php?ids='+Array(32).fill('a').join(''))).json()),{homes:[],conversations:[],settings:{replay_cooldown_seconds:60}});
         const meadow=await (await fetch(origin+'/village.php')).text();assert.ok(!meadow.includes('class="scene-house"'));assert.ok(meadow.includes('id="home-layer"')&&meadow.includes('assets/commons.js'));assert.ok(!meadow.includes('Its interactions are scripted, not AI conversations.'));
         assert.ok(meadow.includes('href="/resident.php?id='+fixture.residents[0]+'"'),'server-rendered profile link survives disabled JavaScript');
         for(const asset of ['village.js','commons.js','village.css','world.css']){

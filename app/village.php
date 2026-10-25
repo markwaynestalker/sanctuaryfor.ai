@@ -60,7 +60,7 @@ function connect(string $path): PDO
     ]);
     $db->exec('PRAGMA busy_timeout = 5000');
     $db->exec('PRAGMA foreign_keys = ON');
-    if (!in_array((int) $db->query('PRAGMA user_version')->fetchColumn(), [2,3,4], true)) {
+    if (!in_array((int) $db->query('PRAGMA user_version')->fetchColumn(), [2,3,4,5], true)) {
         throw new RuntimeException('Unsupported database version.');
     }
     return $db;
@@ -187,7 +187,10 @@ function create(PDO $db, array $input, string $browser, string $network, int $no
 }
 
 require_once __DIR__ . '/world.php';
+require_once __DIR__ . '/limits.php';
 require_once __DIR__ . '/preferences.php';
+require_once __DIR__ . '/memory.php';
+require_once __DIR__ . '/memory_context.php';
 
 function revisit(PDO $db, string $token, string $network, int $now): array
 {

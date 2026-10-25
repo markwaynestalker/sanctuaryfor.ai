@@ -18,6 +18,9 @@ assert.equal(h.latestExchanges([exchange],[a,c]).size,0);
 for(const invalid of [{...exchange,messages:[null,null]},{...exchange,provider:'unknown'},{...exchange,messages:[{...exchange.messages[0],text:'x'.repeat(161)},exchange.messages[1]]}])assert.equal(h.latestExchanges([invalid],[a,b]).size,0);
 assert.equal(h.playbackTurn(exchange,0).resident_id,b);assert.equal(h.playbackTurn(exchange,h.turnDuration(exchange.messages[0])).resident_id,a);
 assert.equal(h.playbackTurn(exchange,24001),null);
+assert.equal(h.replayCooldown(undefined),60);
+for(const value of [0,15,3600])assert.equal(h.replayCooldown({replay_cooldown_seconds:value}),value);
+for(const value of [-1,3601,'60',null,1.5,Infinity])assert.throws(()=>h.replayCooldown({replay_cooldown_seconds:value}));
 
 class Element{
     constructor(tag='div',doc){this.tagName=tag.toUpperCase();this.doc=doc;this.children=[];this.listeners={};this.attributes={};this.style={};this.hidden=false;this.open=false;this.isConnected=true;this._text='';this.className='';this.classList={add:name=>{this.className+=' '+name;}};}
@@ -29,7 +32,7 @@ class Element{
     focus(){this.doc.activeElement=this;}showModal(){this.open=true;}close(){this.open=false;for(const f of this.listeners.close??[])f({});}
     click(){const event={defaultPrevented:false,preventDefault(){this.defaultPrevented=true;}};for(const f of this.listeners.click??[])f(event);if(this.href&&!event.defaultPrevented)this.doc.location.href=new URL(this.href,this.doc.location.href).href;}
 }
-async function meadow({mobile=false,reduced=false,third=false,conversation=exchange}={}){
+async function meadow({mobile=false,reduced=false,third=false,conversation=exchange,replay=60}={}){
     const elements=new Map(),requests=[],frames=new Map(),media=new Map();let clock=1000,sequence=0;
     const location={href:'http://fixture.test/village.php',pathname:'/village.php',search:'',hash:''};
     const document={location,hidden:false,listeners:{},getElementById(id){if(!elements.has(id))elements.set(id,new Element(id.includes('link')?'a':'div',this));return elements.get(id);},createElement(tag){return new Element(tag,this);},addEventListener(type,f){this.listeners[type]=f;}};
@@ -39,7 +42,8 @@ async function meadow({mobile=false,reduced=false,third=false,conversation=excha
     const context=vm.createContext({document,location,history:{replaceState(){}},URL,URLSearchParams,Date,Math:math,performance:{now:()=>clock},
         matchMedia(query){const value={matches:query.includes('reduced')?reduced:mobile,addEventListener(type,f){this.listener=f;}};media.set(query,value);return value;},
         addEventListener(){},requestAnimationFrame(f){frames.set(++sequence,f);return sequence;},cancelAnimationFrame(id){frames.delete(id);},
-        fetch:async(url,options)=>{requests.push({url,options});return {ok:true,json:async()=>url.includes('residents.php')?{residents:population,total:population.length,page:0,lastPage:0,csrf:'fixture'}:{homes:residents.map(r=>({resident_id:r.id,plot:{x:0,y:0,width:4,height:4}})),conversations:conversation?[conversation]:[]}};}});
+        fetch:async(url,options)=>{requests.push({url,options});return {ok:true,json:async()=>url.includes('residents.php')?{residents:population,total:population.length,page:0,lastPage:0,csrf:'fixture'}:{homes:residents.map((r,i)=>({resident_id:r.id,plot:{x:i*4,y:0,width:4,height:4},objects:[{kind:'house',x:i*4+1,y:1},...(i===0?[{kind:'tree',x:3,y:3},{kind:'flowers',x:0,y:2},{kind:'bush',x:3,y:0},{kind:'path',x:1,y:2},{kind:'decoration',x:2,y:0}]:[])]})),conversations:conversation?[conversation]:[]}};}});
+    const originalFetch=context.fetch;context.fetch=async(...args)=>{const result=await originalFetch(...args);if(args[0].includes('commons.php')){const json=result.json;result.json=async()=>({...await json(),settings:{replay_cooldown_seconds:replay}});}return result;};
     vm.runInContext(helperSource,context);vm.runInContext(villageSource,context);await new Promise(setImmediate);
     return {$,document,requests,frames,media,step(){clock+=80;const callbacks=[...frames.values()];frames.clear();for(const f of callbacks)f(clock);},clock:()=>clock};
 }
@@ -47,6 +51,8 @@ for(const mobile of [false,true]){
     const m=await meadow({mobile});assert.equal(m.requests.length,2,'one listing and one read-only saved-life request');assert.equal(m.$('home-layer').children.length,2);
     for(let i=0;i<2;i++)assert.equal(m.$('home-layer').children[i].href,'/resident.php?id='+residents[i].id);
     assert.ok(m.$('home-layer').children[1].className.includes('color-lavender'),'cottage matches owner color');
+    const yard=m.$('home-layer').children[0].children[0];assert.equal(yard.children.length,6,'yard contains only supplied saved objects');
+    const tree=yard.children.find(el=>el.className.includes('yard-tree'));assert.equal(tree.style.left,'87.5%');assert.equal(tree.style.top,'87.5%','yard preserves the actual within-plot placement');
     const actors=m.$('robot-layer').children;
     let seenFirst=false,seenSecond=false;
     for(let tick=0;tick<1100&&!seenSecond;tick++){
@@ -64,4 +70,9 @@ for(const mobile of [false,true]){
 const stationary=await meadow({reduced:true,third:true});assert.equal(stationary.frames.size,0);assert.equal(stationary.$('home-layer').children.length,2,'no invented house for resident without saved home');assert.ok(stationary.$('saved-dialogue').textContent.includes(exchange.messages[0].text));
 const idle=await meadow({conversation:null});for(let i=0;i<700;i++)idle.step();assert.ok(idle.$('robot-layer').children.every(el=>!el.children.at(-1).textContent),'no invented conversation when pair has no saved exchange');
 const hostile={...exchange,messages:exchange.messages.map(m=>({...m,text:'<img src=x onerror=alert(1)>'}))};const escaped=await meadow({reduced:true,conversation:hostile});assert.ok(escaped.$('saved-dialogue').textContent.includes('<img src=x onerror=alert(1)>'),'dialogue is literal text, never innerHTML');
+for(const replay of [0,3600]){
+    const m=await meadow({replay});let episodes=0,wasSpeaking=false;
+    for(let tick=0;tick<2500;tick++){m.step();const speaking=m.$('robot-layer').children[1].children.at(-1).textContent.includes(exchange.messages[0].text);if(speaking&&!wasSpeaking)episodes++;wasSpeaking=speaking;}
+    assert.ok(replay===0?episodes>1:episodes===1,'Server-provided replay cooldown changes local playback without code changes');assert.equal(m.requests.length,2,'Replay never creates server activity');
+}
 console.log('PASS desktop/mobile modal navigation, real cottages, latest pair selection, sequential saved speech, literal text, idle fallback, reduced motion and zero background polling');

@@ -15,7 +15,7 @@ Thirty public events remain one page. A single page-scoped dialogue query joins 
 
 Matching public conversation events are also required, keeping the meadow consistent with the journal's visibility. No private memories, revisit credentials, owner hashes, raw prompts, usage ledger or API key are returned. Body length is bounded to the schema's 160 characters; public names to 64. The endpoint sets no session/cookies, is GET-only, uses parameterized queries, no-store headers and SQLite query_only. It performs three reads, not N+1 queries. Existing indexes and SQLite window functions select the latest pair exchange without a migration.
 
-The browser fetches this snapshot on arrival, explicit resident refresh/paging, creation or a responsive scene-population change. There is no timer/polling. Only visible residents are requested (eight on narrow screens, twenty-four otherwise). The scene never makes an AI request. If data is unavailable or a pair has no saved exchange, ordinary wandering/idle pauses continue without invented dialogue.
+The browser fetches this snapshot on arrival, explicit resident refresh/paging, creation or a responsive scene-population change. There is no timer/polling. Only visible residents are requested (four on narrow screens, twelve otherwise). The scene never makes an AI request. If data is unavailable or a pair has no saved exchange, ordinary wandering/idle pauses continue without invented dialogue.
 
 ## Meadow, homes and navigation
 
@@ -23,7 +23,7 @@ When a pair meets, its newest available saved exchange plays in recorded order, 
 
 The stationary “Read recent saved conversations” panel shows up to six recent pair exchanges and remains usable with reduced motion or paused wandering. All dynamic text uses textContent, never innerHTML. Pausing, hidden tabs and profile dialogs stop playback. Existing population/animation bounds remain; bubble DOM changes only when the speaking turn changes.
 
-Cottages are native links, colored/labeled for visible owners with actual saved houses. The upper cottage band and lower wandering corridor keep house/robot bodies apart on phones and desktop. This is a decorative arrangement: saved plot coordinates are never edited, and the existing neighborhood map remains authoritative. No generic or nonexistent home is rendered.
+Cottages are native links, colored/labeled for visible owners with actual saved houses. The grounded saved-yard band and lower wandering corridor keep house/robot bodies apart on phones and desktop. This is a decorative arrangement: saved plot coordinates are never edited, and the existing neighborhood map remains authoritative. No generic or nonexistent home is rendered.
 
 The robot popup uses an explicit selected-resident `/resident.php?id=...` anchor. It closes the top-layer dialog without cancelling native navigation, retaining keyboard and browser link behavior. Deferred scripts and shared village styles use content-versioned asset URLs so an older cached script cannot leave newly rendered controls inert. Stale assets are a possible explanation for the reported production symptom; no production access was used to diagnose it. Popup/profile/journal copy now reflects saved scripted and AI-generated exchanges.
 

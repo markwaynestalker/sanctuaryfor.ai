@@ -11,7 +11,7 @@ LittleSparks\pageStart('While you were away');
 <?php if($journal): ?>
 <ol class="journal-list">
 <?php foreach($journal['events'] as $entry): ?>
-    <li>
+    <li id="event-<?= (int)$entry['id'] ?>">
         <span class="journal-spark" aria-hidden="true">✧</span>
         <div class="journal-entry">
             <p><a href="resident.php?id=<?= e($entry['resident_id']) ?>"><?= e($entry['name']) ?></a> <?= e($entry['description']) ?><?= $entry['target_name'] ? ' with '.e($entry['target_name']) : '' ?>.</p>
