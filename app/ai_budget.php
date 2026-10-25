@@ -57,10 +57,12 @@ function estimatedAiCost(int $input,int $output,int $inputRate,int $outputRate):
 
 function reserveAi(PDO $db,string $period,array $pair,array $config,int $now): array
 {
+    if(identityEnabled($db))throw new AiGuard('migration_required');
     if(!in_array((int)$db->query('PRAGMA user_version')->fetchColumn(),[3,4,5],true))throw new AiGuard('migration_required');
     if(86400-$now%86400<90)throw new AiGuard('day_boundary');
     $db->exec('BEGIN IMMEDIATE');
     try{
+        if(identityEnabled($db))throw new AiGuard('migration_required');
         $lease=$db->query('SELECT owner FROM ai_lease WHERE singleton=1')->fetchColumn();
         if($lease!==null && $lease!==false)throw new AiGuard('simulation_busy');
         if($db->query("SELECT 1 FROM ai_attempts WHERE state IN ('reserved','uncertain','settled') LIMIT 1")->fetchColumn())throw new AiGuard('accounting_unresolved');

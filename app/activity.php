@@ -122,6 +122,7 @@ function claimActivity(PDO $db,string $at,int $now): array
     if(!in_array((int)$db->query('PRAGMA user_version')->fetchColumn(),[4,5],true))throw new Problem(503,'Explicit V4 migration required.');
     $id=opportunityId($at);$db->exec('BEGIN IMMEDIATE');
     try{
+        if(identityEnabled($db)){$db->exec('COMMIT');return ['replay'=>['status'=>'paused','reason'=>'identity_runtime_pending']];}
         recoverActivityClaims($db,$now);
         $existing=activityResultOrNull($db,$id);
         if($existing){$db->exec('COMMIT');return ['replay'=>$existing];}
@@ -227,6 +228,7 @@ function failActivity(PDO $db,array $claim,?array $attempt,?array $usage,string 
 
 function simulateOpportunity(PDO $db,string $at,bool $allowPaid=false,?AiTransport $transport=null,?int $now=null): array
 {
+    if(identityEnabled($db))return ['status'=>'paused','reason'=>'identity_runtime_pending','replayed'=>false];
     $now??=time();
     if(getenv('LITTLE_SPARKS_SIMULATION_ENABLED')!=='1')return ['status'=>'paused','replayed'=>false];
     if(memoryEnabled($db))memoryConfiguration();

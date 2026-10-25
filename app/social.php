@@ -58,6 +58,7 @@ function remember(PDO $db,string $resident,string $other,string $run,string $sum
 
 function simulateDay(PDO $db,string $period,?SocialPlanner $planner=null,?int $now=null,bool $enabledFallback=false,?string $leaseOwner=null,?array $usage=null): array
 {
+    if(identityEnabled($db))return ['status'=>'paused','reason'=>'identity_runtime_pending','replayed'=>false];
     $now ??= time();
     $date = \DateTimeImmutable::createFromFormat('!Y-m-d',$period,new \DateTimeZone('UTC'));
     if (!$date || $date->format('Y-m-d')!==$period) throw new Problem(422,'Choose a valid UTC date in YYYY-MM-DD format.');
@@ -68,6 +69,7 @@ function simulateDay(PDO $db,string $period,?SocialPlanner $planner=null,?int $n
     $provider=$isAi?'openai':'scripted';
     $started = false;
     try {
+        if(identityEnabled($db)){ $db->exec('COMMIT');return ['status'=>'paused','reason'=>'identity_runtime_pending','replayed'=>false]; }
         assertSimulationLease($db,$leaseOwner);
         $query=$db->prepare('SELECT id,status,interaction_count,error_code FROM simulation_runs WHERE period=?'); $query->execute([$period]);
         if ($previous=$query->fetch()) { $db->exec('COMMIT'); return $previous+['replayed'=>true]; }
