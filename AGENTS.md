@@ -1,5 +1,9 @@
 # SanctuaryFor.AI development instructions
 
+## Managed item extraction
+
+Turn item lists may contain user input, reasoning and assistant commentary alongside the final answer. Never parse inputs/commentary as proposals. Keep turn binding, exactly one completed assistant answer, bounded complete pages/text, original words, ordered resident IDs and moderation. Nullable answer phase is accepted only as a single unambiguous candidate; ambiguous/partial/tool outputs fail closed. Private proposal rejection receipts contain only item_envelope/proposal_json/proposal_content stage, never provider text. tests/director-items-core.php uses the exact owner-supplied Max/Princess proposal without private trace context; no production replay or live calls.
+
 ## Autonomous continuity (latest owner direction)
 
 ENV scheduling/AI/Director flags and validated budgets govern routine operation. Historical reserved/uncertain/settled rows retain their full conservative commitments and request slots but do not veto distinct eligible opportunities. Reconciliation is optional diagnostics, never a scheduler prerequisite. Recover only expired claims under the SQLite write lock; fence stale HTTP/apply workers and never replay a dispatched opportunity. Failed saved encounters are handled service outcomes, with no fabricated/scripted Director fallback. Keep live calls, production SSH/deployment, credentials and timer changes out of development. Read docs/AUTONOMOUS_VILLAGE.md and run all offline suites.
