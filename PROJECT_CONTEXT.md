@@ -4,7 +4,7 @@
 
 After icon/colors, prepare owner-written public personalities and private-link color/description editing as a separate PR. See docs/RESIDENT_PERSONALITIES.md for its V5 identity add-on revision 1, strict validation, concurrency/audit protections, offline tests and approval-gated Toronto backup/migration/rollback. No base V5 row/schema, credential, memory, provenance or ledger is reset; user_version stays 5. Original category residents start with an empty new description, not invented prose. New identities receive no PHP-composed speech/preferences. After explicit migration all new simulation entry points pause until the separately reviewed Director runtime is adopted; saved story playback continues.
 
-Initially stack on icon/colors, then retarget main after that release lands. Keep PR #9 draft and unchanged until independent releases land; its V6 migration must then adopt existing identities/edit history without reset. No managed Director code, live API call, paid activation, production migration/deployment or timer change is included here. Future read-only Memory MCP and optional MQTT bridge remain separate roadmap phases, not prerequisites.
+PR #10 (icon/colors) is merged into main at 0b8a7ae. PR #11 is rebased onto that main commit and targets main directly; no icon commit or unfinished Director code is copied into its diff. Keep PR #9 draft and unchanged until independent releases land; its V6 migration must then adopt existing identities/edit history without reset. No managed Director code, live API call, paid activation, production migration/deployment or timer change is included here. Future read-only Memory MCP and optional MQTT bridge remain separate roadmap phases, not prerequisites.
 
 ## Independent icon-and-colors release
 
