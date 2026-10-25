@@ -1,6 +1,8 @@
 <?php
 declare(strict_types=1);
 if(PHP_SAPI!=='cli'){http_response_code(404);exit;}
+// Leave five seconds beneath the deployed TimeoutStartSec=50s for process cleanup.
+define('LITTLE_SPARKS_SCHEDULED_DEADLINE',time()+45);
 require __DIR__.'/../app/village.php';require __DIR__.'/../app/activity.php';require __DIR__.'/../app/scheduler.php';
 $previousKey=getenv('OPENAI_API_KEY');
 try{
@@ -16,7 +18,7 @@ try{
     else{
         // Validate model/pricing/monthly configuration before loading a secret.
         $db=LittleSparks\connect((string)getenv('LITTLE_SPARKS_DB'));
-        if($paid&&!LittleSparks\identityEnabled($db)){LittleSparks\aiConfiguration(time());LittleSparks\loadScheduledCredential();}
+        if($paid){LittleSparks\aiConfiguration(time());LittleSparks\loadScheduledCredential();}
         $result=LittleSparks\simulateOpportunity($db,LittleSparks\dueOpportunity(time()),$paid);
         echo json_encode($result,JSON_THROW_ON_ERROR)."\n";
         if(($result['status']??null)==='failed')exit(1);

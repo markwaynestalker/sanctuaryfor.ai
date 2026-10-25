@@ -87,10 +87,10 @@ final class StagingPermit
         throw new AiGuard('configuration_invalid');
     }
 }
-function stagingTurn(array $page,string $sid,array $registered,?string $prior):array
+function stagingTurn(array $page,string $sid,array $registered,?string $prior,bool $history=false):array
 {
     $turn=$page['data'][0]??null;
-    if(($page['has_more']??null)!==false||count($page['data']??[])!==1||!is_array($turn)
+    if(!is_bool($page['has_more']??null)||(!$history&&$page['has_more'])||count($page['data']??[])!==1||!is_array($turn)
         ||($turn['session_id']??null)!==$sid||($turn['agent_id']??null)!==$registered['agent_id']||($turn['subagent_id']??null)!==null
         ||!is_string($turn['id']??null)||!preg_match('/\A[a-zA-Z0-9_-]{1,128}\z/',$turn['id'])||($prior!==null&&$turn['id']!==$prior)
         ||!in_array($turn['status']??null,['queued','in_progress','waiting','completed','failed','cancelled'],true))throw new AiGuard('usage_unknown');
@@ -107,27 +107,44 @@ function stagingItems(array $items,string $turn):array
     if(count($texts)!==1||strlen($texts[0])>4096)throw new AiGuard('invalid_proposal');$p=json_decode($texts[0],true,12,JSON_THROW_ON_ERROR);if(!is_array($p))throw new AiGuard('invalid_proposal');return $p;
 }
 // At most three progress observations, one cancellation, no generation retry.
-function stagingManagedEncounter(PDO $db,DirectorTransport $transport,array $attempt,array $session,array $registered,array $prepared,array $choices,?callable $clock=null,?callable $pause=null,bool $conversationOnly=true):array
+function stagingManagedEncounter(PDO $db,DirectorTransport $transport,array $attempt,array $session,array $registered,array $prepared,array $choices,?callable $clock=null,?callable $pause=null,bool $conversationOnly=true,bool $reuse=false):array
 {
     $clock??=static fn()=>time();$pause??=static fn(int $seconds)=>usleep($seconds*1000000);$sid=null;$turnId=null;$terminal=false;$calls=0;
-    $request=function(string $method,string $path,?array $body=null,?string $key=null,?string $kind=null,bool $recovery=false)use($db,$transport,$attempt,$clock,&$calls):array{
-        $deadline=$recovery?$attempt['expires']:$attempt['expires']-25;
+    $finishBy=min($attempt['expires']-15,$clock()+45,defined('LITTLE_SPARKS_SCHEDULED_DEADLINE')?constant('LITTLE_SPARKS_SCHEDULED_DEADLINE'):PHP_INT_MAX);
+    $pollBy=$finishBy-15; // Preserve retrieval, moderation, commit and cleanup time.
+    $request=function(string $method,string $path,?array $body=null,?string $key=null,?string $kind=null,bool $recovery=false)use($db,$transport,$attempt,$clock,$finishBy,$pollBy,&$calls):array{
+        $progress=$method==='GET'&&str_contains($path,'/turns?')&&!$recovery;
+        $deadline=$recovery?min($clock()+3,$finishBy-1):($progress?min($clock()+4,$pollBy):min($clock()+8,str_contains($path,'/items?')||$path==='moderations'?$finishBy-3:$pollBy));
         if($clock()>=$deadline||$calls>=8||(!$recovery&&$calls>=7))throw new AiGuard('daily_request_cap');$calls++;
         $n=startManagedHttp($db,$attempt,$method,$path,$kind);
         try{$r=$transport->request($method,$path,$body,$deadline,$key);finishManagedHttp($db,$attempt,$n,$r['_http']??[]);unset($r['_http']);return $r;}
         catch(\Throwable $e){finishManagedHttp($db,$attempt,$n,$e instanceof ManagedHttpFailure?['status'=>$e->status,'request_id'=>$e->requestId,'succeeded'=>false,'validation'=>$e->validation]:null);throw $e;}
     };
     try{
-        if($session['provider_session_id']!==null)throw new AiGuard('configuration_invalid');
-        $body=managedDirectorPrototype(json_decode($registered['configuration'],true,16,JSON_THROW_ON_ERROR),$prepared['context'],$choices);
-        if($conversationOnly)$body['agent']['text']['format']['schema']['properties']['outcome']['enum']=['conversation'];
-        $body['metadata']=['sanctuary_attempt_id'=>$attempt['id'],'contract'=>'sanctuary.director.v1'];$remote=$request('POST','agents/sessions',$body,$attempt['id']);
-        $sid=$remote['id']??null;if(!is_string($sid)||!preg_match('/\A[a-zA-Z0-9_-]{1,128}\z/',$sid)){$sid=null;throw new AiGuard('transport_uncertain');}
-        $db->prepare("UPDATE director_sessions SET provider_session_id=?,state='uncertain' WHERE id=?")->execute([$sid,$session['id']]);assertManagedSession($remote,$registered,$sid,false);
-        $remote=$request('GET','agents/sessions/'.$sid);assertManagedSession($remote,$registered,$sid,false);
+        $reusing=$session['provider_session_id']!==null;
+        if($reusing){
+            if(!$reuse)throw new AiGuard('configuration_invalid');$sid=$session['provider_session_id'];
+            assertManagedSession($request('GET','agents/sessions/'.$sid),$registered,$sid,true);
+            $submittedAt=$clock();
+            $request('POST','agents/sessions/'.$sid.'/events',['events'=>[['type'=>'agent.session.input.message','input'=>[['role'=>'user','content'=>[['type'=>'input_text','text'=>json_encode($prepared['context'],JSON_THROW_ON_ERROR|JSON_UNESCAPED_UNICODE)]]]]]]],$attempt['id']);
+        }else{
+            $body=managedDirectorPrototype(json_decode($registered['configuration'],true,16,JSON_THROW_ON_ERROR),$prepared['context'],$choices);
+            if($conversationOnly)$body['agent']['text']['format']['schema']['properties']['outcome']['enum']=['conversation'];
+            $body['metadata']=['sanctuary_attempt_id'=>$attempt['id'],'contract'=>'sanctuary.director.v1'];$submittedAt=$clock();$remote=$request('POST','agents/sessions',$body,$attempt['id']);
+            $sid=$remote['id']??null;if(!is_string($sid)||!preg_match('/\A[a-zA-Z0-9_-]{1,128}\z/',$sid)){$sid=null;throw new AiGuard('transport_uncertain');}
+            $db->prepare("UPDATE director_sessions SET provider_session_id=?,state='uncertain' WHERE id=?")->execute([$sid,$session['id']]);assertManagedSession($remote,$registered,$sid,false);
+            $remote=$request('GET','agents/sessions/'.$sid);assertManagedSession($remote,$registered,$sid,false);
+        }
         for($i=1;$i<=3;$i++){
-            if($i>1){if($clock()>=$attempt['expires']-30)break;$pause(2);}
-            $turn=stagingTurn($request('GET','agents/sessions/'.$sid.'/turns?limit=1&order=desc',null,null,'turns_'.$i),$sid,$registered,$turnId);$turnId=$turn['id'];
+            if($i>1){if($clock()+4>=$pollBy)break;$pause(4);}
+            if($clock()>=$pollBy)break;
+            $page=$request('GET','agents/sessions/'.$sid.'/turns?limit=1&order=desc',null,null,'turns_'.$i);
+            // Creation/submission may be visible before its first turn is published.
+            if(($page['has_more']??null)===false&&($page['data']??null)===[])continue;
+            $turn=stagingTurn($page,$sid,$registered,$turnId,$reusing);
+            if($reusing&&$turn['id']===$session['last_turn_id'])continue;
+            if(($reusing&&!isset($turn['created_at']))||(isset($turn['created_at'])&&(!is_int($turn['created_at'])||$turn['created_at']<$submittedAt)))throw new AiGuard('usage_unknown');
+            $turnId=$turn['id'];
             $observed=observeManagedUsage($db,$attempt,$turnId,$turn['usage']??null,aiConfiguration(time()));
             if(in_array($turn['status'],['completed','failed','cancelled'],true)){$terminal=true;recordManagedOutcome($db,$attempt,$sid,$turnId,$turn['status']);break;}
         }
@@ -139,14 +156,15 @@ function stagingManagedEncounter(PDO $db,DirectorTransport $transport,array $att
         if($conversationOnly&&($proposal['outcome']!=='conversation'||$proposal['world_action']!=='none'))throw new AiGuard('invalid_proposal');
         $moderated=$request('POST','moderations',['model'=>'omni-moderation-latest','input'=>json_encode([$prepared['context'],$decoded],JSON_THROW_ON_ERROR|JSON_UNESCAPED_UNICODE)]);
         if(count($moderated['results']??[])!==1||($moderated['results'][0]['flagged']??null)!==false)throw new AiGuard('moderation_rejected');
-        if($calls<8&&$clock()<$attempt['expires']-25){$final=stagingTurn($request('GET','agents/sessions/'.$sid.'/turns?limit=1&order=desc',null,null,'final_turn',true),$sid,$registered,$turnId);
-            if($final['status']!=='completed'){recordManagedOutcome($db,$attempt,$sid,$turnId,'unresolved');throw new AiGuard('usage_unknown');}
+        if($calls<8&&$clock()<$finishBy-2){$final=stagingTurn($request('GET','agents/sessions/'.$sid.'/turns?limit=1&order=desc',null,null,'final_turn',true),$sid,$registered,$turnId,$reusing);
+            if($final['status']!=='completed'||($final['error']??null)!==null){recordManagedOutcome($db,$attempt,$sid,$turnId,'unresolved');throw new AiGuard('usage_unknown');}
             if(observeManagedUsage($db,$attempt,$turnId,$final['usage']??null,aiConfiguration(time()))===null)throw new AiGuard('usage_unknown');}
-        $db->prepare('UPDATE director_sessions SET turns=1,last_turn_id=? WHERE id=?')->execute([$turnId,$session['id']]);return ['proposal'=>$proposal];
+        $db->prepare('UPDATE director_sessions SET turns=turns+1,last_turn_id=? WHERE id=?')->execute([$turnId,$session['id']]);return ['proposal'=>$proposal,'observed_usage'=>$turn['usage']??null,'turn_id'=>$turnId];
     }catch(\Throwable $e){
-        if(!$terminal&&$sid!==null&&$calls<8){
+        $db->prepare('UPDATE director_sessions SET state=? WHERE id=?')->execute([$e instanceof AiGuard&&$e->reason==='session_unavailable'?'unavailable':'uncertain',$session['id']]);
+        if(!$terminal&&$sid!==null&&$calls<8&&$clock()<$finishBy-2){
             try{$request('POST','agents/sessions/'.$sid.'/events',['events'=>[['type'=>'agent.session.input.cancel']]],$attempt['id'],'cancel',true);recordManagedOutcome($db,$attempt,$sid,$turnId,'cancel_requested');
-                if($calls<8&&$clock()<$attempt['expires']){$after=stagingTurn($request('GET','agents/sessions/'.$sid.'/turns?limit=1&order=desc',null,null,'final_turn',true),$sid,$registered,$turnId);observeManagedUsage($db,$attempt,$after['id'],$after['usage']??null,aiConfiguration(time()));recordManagedOutcome($db,$attempt,$sid,$after['id'],in_array($after['status'],['completed','failed','cancelled'],true)?$after['status']:'unresolved');}
+                if($calls<8&&$clock()<$finishBy-2){$after=stagingTurn($request('GET','agents/sessions/'.$sid.'/turns?limit=1&order=desc',null,null,'final_turn',true),$sid,$registered,$turnId,$reusing);if($after['id']===$session['last_turn_id'])throw new AiGuard('usage_unknown');observeManagedUsage($db,$attempt,$after['id'],$after['usage']??null,aiConfiguration(time()));recordManagedOutcome($db,$attempt,$sid,$after['id'],in_array($after['status'],['completed','failed','cancelled'],true)?$after['status']:'unresolved');}
             }catch(\Throwable){recordManagedOutcome($db,$attempt,$sid,$turnId,'cancel_uncertain');}
         }elseif(!$terminal)recordManagedOutcome($db,$attempt,$sid,$turnId,$sid===null?'session_lost':'unresolved');
         throw $e;

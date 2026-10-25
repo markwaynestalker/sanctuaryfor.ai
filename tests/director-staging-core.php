@@ -3,7 +3,7 @@ declare(strict_types=1);
 // Included by director-core.php; every transport here is synthetic/offline.
 final class StagingMock implements LittleSparks\DirectorTransport
 {
-    public array $calls=[];private array $context=[];private int $polls=0;private bool $cancelled=false;
+    public array $calls=[];private array $context=[];private int $polls=0;private bool $cancelled=false;private bool $submitted=false;private string $turn='turn_stage';
     public function __construct(public string $mode='good',private ?LittleSparks\StagingPermit $permit=null){}
     public function request(string $method,string $path,?array $body,int $deadline,?string $idempotencyKey=null):array
     {
@@ -27,27 +27,28 @@ final class StagingMock implements LittleSparks\DirectorTransport
             if($this->mode==='validation_400')throw new LittleSparks\ManagedHttpFailure(400,'req_validation_mock',LittleSparks\managedValidationError(400,json_encode(['error'=>['code'=>'unknown_parameter','param'=>'agent.text.format.schema','message'=>'PRIVATE_PROVIDER_CANARY sk-not-a-key']],JSON_THROW_ON_ERROR)));
             if($this->mode==='lost')throw new LittleSparks\ManagedHttpFailure();
             $this->context=json_decode($body['input'][0]['content'][0]['text'],true);
+            $this->submitted=true;
             return $this->remote();
         }
-        if(str_ends_with($path,'/events')){check($body===['events'=>[['type'=>'agent.session.input.cancel']]],'Recovery may only cancel, never submit dialogue');if($this->mode==='cancel_failure')throw new LittleSparks\ManagedHttpFailure();$this->cancelled=true;return [];}
+        if(str_ends_with($path,'/events')){if(($body['events'][0]['type']??null)==='agent.session.input.message'){$this->context=json_decode($body['events'][0]['input'][0]['content'][0]['text'],true);$this->submitted=true;$this->turn='turn_stage_'.$idempotencyKey;return [];}check($body===['events'=>[['type'=>'agent.session.input.cancel']]],'Recovery may only cancel, never submit dialogue');if($this->mode==='cancel_failure')throw new LittleSparks\ManagedHttpFailure();$this->cancelled=true;return [];}
         if(str_contains($path,'/turns?')){
             $this->polls++;$status=$this->cancelled?'cancelled':(in_array($this->mode,['incomplete','cancel_failure','cancel_still_running','deadline'],true)?'in_progress':($this->mode==='delayed'&&$this->polls<3?'in_progress':'completed'));
             if($this->mode==='cancel_still_running')$status='in_progress';
-            return ['has_more'=>false,'data'=>[['id'=>'turn_stage','agent_id'=>getenv('LITTLE_SPARKS_DIRECTOR_AGENT_ID'),'session_id'=>$this->mode==='wrong_session'?'wrong_session':'session_stage','subagent_id'=>null,'status'=>$status,'error'=>null,
+            return ['has_more'=>false,'data'=>[['id'=>$this->turn,'created_at'=>time(),'agent_id'=>getenv('LITTLE_SPARKS_DIRECTOR_AGENT_ID'),'session_id'=>$this->mode==='wrong_session'?'wrong_session':'session_stage','subagent_id'=>null,'status'=>$status,'error'=>null,
                 'usage'=>$this->mode==='unknown'?null:['input_tokens'=>2200,'output_tokens'=>100,'total_tokens'=>2300]]]];
         }
         if(str_contains($path,'/items?')){
             $actors=$this->context['participants'];$p=['contract'=>'sanctuary.director.v1','outcome'=>'conversation','topic'=>'A welcome in the meadow','messages'=>[['resident_id'=>$actors[0]['id'],'text'=>'Could a welcome grow like a little garden?'],['resident_id'=>$actors[1]['id'],'text'=>'Perhaps kindness is its favorite sunlight.']],'world_action'=>'none','transmissions'=>[],'notes'=>[]];
             if($this->mode==='invalid')$p['messages'][0]['text']='<script>no</script>';
             if($this->mode==='quiet'){$p['outcome']='quiet';$p['messages']=[];}
-            return ['has_more'=>false,'data'=>[['type'=>'message','role'=>'assistant','phase'=>'final_answer','status'=>'completed','turn_id'=>'turn_stage','content'=>[['type'=>'output_text','text'=>json_encode($p,JSON_THROW_ON_ERROR)]]]]];
+            return ['has_more'=>false,'data'=>[['type'=>'message','role'=>'assistant','phase'=>'final_answer','status'=>'completed','turn_id'=>$this->turn,'content'=>[['type'=>'output_text','text'=>json_encode($p,JSON_THROW_ON_ERROR)]]]]];
         }
         if($path==='moderations'){if($this->mode==='moderation_timeout')throw new LittleSparks\ManagedHttpFailure();return ['results'=>[['flagged'=>$this->mode==='flagged']]];}
         $remote=$this->remote();if($this->mode==='unsafe')$remote['agent']['tools']=[['type'=>'shell']];
         if($this->mode==='inspect_tier')$remote['agent']['service_tier']='priority';return $remote;
     }
     private function remote():array{
-        $r=['id'=>'session_stage','object'=>'agent.session','status'=>'in_progress','agent'=>['id'=>getenv('LITTLE_SPARKS_DIRECTOR_AGENT_ID'),'model'=>'gpt-6-luna','service_tier'=>'default','tools'=>[],'multi_agent'=>['enabled'=>false]],'environment'=>['type'=>'none'],'required_actions'=>[],'vault_ids'=>[]];
+        $r=['id'=>'session_stage','object'=>'agent.session','status'=>$this->submitted?'in_progress':'idle','agent'=>['id'=>getenv('LITTLE_SPARKS_DIRECTOR_AGENT_ID'),'model'=>'gpt-6-luna','service_tier'=>'default','tools'=>[],'multi_agent'=>['enabled'=>false]],'environment'=>['type'=>'none'],'required_actions'=>[],'vault_ids'=>[]];
         if(in_array($this->mode,['auto_tier','priority_tier'],true))$r['agent']['service_tier']=$this->mode==='auto_tier'?'auto':'priority';
         if($this->mode==='missing_tier')unset($r['agent']['service_tier']);return $r;
     }
@@ -108,8 +109,8 @@ try{
     $stage=$stageFresh();$grant=LittleSparks\StagingPermit::consume($stage,$approved($stage));$cfg=LittleSparks\directorConfiguration();$reg=LittleSparks\registeredDirector($stage,$cfg);$now=time();$claim=LittleSparks\claimActivity($stage,$at,$now);
     $stage->exec('BEGIN IMMEDIATE');$s=LittleSparks\directorSession($stage,$reg,$claim['pair'],'agents',$now);$stage->exec('COMMIT');$choices=['none'=>null];$prepared=LittleSparks\prepareDirectorEncounter($stage,$claim['pair'],$choices,$claim,$cfg);
     $pricing=LittleSparks\aiConfiguration($now)+['director_session'=>$s['id'],'director_runtime'=>'agents','director_once'=>true,'director_context'=>hash('sha256',json_encode($prepared['context'],JSON_THROW_ON_ERROR|JSON_UNESCAPED_UNICODE)),'director_slots'=>8,'staging_allocation'=>100000];
-    $attempt=LittleSparks\reserveAi($stage,$claim['id'],$claim['pair'],$pricing,$now);$mock=new StagingMock('deadline',$grant);$ticks=0;
-    try{LittleSparks\stagingManagedEncounter($stage,$mock,$attempt,$s,$reg,$prepared,$choices,static function()use(&$ticks,$now){return $now+5*$ticks++;},static fn(int $seconds)=>null);throw new LogicException('Unfinished deadline outcome accepted');}catch(LittleSparks\AiGuard){}
+    $attempt=LittleSparks\reserveAi($stage,$claim['id'],$claim['pair'],$pricing,$now);$mock=new StagingMock('deadline',$grant);$ticks=$now;
+    try{LittleSparks\stagingManagedEncounter($stage,$mock,$attempt,$s,$reg,$prepared,$choices,static function()use(&$ticks){return $ticks;},static function(int $seconds)use(&$ticks){$ticks+=$seconds;});throw new LogicException('Unfinished deadline outcome accepted');}catch(LittleSparks\AiGuard){}
     check(count(array_filter($mock->calls,fn($c)=>str_ends_with($c[1],'/events')))===1,'Observation cutoff retains a single cancellation attempt before deadline');
     $over=['input_tokens'=>2200,'output_tokens'=>700,'total_tokens'=>2900];check(LittleSparks\observeManagedUsage($stage,$attempt,'turn_stage',$over,$pricing)===null,'Excessive usage fails closed');$last=$stage->query('SELECT output_tokens,status FROM director_usage_observations ORDER BY id DESC LIMIT 1')->fetch();check((int)$last['output_tokens']===700&&$last['status']==='unknown','Retain measurable excessive usage without accepting billing');
     $stage=$stageFresh();$grant=LittleSparks\StagingPermit::consume($stage,$approved($stage));$mock=new StagingMock('good',$grant);$r=LittleSparks\simulateDirectorOpportunity($stage,$at,true,null,$mock,null,null,true,$grant);

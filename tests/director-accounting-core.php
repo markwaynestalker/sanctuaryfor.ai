@@ -12,9 +12,9 @@ try{
     putenv('LITTLE_SPARKS_AI_DAILY_REQUESTS=200');putenv('LITTLE_SPARKS_DIRECTOR_RUNTIME=agents');
     $db=$directorFresh();$mock=new ManagedMock();$result=LittleSparks\simulateDirectorOpportunity($db,$at,true,null,$mock);$attemptId=$result['id'];
     $calls=$db->query('SELECT * FROM director_http_calls ORDER BY sequence')->fetchAll();
-    check(count($calls)===4&&array_column($calls,'kind')===['create','turns','items','moderation'],'All HTTP steps have durable started-before-dispatch records');
+    check(count($calls)===6&&array_column($calls,'kind')===['create','inspect_session','turns_1','items','moderation','final_turn'],'All HTTP steps have durable started-before-dispatch records');
     check(array_unique(array_column($calls,'outcome'))===['succeeded'],'Successful outcomes logged without response bodies');
-    check((int)$db->query('SELECT COUNT(*) FROM director_usage_observations')->fetchColumn()===1,'Usage is a separate append-only observation');
+    check((int)$db->query('SELECT COUNT(*) FROM director_usage_observations')->fetchColumn()===2,'Completion and final usage are separate append-only observations');
     $a=$db->query('SELECT * FROM ai_attempts ORDER BY rowid DESC LIMIT 1')->fetch();check($a['state']==='uncertain'&&$a['estimated_microusd']===null,'Best-effort usage is never a bill');
     $n=count($mock->calls);LittleSparks\simulateDirectorOpportunity($db,gmdate('Y-m-d\TH:i:00\Z',time()-240),true,null,$mock);check(count($mock->calls)===$n,'Unresolved billing blocks a different opportunity');
     $review=LittleSparks\reviewManagedBilling($db,$attemptId,str_repeat('c',32),0,str_repeat('a',64));

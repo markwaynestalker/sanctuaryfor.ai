@@ -1,5 +1,9 @@
 # SanctuaryFor.AI development instructions
 
+## Current production lifecycle fix (owner update, 2026-10-25)
+
+Production is now SQLite V6 with the managed Director enabled and sanctuary-village.timer enabled/active. Earlier V5/inactive-timer notes below are historical. The owner reports an uncommitted scripts/scheduled-village.php hotfix: loadScheduledCredential() runs whenever $paid, including identity-enabled V6. Preserve it in source and account for the dirty checkout during owner-run deployment. Work on a focused branch from current main; use offline transports only. Do not SSH/deploy, modify production SQLite/configuration/timer, replay the failed 21:15 opportunity, or insert its provider dialogue. Keep eight-slot accounting, $1 application maximum, idempotency and uncertainty intact. See the current section of docs/TORONTO_V3A_RUNBOOK.md.
+
 ## Independent UI release
 
 - The robot home-screen icon and 24 curated colors are V5-compatible and require no migration, new API integration or scheduler activation. Do not pull unfinished V3A/Director or personality-migration code into this release. Use tests/icon-colors.mjs plus the existing commons and HTTP suites to verify all colors, persistence, Apple metadata and unchanged V5 data/schema on read-only browsing. Production deployment still requires approval; Toronto's timer stays disabled.

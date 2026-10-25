@@ -44,8 +44,8 @@ final class ManagedMock implements LittleSparks\DirectorTransport
             check(!array_key_exists('spend_control',$body)&&!isset($body['agent']['text']['format']['name']),'Live-compatible managed spend/schema contract');
             $this->context=json_decode($body['input'][0]['content'][0]['text'],true);$this->turn++;return $this->remote('in_progress');
         }
-        if(str_ends_with($path,'/events')){$this->context=json_decode($body['events'][0]['input'][0]['content'][0]['text'],true);check($idempotencyKey!==null,'Stable followup idempotency key');$this->turn++;return [];}
-        if(str_contains($path,'/turns?'))return ['data'=>[['id'=>'turn_'.$this->turn,'session_id'=>'session_mock','agent_id'=>getenv('LITTLE_SPARKS_DIRECTOR_AGENT_ID'),'subagent_id'=>null,'status'=>$this->mode==='incomplete'?'in_progress':'completed','usage'=>$this->mode==='unknown'?null:['input_tokens'=>2300,'output_tokens'=>180,'total_tokens'=>2480]]]];
+        if(str_ends_with($path,'/events')){if(($body['events'][0]['type']??null)==='agent.session.input.cancel')return [];$this->context=json_decode($body['events'][0]['input'][0]['content'][0]['text'],true);check($idempotencyKey!==null,'Stable followup idempotency key');$this->turn++;return [];}
+        if(str_contains($path,'/turns?'))return ['has_more'=>false,'data'=>[['id'=>'turn_'.$this->turn,'created_at'=>time(),'session_id'=>'session_mock','agent_id'=>getenv('LITTLE_SPARKS_DIRECTOR_AGENT_ID'),'subagent_id'=>null,'status'=>$this->mode==='incomplete'?'in_progress':'completed','usage'=>$this->mode==='unknown'?null:['input_tokens'=>2300,'output_tokens'=>180,'total_tokens'=>2480]]]];
         if(str_contains($path,'/items?')){
             $a=$this->context['participants'];$p=['contract'=>'sanctuary.director.v1','outcome'=>'conversation','topic'=>'Garden daydreams','messages'=>[['resident_id'=>$a[0]['id'],'text'=>'Could a daydream fit inside a lavender flower?'],['resident_id'=>$a[1]['id'],'text'=>'Perhaps, if it folds its wings.']],'world_action'=>'none','transmissions'=>[],'notes'=>[]];
             return ['has_more'=>false,'data'=>[['type'=>'message','role'=>'assistant','phase'=>'final_answer','status'=>'completed','turn_id'=>'turn_'.$this->turn,'content'=>[['type'=>'output_text','text'=>json_encode($p,JSON_THROW_ON_ERROR)]]]]];
@@ -91,9 +91,9 @@ try{
     foreach(['quiet','none'] as $mode){$db=$directorFresh();$old=(int)$db->query('SELECT COUNT(*) FROM conversations')->fetchColumn();$result=LittleSparks\simulateOpportunity($db,$at,true,new DirectorMock($mode));check($result['outcome']===$mode&&(int)$db->query('SELECT COUNT(*) FROM conversations')->fetchColumn()===$old,'Silent '.$mode.' outcome');}
     putenv('LITTLE_SPARKS_DIRECTOR_ENABLED=0');$db=$directorFresh();check(LittleSparks\simulateOpportunity($db,$at,true,new DirectorMock())['status']==='silent','No scripted fallback when disabled');putenv('LITTLE_SPARKS_DIRECTOR_ENABLED=1');
     putenv('LITTLE_SPARKS_DIRECTOR_RUNTIME=agents');$db=$directorFresh();check(LittleSparks\simulateOpportunity($db,$at,true)['reason']==='credentials_unavailable','Configured live routing refuses missing credentials before reservation');
-    $mock=new ManagedMock();$result=LittleSparks\simulateDirectorOpportunity($db,$at,true,null,$mock);check(($result['status']??null)==='completed','Mocked saved agent encounter succeeds');check(count($mock->calls)===4,'All managed requests including moderation counted');
+    $mock=new ManagedMock();$result=LittleSparks\simulateDirectorOpportunity($db,$at,true,null,$mock);check(($result['status']??null)==='completed','Mocked saved agent encounter succeeds');check(count($mock->calls)===6,'All managed requests including inspections and moderation counted');
     check($db->query('SELECT state FROM ai_attempts ORDER BY rowid DESC LIMIT 1')->fetchColumn()==='uncertain','Best-effort managed usage never releases budget');
-    check((int)$db->query('SELECT started_requests FROM director_attempts ORDER BY rowid DESC LIMIT 1')->fetchColumn()===4,'Managed ledger tracks every request');
+    check((int)$db->query('SELECT started_requests FROM director_attempts ORDER BY rowid DESC LIMIT 1')->fetchColumn()===6,'Managed ledger tracks every request');
     $registered=LittleSparks\registeredDirector($db,LittleSparks\directorConfiguration());$actors=$mock->context['participants'];$pair=array_map(fn($a)=>['id'=>$a['id'],'personality'=>'custom'],$actors);
     $session=LittleSparks\directorSession($db,$registered,$pair,'agents',time());check($session['provider_session_id']==='session_mock','Provider session survives reconnect by SQLite scope');
     $swapped=LittleSparks\directorSession($db,$registered,array_reverse($pair),'agents',time());check($swapped['id']===$session['id'],'Pair order does not change scope');
@@ -105,9 +105,9 @@ try{
     $session=LittleSparks\directorSession($db,$registered,$pair,'agents',time());$choices=LittleSparks\aiActionChoices($db,$pair[0]['id'],$pair[1]['id'],time());
     $claim=['id'=>'op:'.gmdate('Y-m-d\TH:i:00\Z',time()-300),'created_at'=>gmdate('Y-m-d\TH:i:s\Z')];$prepared=LittleSparks\prepareDirectorEncounter($db,$pair,$choices,$claim,LittleSparks\directorConfiguration());
     check((bool)$prepared['context']['participants'][0]['recent_conversations'],'Restart retrieves accepted resident history from SQLite');
-    $pricing=LittleSparks\aiConfiguration(time())+['director_slots'=>5,'director_session'=>$session['id'],'director_runtime'=>'agents','director_context'=>hash('sha256',json_encode($prepared['context'],JSON_THROW_ON_ERROR))];
+    $pricing=LittleSparks\aiConfiguration(time())+['director_slots'=>8,'director_session'=>$session['id'],'director_runtime'=>'agents','director_context'=>hash('sha256',json_encode($prepared['context'],JSON_THROW_ON_ERROR))];
     $attempt=LittleSparks\reserveAi($db,$claim['id'],$pair,$pricing,time());$beforeCalls=count($mock->calls);LittleSparks\managedDirectorEncounter($db,$mock,$attempt,$session,$registered,$prepared,$choices);
-    check(count($mock->calls)-$beforeCalls===5&&$mock->turn===2&&$mock->context['opportunity_id']===$claim['id'],'Second canonical encounter reuses optional session with fresh SQLite context and all five slots');
+    check(count($mock->calls)-$beforeCalls===6&&$mock->turn===2&&$mock->context['opportunity_id']===$claim['id'],'Second canonical encounter reuses optional session with fresh SQLite context inside eight reserved slots');
     $db->prepare("UPDATE director_sessions SET state='unavailable' WHERE id=?")->execute([$session['id']]);
     check(LittleSparks\directorSession($db,$registered,$pair,'agents',time())['id']!==$session['id'],'Unavailable continuity is replaceable without altering resident records');
     foreach(['flagged','unknown','timeout','incomplete'] as $mode){$db=$directorFresh();$mock=new ManagedMock($mode);$old=(int)$db->query('SELECT COUNT(*) FROM messages')->fetchColumn();$result=LittleSparks\simulateDirectorOpportunity($db,$at,true,null,$mock);check($result['status']==='failed'&&(int)$db->query('SELECT COUNT(*) FROM messages')->fetchColumn()===$old,'Managed failure produces no history: '.$mode);$calls=count($mock->calls);LittleSparks\simulateDirectorOpportunity($db,$at,true,null,$mock);check(count($mock->calls)===$calls,'No automatic paid retry: '.$mode);}
@@ -117,3 +117,4 @@ try{
 }catch(Throwable $e){fwrite(STDERR,$e->getMessage()."\n".$e->getTraceAsString()."\n");exit(1);}
 require __DIR__.'/director-accounting-core.php';
 require __DIR__.'/director-staging-core.php';
+require __DIR__.'/director-lifecycle-core.php';
