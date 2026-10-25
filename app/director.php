@@ -168,6 +168,7 @@ function simulateDirectorOpportunity(PDO $db,string $at,bool $allowPaid,?AiTrans
                 $usage=['input_tokens'=>0,'output_tokens'=>0,'cost_microusd'=>0];
             }
         }
-        return failActivity($db,$claim,$attempt,$usage,$e instanceof AiGuard?$e->reason:'apply_rejected');
+        $reason=$e instanceof AiGuard?$e->reason:($e instanceof ManagedHttpFailure?($e->status===null?'transport_uncertain':'provider_api_error'):($e instanceof \JsonException?'invalid_proposal':'apply_rejected'));
+        return failActivity($db,$claim,$attempt,$usage,$reason);
     }
 }

@@ -96,24 +96,30 @@ function selectActivityResidents(PDO $db,string $day,?array $cfg=null,?int $now=
 function activityResult(PDO $db,string $id): array
 {
     $q=$db->prepare('SELECT o.id AS opportunity_id,o.outcome,o.scheduled_at,r.id,r.status,r.provider,r.interaction_count FROM simulation_opportunities o LEFT JOIN simulation_runs r ON r.id=o.run_id WHERE o.id=?');$q->execute([$id]);
-    return $q->fetch()?:throw new Problem(503,'Opportunity unavailable.');
+    $result=$q->fetch()?:throw new Problem(503,'Opportunity unavailable.');
+    $q=$db->prepare('SELECT value FROM settings WHERE name=?');$q->execute(['activity_failure:'.$id]);$reason=$q->fetchColumn();
+    if(is_string($reason))$result['failure_category']=$reason;
+    return $result;
 }
 
 function recoverActivityClaims(PDO $db,int $now): void
 {
     // Called inside BEGIN IMMEDIATE. Never replay a dispatched/abandoned paid attempt.
-    $q=$db->prepare("SELECT * FROM simulation_opportunities WHERE outcome='pending' AND expires_at<?");$q->execute([$now]);
+    recoverExpiredAiLease($db,$now);
+    $q=$db->prepare("SELECT * FROM simulation_opportunities WHERE outcome='pending' AND expires_at<=?");$q->execute([$now]);
     foreach($q->fetchAll() as $op){
         $a=$db->prepare('SELECT * FROM ai_attempts WHERE period=?');$a->execute([$op['id']]);$attempt=$a->fetch();
         $run=$attempt['id']??bin2hex(random_bytes(16));$time=gmdate('Y-m-d\TH:i:s\Z',$now);
         $db->prepare("INSERT INTO simulation_runs(id,period,status,provider,started_at,finished_at,error_code,input_tokens,output_tokens,cost_microusd) VALUES (?,?,'failed',?,?,?,'simulation_failed',?,?,?)")
-            ->execute([$run,$op['id'],$attempt?'openai':'scripted',$op['created_at'],$time,$attempt['input_tokens']??0,$attempt['output_tokens']??0,$attempt['estimated_microusd']??0]);
+            ->execute([$run,$op['id'],($attempt||directorEnabled($db))?'openai':'scripted',$op['created_at'],$time,$attempt['input_tokens']??0,$attempt['output_tokens']??0,$attempt['estimated_microusd']??0]);
         if($attempt){
-            $known=$attempt['estimated_microusd']!==null;
-            $db->prepare('UPDATE ai_attempts SET state=?,error_code=?,finished_at=? WHERE id=?')->execute([$known?'rejected':'uncertain',$known?'apply_rejected':'transport_uncertain',$time,$run]);
+            // An expired worker's known estimate is not proof of final billing.
+            $db->prepare("UPDATE ai_attempts SET state='uncertain',error_code=COALESCE(error_code,'lease_expired'),finished_at=? WHERE id=? AND state IN ('reserved','settled','uncertain')")->execute([$time,$run]);
+            if(directorEnabled($db))$db->prepare("UPDATE director_attempts SET state='uncertain' WHERE id=? AND state='reserved'")->execute([$run]);
             $db->prepare('UPDATE ai_lease SET owner=NULL,expires_at=0 WHERE owner=?')->execute([$run]);
         }
         $db->prepare("UPDATE simulation_opportunities SET outcome='failed',run_id=?,finished_at=? WHERE id=?")->execute([$run,$time,$op['id']]);
+        $db->prepare('INSERT OR IGNORE INTO settings(name,value) VALUES (?,?)')->execute(['activity_failure:'.$op['id'],'lease_expired']);
     }
 }
 
@@ -133,7 +139,6 @@ function claimActivity(PDO $db,string $at,int $now): array
         if($db->query("SELECT 1 FROM simulation_opportunities WHERE outcome='pending' LIMIT 1")->fetchColumn())throw new Problem(409,'Another opportunity is in progress.');
         $day=gmdate('Y-m-d',$now);$q=$db->prepare('SELECT COUNT(*) FROM simulation_opportunities WHERE day=?');$q->execute([$day]);
         if((int)$q->fetchColumn()>=$cfg['daily_opportunities'])throw new Problem(429,'The village is resting at its configured daily ceiling.');
-        if((int)$db->query('SELECT COUNT(*) FROM simulation_runs')->fetchColumn()>=100000)throw new Problem(503,'Simulation archive requires review.');
         $pair=selectActivityResidents($db,$day,$cfg,$now);$time=gmdate('Y-m-d\TH:i:s\Z',$now);
         $db->prepare("INSERT INTO simulation_opportunities(id,scheduled_at,day,resident_a,resident_b,outcome,expires_at,created_at) VALUES (?,?,?,?,?,'pending',?,?)")
             ->execute([$id,$at,$day,$pair[0]['id']??null,$pair[1]['id']??null,$now+60,$time]);
@@ -172,7 +177,7 @@ function applyActivity(PDO $db,array $claim,array $proposal,array $choices,int $
     try{
         assertSimulationLease($db,$attempt['id']??null);
         $q=$db->prepare("SELECT expires_at FROM simulation_opportunities WHERE id=? AND outcome='pending'");$q->execute([$claim['id']]);
-        $expiry=$q->fetchColumn();if($expiry===false||(int)$expiry<time()||gmdate('Y-m-d',$now)!==gmdate('Y-m-d'))throw new AiGuard('apply_rejected');
+        $expiry=$q->fetchColumn();if($expiry===false||(int)$expiry<=time()||gmdate('Y-m-d',$now)!==gmdate('Y-m-d'))throw new AiGuard('apply_rejected');
         $run=$attempt['id']??bin2hex(random_bytes(16));$time=gmdate('Y-m-d\TH:i:s\Z',$now);$ai=$attempt!==null;$pair=$claim['pair'];$outcome=$proposal['outcome'];
         $limits=activityConfiguration();assertAppliedActivityLimits($db,$pair,gmdate('Y-m-d',$now),$limits);
         if($outcome==='conversation'&&(!isset($pair[1])||!conversationCooldownAllows($db,$pair[0]['id'],$pair[1]['id'],$limits,$now)))throw new Problem(429,'The neighbors are resting between conversations.');
@@ -229,8 +234,10 @@ function failActivity(PDO $db,array $claim,?array $attempt,?array $usage,string 
         if($current['outcome']!=='pending'){$db->exec('COMMIT');return $current+['replayed'=>true];}
         $run=$attempt['id']??bin2hex(random_bytes(16));$time=gmdate('Y-m-d\TH:i:s\Z');
         $db->prepare("INSERT INTO simulation_runs(id,period,status,provider,started_at,finished_at,error_code,input_tokens,output_tokens,cost_microusd) VALUES (?,?,'failed',?,?,?,'simulation_failed',?,?,?)")
-            ->execute([$run,$claim['id'],$attempt?'openai':'scripted',$claim['created_at'],$time,$usage['input_tokens']??0,$usage['output_tokens']??0,$usage['cost_microusd']??0]);
+            ->execute([$run,$claim['id'],($attempt||directorEnabled($db))?'openai':'scripted',$claim['created_at'],$time,$usage['input_tokens']??0,$usage['output_tokens']??0,$usage['cost_microusd']??0]);
         $db->prepare("UPDATE simulation_opportunities SET outcome='failed',run_id=?,finished_at=? WHERE id=?")->execute([$run,$time,$claim['id']]);
+        $category=in_array($reason,['transport_uncertain','provider_api_error','usage_unknown','invalid_proposal','moderation_rejected','apply_rejected','credentials_unavailable','daily_request_cap','monthly_budget_cap','simulation_busy','day_boundary','period_recorded','configuration_invalid','model_unpriced','pricing_unverified','session_unavailable','ledger_capacity'],true)?$reason:'apply_rejected';
+        $db->prepare('INSERT OR IGNORE INTO settings(name,value) VALUES (?,?)')->execute(['activity_failure:'.$claim['id'],$category]);
         if($attempt){
             $code=$usage===null?($reason==='usage_unknown'?'usage_unknown':'transport_uncertain'):(in_array($reason,['invalid_proposal','moderation_rejected'],true)?$reason:'apply_rejected');
             $db->prepare('UPDATE ai_attempts SET state=?,error_code=?,finished_at=? WHERE id=?')->execute([$usage===null?'uncertain':'rejected',$code,$time,$run]);

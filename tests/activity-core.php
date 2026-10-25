@@ -77,7 +77,7 @@ try{
         $calls=count($mock->calls);LittleSparks\simulateOpportunity($db,$at(1),true,$mock);check(count($mock->calls)===$calls,'Failed opportunity cannot retry paid calls');
         if(in_array($mode,['timeout','unknown'],true)){
             check($db->query("SELECT state FROM ai_attempts WHERE period LIKE 'op:%'")->fetchColumn()==='uncertain','Unknown billing freezes reservations');
-            $result=LittleSparks\simulateOpportunity($db,$at(2),true,$mock);check(count($mock->calls)===$calls&&$result['provider']==='scripted'&&$result['ai_blocked']==='accounting_unresolved','Unknown billing blocks later opportunities');
+            $result=LittleSparks\simulateOpportunity($db,$at(2),true,$mock);check(count($mock->calls)===$calls+1&&$result['provider']==='openai'&&$result['status']==='failed','A distinct opportunity attempts independently; repeated provider failure does not fabricate fallback speech');
         }
     }
     echo "PASS quiet/no-action, owned actions, moderation, hostile output, failed/uncertain calls, collision rollback and no automatic charge retries\n";

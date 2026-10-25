@@ -23,6 +23,6 @@ function assertSimulationLease(PDO $db,?string $owner=null): void
     if((int)$db->query('PRAGMA user_version')->fetchColumn()<3)return;
     $lease=$db->query('SELECT owner,expires_at FROM ai_lease WHERE singleton=1')->fetch();
     if($owner!==null){
-        if($lease['owner']!==$owner || (int)$lease['expires_at']<time())throw new Problem(409,'The AI run no longer holds a valid simulation lease.');
-    }elseif($lease['owner']!==null && (int)$lease['expires_at']>=time())throw new Problem(409,'A bounded AI simulation is in progress. Try again shortly.');
+        if($lease['owner']!==$owner || (int)$lease['expires_at']<=time())throw new Problem(409,'The AI run no longer holds a valid simulation lease.');
+    }elseif($lease['owner']!==null && (int)$lease['expires_at']>time())throw new Problem(409,'A bounded AI simulation is in progress. Try again shortly.');
 }

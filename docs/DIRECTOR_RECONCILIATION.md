@@ -1,6 +1,6 @@
 # Owner-run reconciliation of an uncertain managed attempt
 
-No migration, generation, cancellation, dialogue import, retry, timer change or accounting reset is involved. This workflow is for a failed V6 managed encounter with a saved provider session. `reserveAi()` continues to block reserved/uncertain/settled attempts. Only an explicit final-billing review can resolve the selected uncertainty; other unresolved attempts and all budgets still apply.
+This workflow is optional diagnostics, not a scheduler prerequisite. Distinct eligible encounters proceed while historical uncertainty retains its cost/request commitments. See [autonomous continuity](AUTONOMOUS_VILLAGE.md). No migration, generation, cancellation, dialogue import, retry, timer change or accounting reset is involved. This workflow is for a failed V6 managed encounter with a saved provider session; an explicit final-billing review can resolve the selected uncertainty without altering its failed history.
 
 The reported production target is attempt `20c638ec0a26a1898941c6db83b69e4c`, session `sess_0f4bf01502ac2f4d006ade71594744819682bfd9f36975b016`, opportunity `op:2026-10-25T21:15:00Z`. Its failed run and `usage_unknown` error remain historical evidence. A completed provider trace does not establish a final charge and will not create a successful Sanctuary conversation.
 
@@ -90,7 +90,7 @@ sudo -u "$SERVICE_USER" -g "$SERVICE_GROUP" env \
 
 Resolution atomically rechecks the idle lease/claims, same UTC accounting month, report hash, freshness and exact original-record snapshot. It appends terminal status, usage, final-billing evidence hash and original-state resolution receipts. The commitment becomes the **maximum** of the original hold, previous estimates/reviews, observed estimate and verified final amount. No request slot or commitment is reset/refunded. If the resulting monthly total exceeds the configured allocation/$1 maximum, the higher commitment is retained and the attempt stays uncertain. Otherwise it becomes `rejected`, meaning a failed but accounted encounter; its run/opportunity/error stay failed/unchanged. The uncommitted remote session becomes unavailable for future context reuse.
 
-An identical review ID/arguments is idempotent and makes no further changes; conflicting reuse is refused. Expired inspection, cross-month attribution, missing final evidence, or another unresolved attempt do not grant paid admission. A successful resolution allows the **next distinct due opportunity** only if every existing guard permits it; it never replays 21:15, 21:30 or 21:45. Do not manually clear holds, rewrite a run as completed, raise caps, or import the provider's dialogue.
+An identical review ID/arguments is idempotent and makes no further changes; conflicting reuse is refused. Expired inspection, cross-month attribution or missing final evidence do not allow this optional review to clear uncertainty. Future distinct opportunities do not depend on this review; normal configuration, concurrency and retained budget/request commitments determine admission. This procedure never replays 21:15, 21:30 or 21:45. Do not manually clear holds, rewrite a run as completed, raise caps, or import the provider's dialogue.
 
 ## Verification and rollback
 

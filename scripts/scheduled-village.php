@@ -18,10 +18,16 @@ try{
     else{
         // Validate model/pricing/monthly configuration before loading a secret.
         $db=LittleSparks\connect((string)getenv('LITTLE_SPARKS_DB'));
-        if($paid){LittleSparks\aiConfiguration(time());LittleSparks\loadScheduledCredential();}
-        $result=LittleSparks\simulateOpportunity($db,LittleSparks\dueOpportunity(time()),$paid);
+        $due=LittleSparks\dueOpportunity(time());$previous=LittleSparks\activityResultOrNull($db,LittleSparks\opportunityId($due));
+        if($previous&&$previous['outcome']!=='pending')$result=$previous+['replayed'=>true];
+        else{
+            if($paid){LittleSparks\aiConfiguration(time());LittleSparks\loadScheduledCredential();}
+            $result=LittleSparks\simulateOpportunity($db,$due,$paid);
+        }
+        LittleSparks\recordSchedulerResult($db,$result);
         echo json_encode($result,JSON_THROW_ON_ERROR)."\n";
-        if(($result['status']??null)==='failed')exit(1);
+        // A recorded failed encounter is a handled outcome, not a failing service.
+        // Future timer ticks evaluate only their current ENV-configured slot.
     }
 }catch(Throwable){fwrite(STDERR,"Scheduled opportunity not applied. Check approved configuration, credentials, database and active claims.\n");exit(1);}
 finally{putenv($previousKey===false?'OPENAI_API_KEY':'OPENAI_API_KEY='.$previousKey);}

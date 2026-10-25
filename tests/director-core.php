@@ -118,4 +118,5 @@ try{
 require __DIR__.'/director-accounting-core.php';
 require __DIR__.'/director-staging-core.php';
 require __DIR__.'/director-reconciliation-core.php';
+require __DIR__.'/director-autonomy-core.php';
 require __DIR__.'/director-lifecycle-core.php';

@@ -1,8 +1,12 @@
 # SanctuaryFor.AI development instructions
 
-## Uncertain managed attempt reconciliation
+## Autonomous continuity (latest owner direction)
 
-Read docs/DIRECTOR_RECONCILIATION.md. Preserve the global unresolved-accounting guard. Operator-only metadata GET inspection reserves daily slots before dispatch; independent final billing evidence and an exact snapshot-bound offline review are required to resolve a failed attempt. Never replay/import provider dialogue or refund old reservations. No production access/deployment or real provider calls are authorized during development. Test with tests/village-director.mjs and mock transports.
+ENV scheduling/AI/Director flags and validated budgets govern routine operation. Historical reserved/uncertain/settled rows retain their full conservative commitments and request slots but do not veto distinct eligible opportunities. Reconciliation is optional diagnostics, never a scheduler prerequisite. Recover only expired claims under the SQLite write lock; fence stale HTTP/apply workers and never replay a dispatched opportunity. Failed saved encounters are handled service outcomes, with no fabricated/scripted Director fallback. Keep live calls, production SSH/deployment, credentials and timer changes out of development. Read docs/AUTONOMOUS_VILLAGE.md and run all offline suites.
+
+## Optional uncertain managed attempt reconciliation
+
+Read docs/DIRECTOR_RECONCILIATION.md. Optional operator-only metadata GET inspection reserves daily slots before dispatch; independent final billing evidence and an exact snapshot-bound offline review are required to resolve an old attempt's uncertainty, not to run the next distinct opportunity. Never replay/import provider dialogue or refund old reservations. No production access/deployment or real provider calls are authorized during development. Test with tests/village-director.mjs and mock transports.
 
 ## Current production lifecycle fix (owner update, 2026-10-25)
 

@@ -72,6 +72,31 @@ function assertRejectedCreateContinuation(PDO $db,string $ids):void
     if($q->fetchColumn())throw new AiGuard('period_recorded');
 }
 
+// Holds stay charged even when their original opportunity has failed. Observed
+// managed usage/reviews can increase a commitment, never silently lower it.
+function aiCommittedTotal(PDO $db,string $month,?string $exclude=null):int
+{
+    $base="CASE WHEN a.state IN ('reserved','uncertain','settled') THEN MAX(a.reserved_microusd,COALESCE(a.estimated_microusd,0)) ELSE COALESCE(a.estimated_microusd,a.reserved_microusd) END";
+    if(directorEnabled($db))$base="MAX(($base),COALESCE((SELECT MAX(estimated_microusd) FROM director_usage_observations WHERE attempt_id=a.id),0),COALESCE((SELECT MAX(commitment_microusd) FROM director_billing_reviews WHERE attempt_id=a.id),0))";
+    $q=$db->prepare("SELECT COALESCE(SUM($base),0) FROM ai_attempts a WHERE a.month=?".($exclude===null?'':' AND a.id<>?'));$q->execute($exclude===null?[$month]:[$month,$exclude]);
+    return (int)$q->fetchColumn()+directorExternalCommitment($db,$month);
+}
+// Caller holds BEGIN IMMEDIATE. Expiry fences old workers: their next HTTP/apply
+// lease check fails. Their generation, history and reserved headroom are not replayed.
+function recoverExpiredAiLease(PDO $db,int $now):void
+{
+    $lease=$db->query('SELECT owner,expires_at FROM ai_lease WHERE singleton=1')->fetch();
+    if($lease['owner']===null||(int)$lease['expires_at']>$now)return;
+    $id=$lease['owner'];
+    $db->prepare("UPDATE ai_attempts SET state='uncertain',error_code='lease_expired',finished_at=? WHERE id=? AND state IN ('reserved','settled')")
+        ->execute([gmdate('Y-m-d\TH:i:s\Z',$now),$id]);
+    if(directorEnabled($db)){
+        $db->prepare("UPDATE director_attempts SET state='uncertain' WHERE id=? AND state='reserved'")->execute([$id]);
+        $db->prepare("UPDATE director_sessions SET state='unavailable' WHERE id=(SELECT session_id FROM director_attempts WHERE id=?)")->execute([$id]);
+    }
+    $db->prepare('UPDATE ai_lease SET owner=NULL,expires_at=0 WHERE singleton=1 AND owner=? AND expires_at<=?')->execute([$id,$now]);
+}
+
 function reserveAi(PDO $db,string $period,array $pair,array $config,int $now): array
 {
     if(identityEnabled($db)&&!directorEnabled($db))throw new AiGuard('migration_required');
@@ -80,6 +105,7 @@ function reserveAi(PDO $db,string $period,array $pair,array $config,int $now): a
     $db->exec('BEGIN IMMEDIATE');
     try{
         if(identityEnabled($db)&&!directorEnabled($db))throw new AiGuard('migration_required');
+        recoverExpiredAiLease($db,$now);
         $lease=$db->query('SELECT owner FROM ai_lease WHERE singleton=1')->fetchColumn();
         if($lease!==null && $lease!==false)throw new AiGuard('simulation_busy');
         $unresolved=$db->query("SELECT id FROM ai_attempts WHERE state IN ('reserved','uncertain','settled') ORDER BY id")->fetchAll(PDO::FETCH_COLUMN);
@@ -87,7 +113,7 @@ function reserveAi(PDO $db,string $period,array $pair,array $config,int $now): a
         if($continuation!==null){
             if(!is_string($continuation)||($config['director_runtime']??null)!=='agents'||($config['director_slots']??null)!==8||($config['director_once']??false)!==false||$unresolved!==explode(',',$continuation))throw new AiGuard('accounting_unresolved');
             assertRejectedCreateContinuation($db,$continuation);
-        }elseif($unresolved)throw new AiGuard('accounting_unresolved');
+        } // Ordinary distinct encounters need no resolution/approval of old holds.
         if(($config['director_once']??false)===true&&$db->query("SELECT 1 FROM director_attempts WHERE runtime='agents' LIMIT 1")->fetchColumn())throw new AiGuard('period_recorded');
         $query=$db->prepare('SELECT 1 FROM simulation_runs WHERE period=? UNION ALL SELECT 1 FROM ai_attempts WHERE period=?');$query->execute([$period,$period]);
         if($query->fetchColumn())throw new AiGuard('period_recorded');
@@ -103,9 +129,7 @@ function reserveAi(PDO $db,string $period,array $pair,array $config,int $now): a
             if($config['staging_allocation']!==100000||($config['director_once']??null)!==true||$slots!==8||($config['director_runtime']??null)!=='agents')throw new AiGuard('configuration_invalid');
             $reserved=100000;
         }
-        $query=$db->prepare('SELECT COALESCE(SUM(COALESCE(estimated_microusd,reserved_microusd)),0) FROM ai_attempts WHERE month=?');$query->execute([$month]);
-        if((int)$query->fetchColumn()+directorExternalCommitment($db,$month)+$reserved>min(AI_MONTHLY_CAP,$config['monthly_cap']))throw new AiGuard('monthly_budget_cap');
-        if((int)$db->query('SELECT COUNT(*) FROM ai_attempts')->fetchColumn()>=4096)throw new AiGuard('ledger_capacity');
+        if(aiCommittedTotal($db,$month)+$reserved>min(AI_MONTHLY_CAP,$config['monthly_cap']))throw new AiGuard('monthly_budget_cap');
         $id=bin2hex(random_bytes(16));$expires=$now+60;
         $db->prepare("INSERT INTO ai_attempts(id,period,day,month,resident_a,resident_b,model,pricing_version,input_rate,output_rate,reserved_microusd,state,created_at)
             VALUES (?,?,?,?,?,?,?,?,?,?,?,'reserved',?)")
