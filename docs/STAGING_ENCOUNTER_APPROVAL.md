@@ -49,6 +49,8 @@ Descriptions are proposed test data for owner review, not a claim that the owner
 
 ## No-cost owner preparation
 
+All PHP commands below explicitly enable register_argc_argv for that process so getopt can read their options even if the root/service CLI configuration disables argv registration. This does not change server configuration. Missing/unavailable CLI arguments now produce a CLI-specific error, never a misleading claim that the receipt hash itself is malformed.
+
 If preparation already created the experiment directory and then reconciliation failed, **do not rerun the create-directory block or replace any file**. Follow [the focused reconciliation/continuation procedure](STAGING_RECONCILIATION_RECOVERY.md). It uses the existing setup, retains the failed output and stops if database/registration/permit work has already started.
 
 Use a new root-owned read-only checkout of the **reviewed updated PR #9 commit**, not the older cfe1288 checkout. The new code fingerprint changes the permit binding; do not reuse an old permit. Fill SHA below with that reviewed full SHA. These commands prepare a **new isolated staging DB only**, make no API request, load no credential and cannot generate dialogue. No production migration or scheduler change is included. Codex has not executed these on Toronto.
@@ -73,7 +75,7 @@ install -m 0600 -o sanctuarystaging -g sanctuarystaging \
   "$CODE/docs/staging/synthetic-residents.example.json" "$EXPERIMENT/residents.json"
 env OPENAI_API_KEY= CREDENTIALS_DIRECTORY= \
   LITTLE_SPARKS_AI_ENABLED=0 LITTLE_SPARKS_DIRECTOR_ENABLED=0 LITTLE_SPARKS_SIMULATION_ENABLED=0 \
-  /usr/bin/php8.3 "$CODE/scripts/reconcile-director-access.php" \
+  /usr/bin/php8.3 -d register_argc_argv=1 "$CODE/scripts/reconcile-director-access.php" \
   --directory="$AUDIT_DIR" \
   --original-sha256=36bc09d1214e9cf683b8fdb8fbb8f540b33d4263891b911d7fcf1cf90264c513 \
   --authorized-sha256=94b9fc89751bdcb56a15baf66daeee9864f3e7b11c34db423ff38823532b4af0 \
@@ -95,16 +97,16 @@ systemd-run --unit=sanctuary-staging-prepare-synthetic \
   /bin/sh -eu -c '
     umask 077
     for step in migrate-village migrate-ai migrate-activity migrate-memory migrate-identity migrate-director; do
-      /usr/bin/php8.3 "$CODE/scripts/$step.php" --database="$EXPERIMENT/village.sqlite"
+      /usr/bin/php8.3 -d register_argc_argv=1 "$CODE/scripts/$step.php" --database="$EXPERIMENT/village.sqlite"
     done
-    /usr/bin/php8.3 "$CODE/scripts/seed-director-staging.php" \
+    /usr/bin/php8.3 -d register_argc_argv=1 "$CODE/scripts/seed-director-staging.php" \
       --database="$EXPERIMENT/village.sqlite" --residents-file="$EXPERIMENT/residents.json"
-    /usr/bin/php8.3 "$CODE/scripts/register-director.php" \
+    /usr/bin/php8.3 -d register_argc_argv=1 "$CODE/scripts/register-director.php" \
       --database="$EXPERIMENT/village.sqlite" \
       --agent-id=agent_3221531b63ba4de2bb45396e701cd6ff369fbe51938d4cd3a8 \
       > "$EXPERIMENT/registration.json"
     cat "$EXPERIMENT/registration.json"
-    /usr/bin/php8.3 "$CODE/scripts/stage-director-once.php" --check
+    /usr/bin/php8.3 -d register_argc_argv=1 "$CODE/scripts/stage-director-once.php" --check
   '
 ```
 

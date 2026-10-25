@@ -1,5 +1,7 @@
 # Focused reconciliation diagnosis and continuation
 
+**Argument-parsing blocker reproduced:** with register_argc_argv=0, PHP getopt() loses even correctly supplied options. The earlier script substituted empty strings and mislabeled that as hash_format_invalid before reading any receipt. Invoke PHP with **-d register_argc_argv=1** for this process; do not change php.ini, FPM or credentials. This per-process fix works with the already installed fa959864b9c7d5015b72adae5e42fa98545623b0 reconciler, so a new checkout is not needed merely to retry read-only reconciliation. The updated CLI also distinguishes cli_arguments_unavailable, cli_option_missing and cli_option_invalid. Toronto's actual ini value has not been inspected; the offline reproduction establishes this failure mode, not a new fact about its configuration.
+
 No new API request, credential access, paid approval or infrastructure is needed. Both private receipts and their October 25 reservations remain unchanged. The existing writer/reconciler round trip passes offline, including the original writer's absence of the later optional failure_code field. That does not establish the exact contents/permissions of the Toronto files. No schema mismatch is confirmed yet; do not weaken hash, identity, UTC or authorization checks on a guess.
 
 The reconciler now reports static failure_code, receipt name, expected field name and zero-based row number. It never prints receipt values, exception messages, raw JSON or credentials. Codes distinguish hash_format_invalid, hash_mismatch, private_path_or_permissions, file_safety, file_read, line_count, json_invalid, row_shape, intent_invalid, shared_field_mismatch, outcome_invalid, authorization_field_invalid, duplicate_checks and chronology_invalid. internal_error is an unexpected failure. A full 64-character digest is still required; the shortened original value repeated in chat is not a replacement for the full owner-confirmed pin below.
@@ -14,7 +16,7 @@ CODE=/opt/sanctuaryfor-ai-staging/$SHA
 test "$(git -C "$CODE" rev-parse HEAD)" = "$SHA"
 env OPENAI_API_KEY= CREDENTIALS_DIRECTORY= \
   LITTLE_SPARKS_AI_ENABLED=0 LITTLE_SPARKS_DIRECTOR_ENABLED=0 LITTLE_SPARKS_SIMULATION_ENABLED=0 \
-  /usr/bin/php8.3 "$CODE/scripts/reconcile-director-access.php" \
+  /usr/bin/php8.3 -d register_argc_argv=1 "$CODE/scripts/reconcile-director-access.php" \
   --directory=/var/lib/sanctuaryfor-ai-staging/preflight \
   --original-sha256=36bc09d1214e9cf683b8fdb8fbb8f540b33d4263891b911d7fcf1cf90264c513 \
   --authorized-sha256=94b9fc89751bdcb56a15baf66daeee9864f3e7b11c34db423ff38823532b4af0
@@ -49,7 +51,7 @@ test -f "$EXPERIMENT/residents.json"
 cmp -s "$CODE/docs/staging/synthetic-residents.example.json" "$EXPERIMENT/residents.json"
 SUMMARY=$(env OPENAI_API_KEY= CREDENTIALS_DIRECTORY= \
   LITTLE_SPARKS_AI_ENABLED=0 LITTLE_SPARKS_DIRECTOR_ENABLED=0 LITTLE_SPARKS_SIMULATION_ENABLED=0 \
-  /usr/bin/php8.3 "$CODE/scripts/reconcile-director-access.php" \
+  /usr/bin/php8.3 -d register_argc_argv=1 "$CODE/scripts/reconcile-director-access.php" \
   --directory=/var/lib/sanctuaryfor-ai-staging/preflight \
   --original-sha256=36bc09d1214e9cf683b8fdb8fbb8f540b33d4263891b911d7fcf1cf90264c513 \
   --authorized-sha256=94b9fc89751bdcb56a15baf66daeee9864f3e7b11c34db423ff38823532b4af0)
