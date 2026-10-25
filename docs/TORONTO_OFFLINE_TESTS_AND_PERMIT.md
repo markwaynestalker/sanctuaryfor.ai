@@ -22,8 +22,8 @@ test -d "$EXPERIMENT"
 test ! -L "$EXPERIMENT"
 RUN=$(mktemp -d /var/lib/sanctuaryfor-ai-staging/linux-offline.XXXXXX)
 chown sanctuarystaging:sanctuarystaging "$RUN"
-install -d -m 0700 -o sanctuarystaging -g sanctuarystaging "$RUN/tmp" "$RUN/ini"
-printf 'register_argc_argv=1\n' > "$RUN/ini/99-staging-argv.ini"
+install -d -m 0700 -o sanctuarystaging -g sanctuarystaging "$RUN/tmp" "$RUN/ini" "$RUN/sessions"
+printf 'register_argc_argv=1\nsession.save_path="%s"\n' "$RUN/sessions" > "$RUN/ini/99-staging-argv.ini"
 chmod 0600 "$RUN/ini/99-staging-argv.ini"
 chown sanctuarystaging:sanctuarystaging "$RUN/ini/99-staging-argv.ini"
 systemd-run --unit=sanctuary-staging-offline-tests \
@@ -62,6 +62,8 @@ printf 'Offline test evidence: %s\n' "$RUN"
 ```
 
 The unit's loopback fixture requests are real local HTTP tests, not OpenAI requests. No actual Linux pass is claimed until the owner supplies the exit/status output. Do not silently repeat a failed suite or erase its log.
+
+Owner's first Linux run passed 13 suites and failed village-memory.mjs on a missing memory_trail. The test server inherited `/var/lib/php/sessions`, which ProtectSystem=strict makes read-only outside ReadWritePaths. Session-backed profile APIs return 503 while the sessionless resident page still returns 200. The test now provisions its own private session directory and checks HTTP status/response shape before reading memory_trail. The scratch-only session setting above also supports the already-installed older test without updating its checkout. See [the single-suite recheck](TORONTO_MEMORY_TEST_RECHECK.md); do not rerun migrations, touch the prepared village or create a permit while this check is unresolved.
 
 ## 2. Actual unapproved permit from the same prepared stage
 
