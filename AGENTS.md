@@ -1,5 +1,9 @@
 # SanctuaryFor.AI development instructions
 
+## Uncertain managed attempt reconciliation
+
+Read docs/DIRECTOR_RECONCILIATION.md. Preserve the global unresolved-accounting guard. Operator-only metadata GET inspection reserves daily slots before dispatch; independent final billing evidence and an exact snapshot-bound offline review are required to resolve a failed attempt. Never replay/import provider dialogue or refund old reservations. No production access/deployment or real provider calls are authorized during development. Test with tests/village-director.mjs and mock transports.
+
 ## Current production lifecycle fix (owner update, 2026-10-25)
 
 Production is now SQLite V6 with the managed Director enabled and sanctuary-village.timer enabled/active. Earlier V5/inactive-timer notes below are historical. The owner reports an uncommitted scripts/scheduled-village.php hotfix: loadScheduledCredential() runs whenever $paid, including identity-enabled V6. Preserve it in source and account for the dirty checkout during owner-run deployment. Work on a focused branch from current main; use offline transports only. Do not SSH/deploy, modify production SQLite/configuration/timer, replay the failed 21:15 opportunity, or insert its provider dialogue. Keep eight-slot accounting, $1 application maximum, idempotency and uncertainty intact. See the current section of docs/TORONTO_V3A_RUNBOOK.md.

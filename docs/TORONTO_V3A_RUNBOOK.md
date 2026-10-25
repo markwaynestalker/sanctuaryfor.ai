@@ -1,5 +1,7 @@
 # Toronto maintenance runbook — owner-run deployment only
 
+For a failed managed encounter held by `accounting_unresolved`, use the focused [owner-run reconciliation procedure](DIRECTOR_RECONCILIATION.md). It preserves the failed run and reservations; it does not retry generation or change scheduler state.
+
 ## Current lifecycle fix and production hotfix (2026-10-25)
 
 Production is already V6. The owner reports the following current overrides; this PR does not change them:

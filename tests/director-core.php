@@ -117,4 +117,5 @@ try{
 }catch(Throwable $e){fwrite(STDERR,$e->getMessage()."\n".$e->getTraceAsString()."\n");exit(1);}
 require __DIR__.'/director-accounting-core.php';
 require __DIR__.'/director-staging-core.php';
+require __DIR__.'/director-reconciliation-core.php';
 require __DIR__.'/director-lifecycle-core.php';
