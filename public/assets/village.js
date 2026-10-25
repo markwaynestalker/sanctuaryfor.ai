@@ -22,7 +22,7 @@
     let csrf = '', page = Number(new URL(location.href).searchParams.get('page')) || 0;
     let lastPage = 0, population = [], walkers = [], paused = reduced.matches;
     let frame = 0, lastTick = 0, pending = null, busy = false, loading = false;
-    let selectedButton = null;
+    let selectedButton = null, ownerEditor = null;
     // Read bearer credentials only from the fragment; remove before any network request.
     function takePrivateFragment() {
         const token = new URLSearchParams(location.hash.slice(1)).get('revisit');
@@ -58,6 +58,7 @@
     }
     function showProfile(resident, source = null, isPrivate = false) {
         stopPlayback();
+        ownerEditor?.remove(); ownerEditor = null;
         selectedButton = source;
         $('profile-name').textContent = resident.name;
         $('profile-robot').replaceChildren(robot(resident));
@@ -66,14 +67,43 @@
         const details = $('profile-details');
         details.replaceChildren();
         const date = new Date(resident.created_at);
-        for (const [label, value] of Object.entries({Personality: resident.personality, Color: resident.color, Antenna: resident.antenna, 'Created (UTC)': Number.isNaN(date.valueOf()) ? resident.created_at : date.toLocaleString(undefined, {timeZone: 'UTC'}), 'Permanent ID': resident.id})) {
+        for (const [label, value] of Object.entries({Personality: resident.description || resident.personality, Color: resident.color, Antenna: resident.antenna, 'Created (UTC)': Number.isNaN(date.valueOf()) ? resident.created_at : date.toLocaleString(undefined, {timeZone: 'UTC'}), 'Permanent ID': resident.id})) {
             const term = document.createElement('dt'), description = document.createElement('dd');
             term.textContent = label; description.textContent = value; details.append(term, description);
         }
         $('resident-profile').showModal();
     }
     $('close-profile').addEventListener('click', () => $('resident-profile').close());
-    $('resident-profile').addEventListener('close', () => { if (selectedButton?.isConnected) selectedButton.focus(); schedule(); });
+    $('resident-profile').addEventListener('close', () => { if (!$('resident-profile').open) { ownerEditor?.remove(); ownerEditor = null; } if (selectedButton?.isConnected) selectedButton.focus(); schedule(); });
+    function editProfile(resident, token) {
+        const template = $('identity-editor-template');
+        if (!template || !Number.isInteger(resident.identity_version)) return;
+        const form = template.content.firstElementChild.cloneNode(true);
+        const description = form.querySelector('textarea'), color = form.querySelector('select');
+        const feedback = form.querySelector('[role="status"]'), submit = form.querySelector('button');
+        description.value = resident.description; color.value = resident.color;
+        let revision = resident.identity_version, attempt = null, saving = false;
+        form.addEventListener('submit', async event => {
+            event.preventDefault(); if (saving) return;
+            const fields = {description: description.value, color: color.value, expectedRevision: revision};
+            const signature = JSON.stringify(fields);
+            if (!attempt || attempt.signature !== signature) attempt = {signature, requestId: [...crypto.getRandomValues(new Uint8Array(16))].map(b => b.toString(16).padStart(2, '0')).join('')};
+            saving = true; submit.disabled = true; feedback.textContent = 'Saving your character notes…';
+            try {
+                const data = await api('identity', {...fields, token, requestId: attempt.requestId});
+                resident = data.resident; revision = resident.identity_version; attempt = null;
+                population = population.map(r => r.id === resident.id ? resident : r); render();
+                if (!form.isConnected) return;
+                // The editor owns its token only in this closure, never in DOM/storage.
+                $('profile-robot').replaceChildren(robot(resident));
+                const values = $('profile-details').querySelectorAll('dd');
+                values[0].textContent = resident.description; values[1].textContent = resident.color;
+                feedback.textContent = 'Saved. These character notes do not change recorded history.';
+            } catch (error) { feedback.textContent = error.message; }
+            finally { saving = false; submit.disabled = false; }
+        });
+        ownerEditor = form; $('resident-profile').append(form);
+    }
     async function openPrivateRevisit() {
         if (!csrf || revisitToken === null) return;
         const token = revisitToken; revisitToken = null;
@@ -81,6 +111,7 @@
             const data = await api('revisit', {token});
             if ($('resident-profile').open) $('resident-profile').close();
             showProfile(data.resident, null, true);
+            editProfile(data.resident, token);
         } catch (error) { status(error.message); }
     }
     addEventListener('hashchange', () => {
@@ -101,7 +132,7 @@
             button.type = 'button'; button.className = 'directory-resident';
             button.append(robot(resident));
             const caption = document.createElement('span'), name = document.createElement('strong'), detail = document.createElement('span');
-            name.textContent = resident.name; detail.textContent = `${resident.personality} · ${resident.color}`;
+            name.textContent = resident.name; detail.textContent = `${resident.description ? 'Owner-written personality' : resident.personality} · ${resident.color}`;
             caption.append(name, detail); button.append(caption);
             button.addEventListener('click', () => showProfile(resident, button));
             item.append(button); $('resident-directory').append(item);
@@ -312,7 +343,7 @@
             render();
             await refreshCommons();
             const actor = walkers.find(w => w.resident.id === data.resident.id);
-            if (!paused) { actor.element.classList.add('new-spark'); actor.bubble.textContent = 'Ambient welcome · Welcome home! ♡'; }
+            if (!paused) { actor.element.classList.add('new-spark'); if (!('identity_version' in data.resident)) actor.bubble.textContent = 'Ambient welcome · Welcome home! ♡'; }
             actor.ambientUntil = performance.now() + 3200; actor.stop = performance.now() + 6500;
             $('private-link').focus(); $('private-link').select();
             $('directory-status').textContent = 'Your new neighbor is in view. Refresh to browse the saved population.';

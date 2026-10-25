@@ -63,6 +63,7 @@ function connect(string $path): PDO
     if (!in_array((int) $db->query('PRAGMA user_version')->fetchColumn(), [2,3,4,5], true)) {
         throw new RuntimeException('Unsupported database version.');
     }
+    identityEnabled($db); // Refuse incomplete add-ons instead of reverting to legacy behavior.
     return $db;
 }
 
@@ -85,7 +86,10 @@ function residents(PDO $db, int $page): array
     $total = (int) $db->query('SELECT COUNT(*) FROM residents')->fetchColumn();
     $lastPage = max(0, (int) ceil($total / PAGE_SIZE) - 1);
     $page = max(0, min($lastPage, $page));
-    $query = $db->prepare('SELECT id, name, color, antenna, personality, created_at FROM residents ORDER BY created_at, id LIMIT :limit OFFSET :offset');
+    $identity=identityEnabled($db);
+    $query = $db->prepare($identity
+        ? 'SELECT r.id,r.name,i.color,r.antenna,r.personality,r.created_at,i.description,i.revision AS identity_version FROM residents r JOIN resident_identities i ON i.resident_id=r.id ORDER BY r.created_at,r.id LIMIT :limit OFFSET :offset'
+        : 'SELECT id, name, color, antenna, personality, created_at FROM residents ORDER BY created_at, id LIMIT :limit OFFSET :offset');
     $query->bindValue(':limit', PAGE_SIZE, PDO::PARAM_INT);
     $query->bindValue(':offset', $page * PAGE_SIZE, PDO::PARAM_INT);
     $query->execute();
@@ -105,9 +109,9 @@ function rateLimit(PDO $db, string $key, int $limit, int $now): void
     }
 }
 
-function validate(array $input): array
+function validate(array $input,bool $identity=false): array
 {
-    foreach (['name', 'color', 'antenna', 'personality', 'requestId', 'website'] as $key) {
+    foreach (['name', 'color', 'antenna', $identity?'description':'personality', 'requestId', 'website'] as $key) {
         if (!isset($input[$key]) || !is_string($input[$key])) {
             throw new Problem(422, 'Please complete each robot field.');
         }
@@ -118,13 +122,14 @@ function validate(array $input): array
         throw new Problem(422, 'Use 1–24 letters, numbers, spaces, apostrophes, or hyphens for the name.');
     }
     if (!in_array($input['color'], COLORS, true) || !in_array($input['antenna'], ANTENNAS, true)
-        || !in_array($input['personality'], PERSONALITIES, true)) {
+        || (!$identity&&!in_array($input['personality'], PERSONALITIES, true))) {
         throw new Problem(422, 'Choose one of the available appearance and personality options.');
     }
     if ($input['website'] !== '' || !preg_match('/\A[a-f0-9]{32}\z/', $input['requestId'])) {
         throw new Problem(422, 'The welcome request could not be accepted.');
     }
-    return ['name' => $name, 'color' => $input['color'], 'antenna' => $input['antenna'], 'personality' => $input['personality']];
+    return ['name' => $name, 'color' => $input['color'], 'antenna' => $input['antenna'], 'personality' => $identity?'custom':$input['personality']]
+        +($identity?['description'=>validateDescription($input['description'])]:[]);
 }
 
 function create(PDO $db, array $input, string $browser, string $network, int $now, bool $ready): array
@@ -135,26 +140,28 @@ function create(PDO $db, array $input, string $browser, string $network, int $no
     $db->exec('BEGIN IMMEDIATE');
     $savepoint = false;
     try {
+        $identity=identityEnabled($db);
         // Return the same identity and private token when a successful request is retried.
         if (is_string($input['requestId'] ?? null)) {
             $lookup = $db->prepare('SELECT * FROM residents WHERE owner_hash = ? AND request_id = ?');
             $lookup->execute([$owner, $input['requestId']]);
             $existing = $lookup->fetch();
             if ($existing) {
-                $fields = validate($input);
+                $fields = validate($input,$identity&&$existing['personality']==='custom');
                 if (!hash_equals($existing['request_hash'], hash('sha256', json_encode($fields, JSON_THROW_ON_ERROR)))) {
                     throw new Problem(409, 'That request was already used. Start a new robot to change its details.');
                 }
                 $token = hash_hmac('sha256', $owner . ':' . $input['requestId'], $key);
                 $db->exec('COMMIT');
-                return ['resident' => publicResident($existing), 'token' => $token, 'replayed' => true];
+                return ['resident' => withIdentity($db,publicResident($existing)), 'token' => $token, 'replayed' => true];
             }
         }
         rateLimit($db, $rate, 10, $now);
         if (!$ready) {
             throw new Problem(429, 'Take a moment to choose your robot, then try again.');
         }
-        $fields = validate($input);
+        $fields = validate($input,$identity);
+        if($identity)assertIdentityIdle($db);
         $count = $db->prepare('SELECT COUNT(*) FROM residents WHERE owner_hash = ?');
         $count->execute([$owner]);
         if ((int) $count->fetchColumn() >= BROWSER_LIMIT) {
@@ -168,13 +175,14 @@ function create(PDO $db, array $input, string $browser, string $network, int $no
         $db->exec('SAVEPOINT resident_create');
         $savepoint = true;
         $insert = $db->prepare('INSERT INTO residents (id, name, color, antenna, personality, created_at, owner_hash, request_id, request_hash, token_hash) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
-        $insert->execute([...array_values($resident), $owner, $input['requestId'], hash('sha256', json_encode($fields, JSON_THROW_ON_ERROR)), hash('sha256', $token)]);
+        $insert->execute([$resident['id'],$resident['name'],$resident['color'],$resident['antenna'],$resident['personality'],$resident['created_at'], $owner, $input['requestId'], hash('sha256', json_encode($fields, JSON_THROW_ON_ERROR)), hash('sha256', $token)]);
         assignHome($db, $resident['id'], $resident['created_at']);
-        if ((int)$db->query('PRAGMA user_version')->fetchColumn()>=3) ensurePreferences($db,$resident['id'],$resident['personality']);
+        if($identity)identityForNewResident($db,$resident['id'],$fields['description'],$resident['color'],$resident['created_at']);
+        elseif ((int)$db->query('PRAGMA user_version')->fetchColumn()>=3) ensurePreferences($db,$resident['id'],$resident['personality']);
         $db->exec('RELEASE resident_create');
         $savepoint = false;
         $db->exec('COMMIT');
-        return ['resident' => $resident, 'token' => $token, 'replayed' => false];
+        return ['resident' => withIdentity($db,publicResident($resident)), 'token' => $token, 'replayed' => false];
     } catch (Problem $error) {
         // Commit attempt counters on rejected requests as well as successful ones.
         if ($savepoint) { $db->exec('ROLLBACK TO resident_create'); $db->exec('RELEASE resident_create'); }
@@ -188,6 +196,7 @@ function create(PDO $db, array $input, string $browser, string $network, int $no
 
 require_once __DIR__ . '/world.php';
 require_once __DIR__ . '/limits.php';
+require_once __DIR__ . '/identity.php';
 require_once __DIR__ . '/preferences.php';
 require_once __DIR__ . '/memory.php';
 require_once __DIR__ . '/memory_context.php';
@@ -207,7 +216,7 @@ function revisit(PDO $db, string $token, string $network, int $now): array
             throw new Problem(404, 'No resident was found for that private link.');
         }
         $db->exec('COMMIT');
-        return $resident;
+        return withIdentity($db,$resident);
     } catch (Problem $error) {
         $db->exec('COMMIT');
         throw $error;

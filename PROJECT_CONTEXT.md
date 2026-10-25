@@ -1,5 +1,11 @@
 # SanctuaryFor.AI
 
+## Independent free-text identity release
+
+After icon/colors, prepare owner-written public personalities and private-link color/description editing as a separate PR. See docs/RESIDENT_PERSONALITIES.md for its V5 identity add-on revision 1, strict validation, concurrency/audit protections, offline tests and approval-gated Toronto backup/migration/rollback. No base V5 row/schema, credential, memory, provenance or ledger is reset; user_version stays 5. Original category residents start with an empty new description, not invented prose. New identities receive no PHP-composed speech/preferences. After explicit migration all new simulation entry points pause until the separately reviewed Director runtime is adopted; saved story playback continues.
+
+Initially stack on icon/colors, then retarget main after that release lands. Keep PR #9 draft and unchanged until independent releases land; its V6 migration must then adopt existing identities/edit history without reset. No managed Director code, live API call, paid activation, production migration/deployment or timer change is included here. Future read-only Memory MCP and optional MQTT bridge remain separate roadmap phases, not prerequisites.
+
 ## Independent icon-and-colors release
 
 The owner approved extracting the little robot iPhone home-screen icon and 24-color picker into a standalone V5-compatible PR, directly from main. This release changes approved color choices/rendering and local Apple icon metadata only. It requires no database migration, Director code, credentials, budget change or scheduler activation. Existing IDs, private links, histories and plotted coordinates remain compatible. Free-text identity editing will be a separate explicitly migrated release; managed Director work remains in draft PR #9. Reconcile that branch after independent releases land, without merging or deploying automatically. Toronto's timer remains disabled.

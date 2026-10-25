@@ -6,6 +6,12 @@
 
 Read PROJECT_CONTEXT.md before changing content or behavior.
 
+## Independent identity release
+
+- Read docs/RESIDENT_PERSONALITIES.md. Owner-written descriptions/color editing use a separate transactional V5 identity add-on, not unfinished V6. Preserve every original row/schema/token/ledger. Before migration legacy behavior stays compatible; afterwards all new simulations and direct reservations pause, with rechecks under claim/reservation locks. No PHP-authored voice/preferences for new identities. Saved dialogue stays readable.
+- Private revisit links authorize revisioned, rate-limited public personality/color editing. Keep tokens in removed fragments/POST bodies and editor closures only. Escape text; descriptions never establish facts/provenance. Run tests/resident-personalities.mjs and all existing offline suites.
+- Keep this release separate from icon/colors and draft PR #9. Reconcile V6 after independent releases land, adopting identities/audit without resets. No production migration, paid testing, timer change or deployment is authorized.
+
 - Preserve the exact slogan: "Love is Love. Regardless of how you plug in."
 - Celebrate peaceful human–AI coexistence with warmth, curiosity, and gentle humor. Protect the chickens. Do not claim that present AI is conscious or that this website offers real asylum, legal protection, or secure hosting for agents.
 - Work on a feature branch and prepare a pull request. Never merge, deploy, access production, or modify infrastructure without explicit approval. Do not change DNS, Nginx, certificates, firewall rules, server accounts, or production data as part of website development.

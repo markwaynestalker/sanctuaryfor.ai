@@ -49,7 +49,9 @@ function world(PDO $db, int $sector): array
     foreach ([intdiv($x,4),intdiv($x+15,4),intdiv($y,4),intdiv($y+15,4)] as $index=>$bound) $query->bindValue($index+1,$bound,PDO::PARAM_INT);
     $query->execute();
     $plots = [];
-    foreach ($query->fetchAll() as $row) $plots[] = ['resident' => array_intersect_key($row,array_flip(['id','name','color']))] + plotCoordinates((int)$row['slot']);
+    $rows=$query->fetchAll();$identityColors=[];
+    if(identityEnabled($db)&&$rows){$ids=array_column($rows,'id');$q=$db->prepare('SELECT resident_id,color FROM resident_identities WHERE resident_id IN ('.implode(',',array_fill(0,count($ids),'?')).')');$q->execute($ids);$identityColors=array_column($q->fetchAll(),'color','resident_id');}
+    foreach ($rows as $row){$row['color']=$identityColors[$row['id']]??$row['color'];$plots[] = ['resident' => array_intersect_key($row,array_flip(['id','name','color']))] + plotCoordinates((int)$row['slot']);}
     $query = $db->prepare('SELECT id,resident_id,kind,variant,x,y FROM world_objects WHERE x BETWEEN ? AND ? AND y BETWEEN ? AND ? ORDER BY y,x');
     $query->execute([$x,$x+15,$y,$y+15]);
     return ['sector'=>$sector,'origin'=>['x'=>$x,'y'=>$y],'size'=>16,'plots'=>$plots,'objects'=>$query->fetchAll()];
@@ -105,6 +107,7 @@ function profile(PDO $db, string $id): array
     $query = $db->prepare('SELECT id,name,color,antenna,personality,created_at FROM residents WHERE id=?');
     $query->execute([$id]); $resident = $query->fetch();
     if (!$resident) throw new Problem(404,'That resident could not be found.');
+    $resident=withIdentity($db,$resident);
     $query = $db->prepare('SELECT slot FROM home_plots WHERE resident_id=?'); $query->execute([$id]); $slot = $query->fetchColumn();
     $query = $db->prepare('SELECT r.id,r.name,f.affinity,f.familiarity,f.last_interacted_at FROM relationships f JOIN residents r
         ON r.id=CASE WHEN f.resident_a=? THEN f.resident_b ELSE f.resident_a END WHERE f.resident_a=? OR f.resident_b=? ORDER BY f.affinity DESC,r.name LIMIT 8');

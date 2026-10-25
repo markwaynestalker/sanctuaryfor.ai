@@ -41,7 +41,7 @@ function sparksSession(): array
     return $context;
 }
 
-function sparksInput(string $csrf): array
+function sparksInput(string $csrf,int $maximum=2048): array
 {
     if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') {
         header('Allow: POST');
@@ -56,8 +56,8 @@ function sparksInput(string $csrf): array
     if (strtolower(trim(explode(';', $_SERVER['CONTENT_TYPE'] ?? '')[0])) !== 'application/json') {
         throw new LittleSparks\Problem(415, 'Send a JSON request.');
     }
-    $raw = file_get_contents('php://input', false, null, 0, 2049);
-    if ($raw === false || strlen($raw) > 2048) {
+    $raw = file_get_contents('php://input', false, null, 0, $maximum+1);
+    if ($raw === false || strlen($raw) > $maximum) {
         throw new LittleSparks\Problem(413, 'That request is too large.');
     }
     try {

@@ -21,6 +21,7 @@ function failedAiRun(PDO $db,array $attempt,?array $usage):void
 
 function simulateOptionalAiDay(PDO $db,string $period,bool $allowPaid=false,?AiTransport $transport=null,?int $now=null):array
 {
+    if(identityEnabled($db))return ['status'=>'paused','reason'=>'identity_runtime_pending','replayed'=>false];
     $now??=time();
     $date=\DateTimeImmutable::createFromFormat('!Y-m-d',$period,new \DateTimeZone('UTC'));
     if(!$date||$date->format('Y-m-d')!==$period)throw new Problem(422,'Choose a valid UTC date.');
