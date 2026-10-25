@@ -1,5 +1,9 @@
 # SanctuaryFor.AI
 
+## Autonomous continuity: latest owner direction
+
+The existing ENV flags and validated usage/activity limits authorize each independent opportunity. Historical accounting uncertainty is retained and budgeted, without requiring manual billing reconciliation or session inspection before future activity. Expired leases/claims recover transactionally, stale workers cannot dispatch/apply, and failed opportunity replays are handled scheduler outcomes. No dialogue fallback, retry/backlog, ledger reset, migration, production access/deployment or timer change is included. The read-only ai-status CLI distinguishes scheduler heartbeat, Director configuration, observed provider connectivity, successful conversations, failure categories, remaining allowances and future eligibility. See docs/AUTONOMOUS_VILLAGE.md; older global-lockout notes below are superseded.
+
 ## Current owner-reported production state: 2026-10-25
 
 PR #9 is merged into main; Toronto runs SQLite V6/PHP 8.3. The production timer is enabled and active. Overrides include AI_DAILY_REQUESTS=200, RESIDENT_DAILY_MAX=100, DIRECTOR_ENABLED=1, DIRECTOR_RUNTIME=agents, SIMULATION_INTERVAL_MINUTES=15, SCHEDULER_ALLOW_PAID=1 and AI_ENABLED=1 (all LITTLE_SPARKS_ variables). The production checkout has an uncommitted scripts/scheduled-village.php credential-loading hotfix, now included in the focused lifecycle PR. These facts supersede earlier draft/V5/inactive-timer entries below. Owners handle deployment; this task makes no production connection/change and no paid API request. The failed op:2026-10-25T21:15:00Z and all uncertain reservations/history remain untouched.

@@ -159,11 +159,12 @@ try{
             check((int)$stage->query('SELECT request_slots FROM director_attempts LIMIT 1')->fetchColumn()===8,'All eight reserved HTTP slots remain counted after HTTP 400');
         }
         $next=new StagingMock('good');LittleSparks\simulateDirectorOpportunity($stage,gmdate('Y-m-d\TH:i:00\Z',time()-180),true,null,$next,null,null,false,null,true);
-        check(!$next->calls,'Uncertain billing blocks new paid work; no automatic retry');
+        check(count($next->calls)>0,'Next distinct opportunity proceeds without clearing old uncertainty or retrying its generation');
         if($mode==='validation_400'){
             $before=$stage->query('SELECT reserved_microusd FROM ai_attempts LIMIT 1')->fetchColumn();
             $review=LittleSparks\reviewManagedBilling($stage,$r['id'],str_repeat('5',32),0,str_repeat('6',64));
-            check((int)$review['commitment_microusd']===(int)$before&&$stage->query('SELECT state FROM ai_attempts LIMIT 1')->fetchColumn()==='rejected','Independent rejected-create review retains full commitment without retry/reset');
+            $q=$stage->prepare('SELECT state FROM ai_attempts WHERE id=?');$q->execute([$r['id']]);
+            check((int)$review['commitment_microusd']===(int)$before&&$q->fetchColumn()==='rejected','Independent rejected-create review retains full commitment without retry/reset');
             check((int)$stage->query('SELECT request_slots FROM director_attempts LIMIT 1')->fetchColumn()===8,'Reviewed HTTP 400 still consumes all original request slots');
         }
     }

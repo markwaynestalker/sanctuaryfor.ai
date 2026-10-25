@@ -5,6 +5,7 @@ require __DIR__.'/../app/village.php';
 require __DIR__.'/../app/ai_budget.php';
 require __DIR__.'/../app/activity.php';
 require __DIR__.'/../app/scheduler.php';require __DIR__.'/../app/monitoring.php';
+require __DIR__.'/../app/operational_status.php';
 try{
     $options=getopt('',['database:']);$db=LittleSparks\connect((string)($options['database']??''));
     $version=(int)$db->query('PRAGMA user_version')->fetchColumn();
@@ -20,7 +21,7 @@ try{
         'lease'=>$db->query('SELECT owner IS NOT NULL AS held,expires_at FROM ai_lease WHERE singleton=1')->fetch(),
         'recent'=>$db->query('SELECT id,period,model,state,input_tokens,output_tokens,estimated_microusd,reserved_microusd,error_code FROM ai_attempts ORDER BY created_at DESC,id DESC LIMIT 10')->fetchAll()];
     $report['external_committed_microusd']=LittleSparks\directorExternalCommitment($db,$month);
-    $report['monthly_committed_microusd']+=$report['external_committed_microusd'];
+    $report['monthly_committed_microusd']=LittleSparks\aiCommittedTotal($db,$month);
     if($version>=4){
         try{$interval=LittleSparks\simulationInterval();}catch(LittleSparks\AiGuard){$interval=null;}
         try{$activityLimits=LittleSparks\activityConfiguration();}catch(LittleSparks\Problem){$activityLimits=null;}
@@ -56,5 +57,6 @@ try{
             'billing_reviews'=>$db->query('SELECT review_id,attempt_id,amount_microusd,commitment_microusd,outcome,reviewed_at FROM director_billing_reviews ORDER BY rowid DESC LIMIT 10')->fetchAll(),
             'recent'=>$db->query('SELECT id,period,session_id,runtime,contract_version,context_sha256,request_slots,started_requests,input_tokens,output_tokens,estimated_microusd,reserved_microusd,state FROM director_attempts ORDER BY created_at DESC,id DESC LIMIT 10')->fetchAll()];
     }
+    if($version>=4){$report['operational']=LittleSparks\operationalStatus($db,time());$report['manual_paid_invocation_required']=!($report['operational']['scheduler']['configured']??false);}
     $db->commit();echo json_encode($report,JSON_THROW_ON_ERROR|JSON_PRETTY_PRINT)."\n";
 }catch(Throwable){fwrite(STDERR,"AI status unavailable. Check the approved private V3/V4 database path.\n");exit(1);}

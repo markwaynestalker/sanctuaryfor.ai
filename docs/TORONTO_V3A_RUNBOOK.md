@@ -1,6 +1,6 @@
 # Toronto maintenance runbook — owner-run deployment only
 
-For a failed managed encounter held by `accounting_unresolved`, use the focused [owner-run reconciliation procedure](DIRECTOR_RECONCILIATION.md). It preserves the failed run and reservations; it does not retry generation or change scheduler state.
+Current [autonomous continuity](AUTONOMOUS_VILLAGE.md) evaluates each distinct opportunity against ENV and retained commitments, without a historical-accounting veto. The [owner-run reconciliation procedure](DIRECTOR_RECONCILIATION.md) remains optional diagnostics; it preserves failed history and reservations without retrying generation or changing scheduler state.
 
 ## Current lifecycle fix and production hotfix (2026-10-25)
 

@@ -121,8 +121,7 @@ function resolveDirectorInspection(PDO $db,string $id,string $inspection,string 
         $commitment=max((int)$a['reserved_microusd'],(int)($a['estimated_microusd']??0),$amount,(int)$report['observed_estimate_microusd']);
         foreach($local['records']['director_usage_observations'] as $o)$commitment=max($commitment,(int)($o['estimated_microusd']??0));
         foreach($local['records']['director_billing_reviews'] as $r)$commitment=max($commitment,(int)$r['commitment_microusd']);
-        $q=$db->prepare('SELECT COALESCE(SUM(COALESCE(estimated_microusd,reserved_microusd)),0) FROM ai_attempts WHERE month=? AND id<>?');$q->execute([$a['month'],$id]);
-        $total=(int)$q->fetchColumn()+directorExternalCommitment($db,$a['month'])+$commitment;$within=$total<=min(AI_MONTHLY_CAP,aiMonthlyBudget());$state=$within?'rejected':'uncertain';
+        $total=aiCommittedTotal($db,$a['month'],$id)+$commitment;$within=$total<=min(AI_MONTHLY_CAP,aiMonthlyBudget());$state=$within?'rejected':'uncertain';
         recordManagedOutcome($db,['id'=>$id],$report['session_id'],$report['turn_id'],$report['turn_status']);
         $u=$report['session_usage'];$db->prepare("INSERT INTO director_usage_observations(attempt_id,turn_id,input_tokens,output_tokens,cached_tokens,reasoning_tokens,estimated_microusd,status,observed_at) VALUES (?,?,?,?,?,?,?,'observed',?)")
             ->execute([$id,$report['turn_id'],$u['input_tokens'],$u['output_tokens'],$u['cached_tokens'],$u['reasoning_tokens'],$report['observed_estimate_microusd'],gmdate('Y-m-d\TH:i:s\Z')]);
