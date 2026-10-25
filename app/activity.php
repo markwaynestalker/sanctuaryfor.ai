@@ -205,7 +205,12 @@ function applyActivity(PDO $db,array $claim,array $proposal,array $choices,int $
         if($ai){
             $db->prepare("UPDATE ai_attempts SET state='applied',finished_at=? WHERE id=?")->execute([$time,$run]);
             if(directorEnabled($db)){
-                $q=$db->prepare("UPDATE director_attempts SET state='uncertain' WHERE id=? AND runtime='agents'");$q->execute([$run]);
+                if(isset($proposal['managed_commitment'])){
+                    // Application commitment is retained in full; this is not final provider billing.
+                    $db->prepare("UPDATE director_attempts SET state='applied',estimated_microusd=reserved_microusd WHERE id=? AND runtime='agents'")->execute([$run]);
+                    $db->prepare("UPDATE ai_attempts SET estimated_microusd=reserved_microusd WHERE id=?")->execute([$run]);
+                }
+                $q=$db->prepare("UPDATE director_attempts SET state='uncertain' WHERE id=? AND runtime='agents' AND estimated_microusd IS NULL");$q->execute([$run]);
                 if($q->rowCount())$db->prepare("UPDATE ai_attempts SET state='uncertain',error_code='usage_unknown' WHERE id=?")->execute([$run]);
                 $db->prepare("UPDATE director_attempts SET state='applied' WHERE id=? AND runtime='responses'")->execute([$run]);
             }

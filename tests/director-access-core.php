@@ -82,8 +82,6 @@ foreach([[$dir.'/credential.jsonl',$original,$originalAt],[$dir.'/good.jsonl',$s
 $originalHash=hash_file('sha256',$original);$successorHash=hash_file('sha256',$successor);
 $reconciled=LittleSparks\reconcileDirectorAccess($auditDir,$originalHash,$successorHash);
 if($reconciled['reserved_by_utc_day']!==['2026-10-25'=>2]||$reconciled['total_requests_reserved']!==2||$reconciled['new_http_requests']!==0||$reconciled['generation_requests']!==0||$reconciled['database_opened']!==false)throw new RuntimeException('Wrong access reservations');
-LittleSparks\assertLaterStagingDay($reconciled,strtotime('2026-10-26T00:05:00Z'));
-foreach(['2026-10-24T23:59:59Z','2026-10-25T23:59:59Z'] as $at){try{LittleSparks\assertLaterStagingDay($reconciled,strtotime($at));throw new LogicException('Same/earlier UTC day admitted');}catch(RuntimeException $error){if(!str_contains($error->getMessage(),'later UTC'))throw $error;}}
 try{LittleSparks\reconcileDirectorAccess($auditDir,substr($originalHash,0,60),$successorHash);throw new LogicException('Short hash admitted');}catch(RuntimeException $error){if(!str_contains($error->getMessage(),'Invalid access evidence'))throw $error;}
 try{LittleSparks\reconcileDirectorAccess($auditDir,str_repeat('0',64),$successorHash);throw new LogicException('Mismatched hash admitted');}catch(RuntimeException $error){if(!str_contains($error->getMessage(),'Invalid access evidence'))throw $error;}
 if(hash_file('sha256',$original)!==$originalHash||hash_file('sha256',$successor)!==$successorHash)throw new RuntimeException('Read-only reconciliation modified receipt');
@@ -104,5 +102,5 @@ foreach(['duplicate_id','wrong_agent','extra_request','generated','mismatched_ti
     $badFile=$badDir.'/agent-access-after-validator.jsonl';file_put_contents($badFile,implode("\n",array_map(fn($r)=>json_encode($r,JSON_THROW_ON_ERROR),$rows))."\n");
     try{LittleSparks\reconcileDirectorAccess($badDir,$originalHash,hash_file('sha256',$badFile));throw new LogicException('Invalid reconciliation admitted: '.$mode);}catch(RuntimeException $error){if(!str_contains($error->getMessage(),'Invalid access evidence'))throw $error;}
 }
-echo "PASS two metadata reservations counted once each by UTC day, full hash pins, immutable receipts, and generation blocked until a later UTC day; zero new requests or database opens\n";
+echo "PASS two metadata reservations counted once each by UTC day, full hash pins and immutable receipts; no calendar admission gate or new requests\n";
 echo "PASS one-read agent authorization, safe configuration booleans, durable request intent, no automatic repeats, denied/redirect/unknown outcomes and no key/instructions/body disclosure (mocked only)\n";

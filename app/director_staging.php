@@ -107,7 +107,7 @@ function stagingItems(array $items,string $turn):array
     if(count($texts)!==1||strlen($texts[0])>4096)throw new AiGuard('invalid_proposal');$p=json_decode($texts[0],true,12,JSON_THROW_ON_ERROR);if(!is_array($p))throw new AiGuard('invalid_proposal');return $p;
 }
 // At most three progress observations, one cancellation, no generation retry.
-function stagingManagedEncounter(PDO $db,DirectorTransport $transport,array $attempt,array $session,array $registered,array $prepared,array $choices,?callable $clock=null,?callable $pause=null):array
+function stagingManagedEncounter(PDO $db,DirectorTransport $transport,array $attempt,array $session,array $registered,array $prepared,array $choices,?callable $clock=null,?callable $pause=null,bool $conversationOnly=true):array
 {
     $clock??=static fn()=>time();$pause??=static fn(int $seconds)=>usleep($seconds*1000000);$sid=null;$turnId=null;$terminal=false;$calls=0;
     $request=function(string $method,string $path,?array $body=null,?string $key=null,?string $kind=null,bool $recovery=false)use($db,$transport,$attempt,$clock,&$calls):array{
@@ -120,6 +120,7 @@ function stagingManagedEncounter(PDO $db,DirectorTransport $transport,array $att
     try{
         if($session['provider_session_id']!==null)throw new AiGuard('configuration_invalid');
         $body=managedDirectorPrototype(json_decode($registered['configuration'],true,16,JSON_THROW_ON_ERROR),$prepared['context'],$choices);
+        if($conversationOnly)$body['agent']['text']['format']['schema']['properties']['outcome']['enum']=['conversation'];
         $body['metadata']=['sanctuary_attempt_id'=>$attempt['id'],'contract'=>'sanctuary.director.v1'];$remote=$request('POST','agents/sessions',$body,$attempt['id']);
         $sid=$remote['id']??null;if(!is_string($sid)||!preg_match('/\A[a-zA-Z0-9_-]{1,128}\z/',$sid)){$sid=null;throw new AiGuard('transport_uncertain');}
         $db->prepare("UPDATE director_sessions SET provider_session_id=?,state='uncertain' WHERE id=?")->execute([$sid,$session['id']]);assertManagedSession($remote,$registered,$sid,false);
@@ -135,7 +136,7 @@ function stagingManagedEncounter(PDO $db,DirectorTransport $transport,array $att
         if($observed===null)throw new AiGuard('usage_unknown');
         $decoded=stagingItems($request('GET','agents/sessions/'.$sid.'/turns/'.$turnId.'/items?limit=20&order=asc'),$turnId);
         $proposal=parseDirectorProposal($decoded,$prepared['context']['participants'],$choices);
-        if($proposal['outcome']!=='conversation'||$proposal['world_action']!=='none')throw new AiGuard('invalid_proposal');
+        if($conversationOnly&&($proposal['outcome']!=='conversation'||$proposal['world_action']!=='none'))throw new AiGuard('invalid_proposal');
         $moderated=$request('POST','moderations',['model'=>'omni-moderation-latest','input'=>json_encode([$prepared['context'],$decoded],JSON_THROW_ON_ERROR|JSON_UNESCAPED_UNICODE)]);
         if(count($moderated['results']??[])!==1||($moderated['results'][0]['flagged']??null)!==false)throw new AiGuard('moderation_rejected');
         if($calls<8&&$clock()<$attempt['expires']-25){$final=stagingTurn($request('GET','agents/sessions/'.$sid.'/turns?limit=1&order=desc',null,null,'final_turn',true),$sid,$registered,$turnId);

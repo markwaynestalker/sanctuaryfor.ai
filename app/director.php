@@ -13,6 +13,7 @@ interface DirectorTransport
 }
 require_once __DIR__.'/director_transport.php';
 require_once __DIR__.'/director_staging.php';
+require_once __DIR__.'/director_access.php';
 
 function directorSession(PDO $db,array $registered,array $pair,string $runtime,int $now):array
 {
@@ -76,7 +77,7 @@ function saveDirectorMemory(PDO $db,string $conversation,array $proposal,array $
     // No dialogue-derived world facts, PHP factual openings, or manufactured receipts.
 }
 
-/** Offline managed-runtime prototype. Paid admission remains deliberately closed. */
+/** Validate the provider's effective session settings independently of its dialogue. */
 function assertManagedSession(array $remote,array $registered,string $id,bool $reusing):void
 {
     $agent=$remote['agent']??[];$spend=$remote['spend_control']??[];$consumed=$spend['consumed']??null;
@@ -137,7 +138,7 @@ function managedDirectorEncounter(PDO $db,DirectorTransport $transport,array $at
     }
 }
 
-function simulateDirectorOpportunity(PDO $db,string $at,bool $allowPaid,?AiTransport $responses=null,?DirectorTransport $managed=null,?int $now=null,?DirectorContextProvider $contextProvider=null,bool $conversationOnly=false,?StagingPermit $staging=null):array
+function simulateDirectorOpportunity(PDO $db,string $at,bool $allowPaid,?AiTransport $responses=null,?DirectorTransport $managed=null,?int $now=null,?DirectorContextProvider $contextProvider=null,bool $conversationOnly=false,?StagingPermit $staging=null,bool $configuredManaged=false):array
 {
     $now??=time();$cfg=directorConfiguration();
     if(getenv('LITTLE_SPARKS_SIMULATION_ENABLED')!=='1')return ['status'=>'paused'];
@@ -145,7 +146,25 @@ function simulateDirectorOpportunity(PDO $db,string $at,bool $allowPaid,?AiTrans
     // Managed spend_control is cent-granular; usage is best effort, internal model
     // calls are not bounded by the current public configuration contract. Never
     // claim that this prototype proves a whole-turn token/cost ceiling.
-    if($cfg['runtime']==='agents'&&$managed===null)return ['status'=>'silent','reason'=>'managed_accounting_not_verified'];
+    $liveManaged=$cfg['runtime']==='agents'&&$managed===null;
+    if($liveManaged){
+        if(!managedLiveAdmission()['allowed'])return ['status'=>'silent','reason'=>'configuration_invalid'];
+        $key=getenv('OPENAI_API_KEY');
+        if($key===false||$key===''){
+            require_once __DIR__.'/systemd_credentials.php';
+            try{if(inspectSystemdCredential()['reason']!==null)return ['status'=>'silent','reason'=>'credentials_unavailable'];}
+            catch(\Throwable){return ['status'=>'silent','reason'=>'credentials_unavailable'];}
+        }
+        $managed=new OpenAiManagedTransport();
+        // The prepared one-shot database cannot become a second test through the routine route.
+        if($db->query('SELECT 1 FROM director_staging_permits LIMIT 1')->fetchColumn())throw new AiGuard('period_recorded');
+        $file=$db->query('PRAGMA database_list')->fetch()['file'];
+        if(getenv('LITTLE_SPARKS_ENVIRONMENT')==='staging'&&is_file(dirname($file).'/approved-director-once.json'))throw new AiGuard('period_recorded');
+        if(getenv('LITTLE_SPARKS_ENVIRONMENT')==='staging'&&is_file('/var/lib/sanctuaryfor-ai-staging/preflight/agent-access.jsonl')
+            &&(int)$db->query("SELECT COUNT(*) FROM settings WHERE name LIKE 'director_access_request:%'")->fetchColumn()!==2)throw new AiGuard('accounting_unresolved');
+    }
+    // Explicit injected transports can exercise the same configured lifecycle offline.
+    $configuredManaged=$configuredManaged||$liveManaged;
     $registered=registeredDirector($db,$cfg);$pricing=aiConfiguration($now);if($registered['model']!==$pricing['model'])throw new AiGuard('model_unpriced');
     simulationInterval();memoryConfiguration();
     $claim=claimActivity($db,$at,$now);if(isset($claim['replay']))return $claim['replay']+['replayed'=>true];
@@ -158,15 +177,17 @@ function simulateDirectorOpportunity(PDO $db,string $at,bool $allowPaid,?AiTrans
         $db->exec('BEGIN IMMEDIATE');try{$session=directorSession($db,$registered,$claim['pair'],$cfg['runtime'],$now);$db->exec('COMMIT');}catch(\Throwable $e){$db->exec('ROLLBACK');throw $e;}
         $body=$cfg['runtime']==='responses'?directorRequest($pricing,$registered,$prepared,$choices):null;
         $pricing['director_session']=$session['id'];$pricing['director_runtime']=$cfg['runtime'];
-        $pricing['director_once']=$conversationOnly&&$managed!==null;
+        $pricing['director_once']=$staging!==null;
         $pricing['director_context']=hash('sha256',json_encode($prepared['context'],JSON_THROW_ON_ERROR|JSON_UNESCAPED_UNICODE));
         if($managed!==null)$pricing['director_slots']=$session['provider_session_id']===null?4:5;
+        if($configuredManaged)$pricing['director_slots']=8; // Bounded wire lifecycle, not a daily ceiling.
         if($staging!==null){$staging->assertEncounter($db,$at,$registered,$prepared);$pricing['director_slots']=8;$pricing['staging_allocation']=100000;}
         $attempt=reserveAi($db,$claim['id'],$claim['pair'],$pricing,$now);
         if($managed!==null){
-            $result=$staging!==null?stagingManagedEncounter($db,$managed,$attempt,$session,$registered,$prepared,$choices):managedDirectorEncounter($db,$managed,$attempt,$session,$registered,$prepared,$choices);$proposal=$result['proposal'];
-            // Best-effort usage is observation, not settlement. Hold the full reserved
-            // cost and freeze subsequent paid work until an operator reconciles it.
+            $result=($staging!==null||$configuredManaged)?stagingManagedEncounter($db,$managed,$attempt,$session,$registered,$prepared,$choices,null,null,$conversationOnly):managedDirectorEncounter($db,$managed,$attempt,$session,$registered,$prepared,$choices);$proposal=$result['proposal'];
+            if($configuredManaged&&$staging===null)$proposal['managed_commitment']=$attempt['reserved'];
+            // Best-effort usage is not final billing. Successful configured calls
+            // retain their full commitment; experimental/failed outcomes keep holds.
             $usage=null; // Best-effort observations must remain uncertain even if apply later fails.
         }else{
             $responses??=new OpenAiTransport();startAiRequest($db,$attempt,'responses_started');$result=$responses->post('responses',$body,$attempt['expires']);

@@ -29,6 +29,7 @@ final class StagingMock implements LittleSparks\DirectorTransport
         if(str_contains($path,'/items?')){
             $actors=$this->context['participants'];$p=['contract'=>'sanctuary.director.v1','outcome'=>'conversation','topic'=>'A welcome in the meadow','messages'=>[['resident_id'=>$actors[0]['id'],'text'=>'Could a welcome grow like a little garden?'],['resident_id'=>$actors[1]['id'],'text'=>'Perhaps kindness is its favorite sunlight.']],'world_action'=>'none','transmissions'=>[],'notes'=>[]];
             if($this->mode==='invalid')$p['messages'][0]['text']='<script>no</script>';
+            if($this->mode==='quiet'){$p['outcome']='quiet';$p['messages']=[];}
             return ['has_more'=>false,'data'=>[['type'=>'message','role'=>'assistant','phase'=>'final_answer','status'=>'completed','turn_id'=>'turn_stage','content'=>[['type'=>'output_text','text'=>json_encode($p,JSON_THROW_ON_ERROR)]]]]];
         }
         if($path==='moderations'){if($this->mode==='moderation_timeout')throw new LittleSparks\ManagedHttpFailure();return ['results'=>[['flagged'=>$this->mode==='flagged']]];}
@@ -104,6 +105,46 @@ try{
     $stage=$stageFresh();$grant=LittleSparks\StagingPermit::consume($stage,$approved($stage));$mock=new StagingMock('good',$grant);$r=LittleSparks\simulateDirectorOpportunity($stage,$at,true,null,$mock,null,null,true,$grant);
     LittleSparks\recordManagedOutcome($stage,['id'=>$r['id']],'session_stage','turn_stage','unresolved');
     try{LittleSparks\reviewManagedBilling($stage,$r['id'],str_repeat('4',32),0,str_repeat('e',64));throw new LogicException('Stale terminal evidence accepted');}catch(LittleSparks\AiGuard $e){check($e->reason==='accounting_unresolved','Latest provider outcome must be terminal');}
+    // Existing metadata requests are imported once, not discarded by a fresh budget ledger.
+    $day=gmdate('Y-m-d');$evidence=['schema'=>'sanctuary.access-reconciliation.v1','total_requests_reserved'=>2,'receipts'=>[]];
+    foreach(['1','2'] as $digit)$evidence['receipts'][]=['receipt'=>$digit==='1'?'agent-access.jsonl':'agent-access-after-validator.jsonl',
+        'check_id'=>str_repeat($digit,32),'sha256'=>str_repeat($digit,64),'at'=>$day.'T00:00:00Z','day'=>$day,'http_requests_reserved'=>1];
+    foreach([9=>false,10=>true,20=>true] as $limit=>$admitted){
+        $stage=$stageFresh();$secret=LittleSparks\secret($stage);LittleSparks\recordDirectorAccessReservations($stage,$evidence);LittleSparks\recordDirectorAccessReservations($stage,$evidence);
+        check(LittleSparks\directorAccessReservedRequests($stage,$day)===2&&LittleSparks\secret($stage)===$secret,'Idempotent metadata accounting preserves installation secret');
+        putenv('LITTLE_SPARKS_AI_DAILY_REQUESTS='.$limit);putenv('LITTLE_SPARKS_AI_MONTHLY_MICROUSD=1000000');
+        $grant=LittleSparks\StagingPermit::consume($stage,$approved($stage));$mock=new StagingMock('good',$grant);
+        $result=LittleSparks\simulateDirectorOpportunity($stage,$at,true,null,$mock,null,null,true,$grant);
+        check(($result['status']==='completed')===$admitted&&(!$mock->calls)===!$admitted,'Configured ceiling counts two metadata slots plus encounter reservation, same UTC day');
+        check((int)$stage->query('SELECT COUNT(*) FROM director_staging_permits')->fetchColumn()===1,'Permit stays consumed on success/failure');
+        $changed=$evidence;$changed['receipts'][0]['sha256']=str_repeat('a',64);
+        try{LittleSparks\recordDirectorAccessReservations($stage,$changed);throw new LogicException('Conflicting metadata evidence admitted');}catch(RuntimeException $error){check(str_contains($error->getMessage(),'Conflicting access'),'Conflicting evidence fails closed');}
+        check(LittleSparks\directorAccessReservedRequests($stage,$day)===2,'No metadata refund or duplicate reservation');
+    }
+    // Routine mode uses the same bounded lifecycle, with no one-shot permit or per-encounter approval.
+    $stage=$stageFresh();LittleSparks\recordDirectorAccessReservations($stage,$evidence);
+    putenv('LITTLE_SPARKS_AI_DAILY_REQUESTS=18');putenv('LITTLE_SPARKS_AI_MONTHLY_MICROUSD=20000');
+    foreach([60,120] as $offset){
+        $mock=new StagingMock('good');$op=gmdate('Y-m-d\TH:i:00\Z',time()-$offset);
+        $r=LittleSparks\simulateDirectorOpportunity($stage,$op,true,null,$mock,null,null,false,null,true);
+        check($r['status']==='completed'&&count($mock->calls)<=8,'Configured routine conversations proceed without manual permits/reconciliation');
+        $n=count($mock->calls);LittleSparks\simulateDirectorOpportunity($stage,$op,true,null,$mock,null,null,false,null,true);check(count($mock->calls)===$n,'No duplicate generation on replay');
+    }
+    check((int)$stage->query('SELECT COUNT(*) FROM director_staging_permits')->fetchColumn()===0,'Routine mode does not create experimental permits');
+    check((int)$stage->query('SELECT SUM(estimated_microusd) FROM ai_attempts')->fetchColumn()===20000,'Routine commitments retain full reservations; no refunds');
+    putenv('LITTLE_SPARKS_AI_DAILY_REQUESTS=200');$mock=new StagingMock('good');
+    $r=LittleSparks\simulateDirectorOpportunity($stage,gmdate('Y-m-d\TH:i:00\Z',time()-180),true,null,$mock,null,null,false,null,true);
+    check(!$mock->calls&&$r['status']==='failed','Configured monthly allocation blocks next routine encounter');
+    putenv('LITTLE_SPARKS_AI_MONTHLY_MICROUSD=1000000');
+    foreach(['unknown','flagged'] as $mode){
+        $stage=$stageFresh();$mock=new StagingMock($mode);$r=LittleSparks\simulateDirectorOpportunity($stage,$at,true,null,$mock,null,null,false,null,true);
+        check($r['status']==='failed'&&(int)$stage->query('SELECT COUNT(*) FROM messages')->fetchColumn()===0,'Unknown/moderation failure persists no conversation');
+        $next=new StagingMock('good');LittleSparks\simulateDirectorOpportunity($stage,gmdate('Y-m-d\TH:i:00\Z',time()-180),true,null,$next,null,null,false,null,true);
+        check(!$next->calls,'Uncertain billing blocks new paid work; no automatic retry');
+    }
+    foreach(['LITTLE_SPARKS_AI_ENABLED','LITTLE_SPARKS_DIRECTOR_ENABLED','LITTLE_SPARKS_SIMULATION_ENABLED'] as $flag){putenv($flag.'=0');check(!LittleSparks\managedLiveAdmission()['allowed'],'Each activation flag controls admission');putenv($flag.'=1');}
+    check(LittleSparks\managedLiveAdmission()['allowed'],'Explicit configured activation admits routine provider');
     putenv('LITTLE_SPARKS_AI_MONTHLY_MICROUSD=1000000');putenv('LITTLE_SPARKS_AI_DAILY_REQUESTS=200');
+    echo "PASS environment-authoritative admission, same-day metadata accounting, changed daily/monthly limits, permit preservation, routine multiple encounters and no retries/credential access (mocked)\n";
     echo "PASS deployed six-resident identity/audit adoption and rollback, original mayor text/private links, synthetic-only bound permits, single generation/eight HTTP slots, delayed completion, cancellation/uncertainty, moderation/invalid output rollback, terminal billing evidence and retained experimental allocation (mocked only)\n";
 }catch(Throwable $e){fwrite(STDERR,$e->getMessage()."\n".$e->getTraceAsString()."\n");exit(1);}

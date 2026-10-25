@@ -39,10 +39,12 @@ try{
     $report['recent_provider_failures']=$db->query("SELECT state,error_code,created_at FROM ai_attempts WHERE error_code IS NOT NULL OR state IN ('rejected','uncertain') ORDER BY created_at DESC,id DESC LIMIT 10")->fetchAll();
     if($version>=6){
         require_once __DIR__.'/../app/director.php';
+        $report['daily']['reserved_requests']=(int)$report['daily']['reserved_requests']+LittleSparks\directorAccessReservedRequests($db,$day);
         $q=$db->prepare("SELECT COALESCE(SUM(request_slots-2),0) AS extra_slots,COALESCE(SUM(CASE WHEN runtime='agents' THEN started_requests ELSE 0 END),0) AS managed_started FROM director_attempts WHERE day=?");$q->execute([$day]);$extra=$q->fetch();
         $report['daily']['reserved_requests']=(int)$report['daily']['reserved_requests']+(int)$extra['extra_slots'];
         $report['daily']['started_requests']=(int)$report['daily']['started_requests']+(int)$extra['managed_started'];
-        $report['director']=['managed_live_admission'=>false,'reason'=>'managed_accounting_not_verified','admission'=>LittleSparks\managedLiveAdmission(),
+        $admission=LittleSparks\managedLiveAdmission();
+        $report['director']=['managed_live_admission'=>$admission['allowed'],'reason'=>$admission['reason'],'admission'=>$admission,
             'http_audit'=>$db->query('SELECT attempt_id,sequence,kind,outcome,http_status,request_id,started_at,finished_at FROM director_http_calls ORDER BY rowid DESC LIMIT 20')->fetchAll(),
             'usage_is_final_billing'=>false,
             'staging_permit'=>$db->query('SELECT permit_id,expires_at,allocation_microusd,http_slots,consumed_at FROM director_staging_permits LIMIT 1')->fetch()?:null,

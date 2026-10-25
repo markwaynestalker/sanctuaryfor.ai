@@ -28,7 +28,9 @@ try{
     foreach([['GET','https://example.com/'],['GET','agents/sessions/a/../b'],['POST','agents'],['POST','agents/sessions/a?x=1'],['GET','moderations']] as [$method,$path]){
         try{LittleSparks\managedWireBody($method,$path,null,null);throw new LogicException('Unrestricted managed route accepted');}catch(LittleSparks\AiGuard){}
     }
-    try{(new LittleSparks\OpenAiManagedTransport())->request('POST','agents/sessions',[],time()+20,str_repeat('a',32));throw new LogicException('Live admission opened');}catch(LittleSparks\AiGuard $e){check($e->reason==='managed_accounting_not_verified','No environment bypass of missing provider bound');}
+    putenv('LITTLE_SPARKS_AI_ENABLED=0');
+    try{(new LittleSparks\OpenAiManagedTransport())->request('POST','agents/sessions',[],time()+20,str_repeat('a',32));throw new LogicException('Disabled live admission opened');}catch(LittleSparks\AiGuard $e){check($e->reason==='configuration_invalid','Disabled configuration blocks transport before credentials/network');}
+    putenv('LITTLE_SPARKS_AI_ENABLED=1');
     $budget=$directorFresh();$reg=LittleSparks\registeredDirector($budget,LittleSparks\directorConfiguration());$pair=[['id'=>$ids[0]],['id'=>$ids[1]]];$session=LittleSparks\directorSession($budget,$reg,$pair,'agents',time());
     $pricing=LittleSparks\aiConfiguration(time())+['director_slots'=>4,'director_session'=>$session['id'],'director_runtime'=>'agents','director_context'=>str_repeat('a',64)];
     $attempt=LittleSparks\reserveAi($budget,'audit-fixture',$pair,$pricing,time());LittleSparks\startManagedHttp($budget,$attempt,'POST','agents/sessions');

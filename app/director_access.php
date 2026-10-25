@@ -112,10 +112,29 @@ function reconcileDirectorAccess(string $directory,string $originalHash,string $
     return ['schema'=>'sanctuary.access-reconciliation.v1','receipts'=>$records,'reserved_by_utc_day'=>$days,
         'total_requests_reserved'=>2,'new_http_requests'=>0,'generation_requests'=>0,'credential_loaded'=>false,'database_opened'=>false];
 }
-function assertLaterStagingDay(array $reconciliation,int $now):void
+/** Append-only imported request evidence, using existing settings storage. */
+function recordDirectorAccessReservations(\PDO $db,array $reconciliation):void
 {
-    $day=gmdate('Y-m-d',$now);
     if(($reconciliation['schema']??null)!=='sanctuary.access-reconciliation.v1'||($reconciliation['total_requests_reserved']??null)!==2
         ||count($reconciliation['receipts']??[])!==2)throw new \RuntimeException('Invalid access reconciliation.');
-    foreach($reconciliation['receipts'] as $r)if(!is_string($r['day']??null)||$r['day']>=$day)throw new \RuntimeException('Staging requires a later UTC day.');
+    $db->exec('BEGIN IMMEDIATE');try{
+        foreach($reconciliation['receipts'] as $r){
+            if(!preg_match('/\A[a-f0-9]{32}\z/',$r['check_id']??'')||!preg_match('/\A[a-f0-9]{64}\z/',$r['sha256']??'')
+                ||($r['http_requests_reserved']??null)!==1||($r['day']??null)!==substr($r['at']??'',0,10))throw new \RuntimeException('Invalid access reconciliation.');
+            $name='director_access_request:'.$r['check_id'];$encoded=json_encode($r,JSON_THROW_ON_ERROR);
+            $q=$db->prepare('SELECT value FROM settings WHERE name=?');$q->execute([$name]);$prior=$q->fetchColumn();
+            if($prior!==false&&$prior!==$encoded)throw new \RuntimeException('Conflicting access accounting.');
+            if($prior===false)$db->prepare('INSERT INTO settings(name,value) VALUES (?,?)')->execute([$name,$encoded]);
+        }$db->exec('COMMIT');
+    }catch(\Throwable $e){$db->exec('ROLLBACK');throw $e;}
+}
+function directorAccessReservedRequests(\PDO $db,string $day):int
+{
+    $used=0;
+    foreach($db->query("SELECT name,value FROM settings WHERE name LIKE 'director_access_request:%'") as $row){
+        $r=json_decode($row['value'],true,16,JSON_THROW_ON_ERROR);
+        if(!is_array($r)||($r['http_requests_reserved']??null)!==1||$row['name']!=='director_access_request:'.($r['check_id']??'')
+            ||!is_string($r['day']??null)||!preg_match('/\A[0-9]{4}-[0-9]{2}-[0-9]{2}\z/',$r['day']))throw new \RuntimeException('Invalid access accounting.');
+        if($r['day']===$day)$used++;
+    }return $used;
 }

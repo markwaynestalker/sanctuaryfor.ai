@@ -61,8 +61,8 @@ function directorSchema(array $choices):array
 function managedDirectorPrototype(array $external,array $context,array $choices):array
 {
     $config=validateDirectorExport($external);
-    // Production admission stays closed; only a separately approved one-shot
-    // staging permit may exercise this request. It does not prove a billing cap.
+    // Saved Director owns the instructions. Callers enforce configured budgets
+    // and optional experimental permits; managed billing remains provisional.
     return ['agent_id'=>$config['id'],'environment'=>['type'=>'none'],
         'agent'=>['model'=>$config['model'],'reasoning'=>$config['reasoning'],'tools'=>[],'multi_agent'=>['enabled'=>false],'service_tier'=>'default',
             'text'=>['format'=>['type'=>'json_schema','schema'=>directorSchema($choices)]]],

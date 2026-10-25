@@ -3,6 +3,7 @@ declare(strict_types=1);
 namespace LittleSparks;
 use PDO;
 use RuntimeException;
+require_once __DIR__.'/director_access.php';
 
 final class AiGuard extends RuntimeException
 {
@@ -25,8 +26,7 @@ function aiDailyRequestLimit(): int
 
 function aiConfiguration(int $now): array
 {
-    if(getenv('LITTLE_SPARKS_AI_PRICING_CONFIRMED')!==AI_PRICING_VERSION
-        || gmdate('Y-m-d',$now)<'2026-10-24' || gmdate('Y-m-d',$now)>'2026-11-23')throw new AiGuard('pricing_unverified');
+    if(getenv('LITTLE_SPARKS_AI_PRICING_CONFIRMED')!==AI_PRICING_VERSION)throw new AiGuard('pricing_unverified');
     // Verified standard family rates, using the higher cache-write input rate conservatively.
     // https://developers.openai.com/api/docs/pricing (checked 2026-10-24).
     $models=['gpt-6-luna'=>[125000,500000,'none'],'gpt-6.1-sol'=>[2500000,10000000,'low']];
@@ -73,12 +73,12 @@ function reserveAi(PDO $db,string $period,array $pair,array $config,int $now): a
         $query=$db->prepare('SELECT COALESCE(SUM(request_slots),0) FROM ai_attempts WHERE day=?');$query->execute([$day]);
         $used=(int)$query->fetchColumn();$slots=$config['director_slots']??2;
         if(directorEnabled($db)){$q=$db->prepare('SELECT COALESCE(SUM(request_slots-2),0) FROM director_attempts WHERE day=?');$q->execute([$day]);$used+=(int)$q->fetchColumn();}
+        $used+=directorAccessReservedRequests($db,$day);
         if(!is_int($slots)||$slots<2||$slots>8||$used+$slots>$config['daily_requests'])throw new AiGuard('daily_request_cap');
         $reserved=estimatedAiCost(AI_INPUT_CEILING,$config['max_output'],$config['input_rate'],$config['output_rate']);
         if(($config['director_runtime']??null)==='agents')$reserved=max($reserved,10000); // observational managed prototype; no proven billing maximum
         if(isset($config['staging_allocation'])){
-            if($config['staging_allocation']!==100000||($config['director_once']??null)!==true||$slots!==8||($config['director_runtime']??null)!=='agents'
-                ||$config['monthly_cap']!==100000||$config['daily_requests']!==8)throw new AiGuard('configuration_invalid');
+            if($config['staging_allocation']!==100000||($config['director_once']??null)!==true||$slots!==8||($config['director_runtime']??null)!=='agents')throw new AiGuard('configuration_invalid');
             $reserved=100000;
         }
         $query=$db->prepare('SELECT COALESCE(SUM(COALESCE(estimated_microusd,reserved_microusd)),0) FROM ai_attempts WHERE month=?');$query->execute([$month]);

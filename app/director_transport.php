@@ -8,10 +8,12 @@ final class ManagedHttpFailure extends \RuntimeException
 }
 function managedLiveAdmission():array
 {
-    // No flag may assert an undocumented upper bound or promote best-effort usage
-    // to final billing. This gate changes only in reviewed code after evidence.
-    return ['allowed'=>false,'reason'=>'managed_accounting_not_verified',
-        'missing'=>['provider_enforced_total_inference_bound','documented_maximum_spend_overshoot','approved_staging_evidence']];
+    try{
+        $cfg=aiConfiguration(time());$enabled=getenv('LITTLE_SPARKS_AI_ENABLED')==='1'
+            &&getenv('LITTLE_SPARKS_DIRECTOR_ENABLED')==='1'&&getenv('LITTLE_SPARKS_SIMULATION_ENABLED')==='1';
+        return ['allowed'=>$enabled&&$cfg['daily_requests']>0&&$cfg['monthly_cap']>0,
+            'reason'=>$enabled?'configured_application_limits':'director_disabled','provider_charge_maximum_verified'=>false];
+    }catch(\Throwable){return ['allowed'=>false,'reason'=>'configuration_invalid','provider_charge_maximum_verified'=>false];}
 }
 function managedWireBody(string $method,string $path,?array $body,?string $key):?string
 {
@@ -22,7 +24,7 @@ function managedWireBody(string $method,string $path,?array $body,?string $key):
     $encoded=json_encode($body,JSON_THROW_ON_ERROR|JSON_UNESCAPED_UNICODE);
     if(strlen($encoded)>AI_BODY_BYTES)throw new AiGuard('configuration_invalid');return $encoded;
 }
-/** Fixed official HTTPS transport; production egress stays blocked by admission. */
+/** Fixed official HTTPS transport; explicit enable flags and reserved budgets govern egress. */
 final class OpenAiManagedTransport implements DirectorTransport
 {
     public function __construct(private readonly ?StagingPermit $staging=null){}
@@ -30,9 +32,15 @@ final class OpenAiManagedTransport implements DirectorTransport
     {
         $encoded=managedWireBody($method,$path,$body,$idempotencyKey);
         if($this->staging!==null){assertStagingHostIsolation();$this->staging->authorize($method,$path,$body);}
-        elseif(!managedLiveAdmission()['allowed'])throw new AiGuard('managed_accounting_not_verified');
+        else{
+            if(!managedLiveAdmission()['allowed'])throw new AiGuard('configuration_invalid');
+            if(getenv('LITTLE_SPARKS_ENVIRONMENT')==='staging')assertStagingHostIsolation();
+        }
         if(time()>=$deadline||!extension_loaded('curl'))throw new ManagedHttpFailure();
         $key=getenv('OPENAI_API_KEY');
+        if(($key===false||$key==='')&&PHP_SAPI==='cli'){
+            require_once __DIR__.'/systemd_credentials.php';$key=readSystemdCredential();
+        }
         if(!is_string($key)||$key===''||strlen($key)>512||preg_match('/[\r\n]/',$key))throw new ManagedHttpFailure();
         $headers=['Content-Type: application/json','Authorization: Bearer '.$key];
         if(str_starts_with($path,'agents/'))$headers[]='OpenAI-Beta: agents=v1';

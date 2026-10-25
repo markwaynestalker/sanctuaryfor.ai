@@ -2,7 +2,7 @@
 declare(strict_types=1);
 if(PHP_SAPI!=='cli'){http_response_code(404);exit;}
 ini_set('display_errors','0');
-require __DIR__.'/../app/village.php';require __DIR__.'/../app/director.php';require __DIR__.'/../app/director_access.php';
+require __DIR__.'/../app/village.php';require __DIR__.'/../app/director.php';require_once __DIR__.'/../app/director_access.php';
 try{
     $o=getopt('',['check','check-delivery','audit:']);
     if(isset($o['check'])){echo "{\"http_requests\":0,\"generation_requests\":0,\"credential_loaded\":false,\"database_opened\":false,\"only_method\":\"GET\"}\n";exit;}
