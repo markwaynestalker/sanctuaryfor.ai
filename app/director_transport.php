@@ -41,11 +41,17 @@ function managedWireBody(string $method,string $path,?array $body,?string $key):
 /** Fixed official HTTPS transport; explicit enable flags and reserved budgets govern egress. */
 final class OpenAiManagedTransport implements DirectorTransport
 {
-    public function __construct(private readonly ?StagingPermit $staging=null){}
+    public function __construct(private readonly ?StagingPermit $staging=null,private readonly ?string $inspectionSession=null){}
     public function request(string $method,string $path,?array $body,int $deadline,?string $idempotencyKey=null):array
     {
         $encoded=managedWireBody($method,$path,$body,$idempotencyKey);
-        if($this->staging!==null){assertStagingHostIsolation();$this->staging->authorize($method,$path,$body);}
+        if($this->inspectionSession!==null){
+            if(PHP_SAPI!=='cli'||$this->staging!==null||!preg_match('/\A[a-zA-Z0-9_-]{1,128}\z/',$this->inspectionSession)
+                ||$method!=='GET'||$body!==null||$idempotencyKey!==null
+                ||!in_array($path,['agents/sessions/'.$this->inspectionSession,'agents/sessions/'.$this->inspectionSession.'/turns?limit=1&order=desc'],true))throw new AiGuard('configuration_invalid');
+            if(getenv('LITTLE_SPARKS_ENVIRONMENT')==='staging')assertStagingHostIsolation();
+        }
+        elseif($this->staging!==null){assertStagingHostIsolation();$this->staging->authorize($method,$path,$body);}
         else{
             if(!managedLiveAdmission()['allowed'])throw new AiGuard('configuration_invalid');
             if(getenv('LITTLE_SPARKS_ENVIRONMENT')==='staging')assertStagingHostIsolation();
