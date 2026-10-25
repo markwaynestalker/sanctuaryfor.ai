@@ -1,5 +1,7 @@
 # Focused Linux memory-suite correction
 
+**Owner-confirmed result:** all three groups passed in the targeted Toronto unit, exit 0/success, 1.641 seconds, no paid requests; evidence `/var/lib/sanctuaryfor-ai-staging/memory-recheck.6cjuYf`. Combined with the earlier 13 passes, Linux evidence covers all 14 suites. This correction is resolved; do not repeat the recheck. Continue with [the final one-shot handoff](TORONTO_ONE_SHOT_HANDOFF.md).
+
 The owner reported 13 passing suites, then village-memory.mjs failed at profile.memory_trail.some. Direct fixture memory checks had already passed. The profile API starts a PHP session; resident.php does not. Non-root read-only Toronto inspection confirms CLI session.save_handler=files and session.save_path=/var/lib/php/sessions. That directory is outside the existing test unit's ReadWritePaths and becomes read-only under ProtectSystem=strict.
 
 Offline reproduction with deliberately unavailable ambient session storage confirms HTTP 503 and the safe error object, rather than a changed profile contract. The old test ignored status and crashed when reading the missing array. The correction is confined to tests/village-memory.mjs: create a 0700 fixture session directory, pass it explicitly to the fixture PHP server, and assert HTTP 200 plus an array before reading memory_trail. Bounded fixture-server stderr now explains failures. The corrected test passes under the same bad ambient setting. No application/schema/world/accounting code changes.

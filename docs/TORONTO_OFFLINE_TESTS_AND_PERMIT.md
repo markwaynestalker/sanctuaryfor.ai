@@ -1,5 +1,7 @@
 # Existing-stage Linux tests, then an unapproved permit
 
+**Linux gate complete:** owner confirms 13 original passes plus the successful targeted memory recheck (all three groups, exit 0, 1.641 seconds; evidence memory-recheck.6cjuYf). All 14 suites have passing Linux evidence. Do not rerun them or require a fabricated single-run success marker. Use [the final October 26 handoff](TORONTO_ONE_SHOT_HANDOFF.md) for the actual permit, approval-bound paid template and offline transcript/accounting checks. Earlier test commands below remain reproducible history.
+
 Owner reports the isolated six-step staging migration/seed/registration succeeded with zero paid requests. Preserve the existing experiment. Stage Mayor is `1ba5d5eb83a85aaa5d6eba410f353ff6`; Stage Gardener is `231d5dbc30fda0c8b490359b3ad699ed`. Registered configuration is `295ceb3de136d726e8359d16d5a70bb8f887b72077238ada0c02cc67f7b4b245`, and runtime manifest is `b3c6bda3c53f5e638b7a9c4a9278a4c91a95660ecb64f5ff57d839ed40b68f47`. These are owner-reported state, not a new database inspection by Codex.
 
 Non-root read-only SSH verified the installed fa959864b9c7d5015b72adae5e42fa98545623b0 checkout and that runtime manifest, Node 18.19.1 (including Headers.getSetCookie), PHP 8.3.6 and `/etc/php/8.3/cli/conf.d`. No private DB/key was opened. The installed checkout remains the target below; no code reinstall is necessary. Later fcda661 changes only the operator reconciling CLI, its tests and docs; they do not change this Director runtime manifest. Linux results below cover the **installed checkout**, not an assertion that the newer CLI was run there.
@@ -73,7 +75,8 @@ Only after the above unit passes, run this block with CODE, EXPERIMENT and RUN r
 
 ```sh
 set -eu
-test -f "$RUN/offline-success.json"
+CODE=/opt/sanctuaryfor-ai-staging/fa959864b9c7d5015b72adae5e42fa98545623b0
+EXPERIMENT=/var/lib/sanctuaryfor-ai-staging/director-synthetic-01
 systemd-run --unit=sanctuary-staging-plan-review \
   --wait --collect --pipe --service-type=oneshot --expand-environment=no \
   --property=User=sanctuarystaging --property=Group=sanctuarystaging \

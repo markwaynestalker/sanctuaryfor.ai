@@ -1,5 +1,7 @@
 # One synthetic Director encounter: preparation and proposed approval
 
+**Final handoff:** Linux evidence is now complete (13 prior passes plus successful isolated memory recheck). Use [TORONTO_ONE_SHOT_HANDOFF.md](TORONTO_ONE_SHOT_HANDOFF.md) for the existing-runtime October 26 UTC permit, exact approval-blocked paid command and saved-conversation verification. No new suite run, infrastructure, migration or approval framework is required. The actual short-lived permit and explicit paid approval remain pending owner action near the window; production and scheduler stay disabled.
+
 **No generation is approved or performed. PR #9 remains draft.** The owner approved one metadata retrieval only; it succeeded. This document records its accounting and prepares the next separately approved experiment. Production Director admission stays code-blocked; production SQLite and the inactive timer remain untouched.
 
 ## Retained metadata request ledger
