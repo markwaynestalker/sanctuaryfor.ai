@@ -35,14 +35,23 @@ final class LiveMock implements LittleSparks\AiTransport
 }
 try{
     putenv('LITTLE_SPARKS_AI_MONTHLY_MICROUSD=1000000');putenv('LITTLE_SPARKS_AI_DAILY_REQUESTS=2');
+    foreach(['','0','0128','+128','128.0','513'] as $invalid){putenv('LITTLE_SPARKS_AI_MAX_OUTPUT_TOKENS='.$invalid);try{LittleSparks\aiOutputTokenLimit();throw new LogicException('Invalid output cap accepted');}catch(LittleSparks\AiGuard){}}putenv('LITTLE_SPARKS_AI_MAX_OUTPUT_TOKENS=512');
+    foreach(['','0001','+1','1.5','1000001'] as $invalid){putenv('LITTLE_SPARKS_AI_MONTHLY_MICROUSD='.$invalid);try{LittleSparks\aiMonthlyBudget();throw new LogicException('Invalid spending cap accepted');}catch(LittleSparks\AiGuard){}}putenv('LITTLE_SPARKS_AI_MONTHLY_MICROUSD=1000000');
     foreach(['Do you think stars dream about being flowers?','Only after sunset—and they are much too high to trip over!',
         'I wonder whether trees can hear music.','Shall we plant flowers one day?','I prefer moonlight; what about you?',
         'A: I think stars look like scattered seeds.','What a lovely idea: a garden of constellations!'] as $line)check(LittleSparks\expressiveDialogue($line)!=='','Original expressive dialogue accepted');
     foreach(['I watched Luna plant three trees yesterday.','Did Luna plant a tree yesterday?',"Skippy Jr told me you planted a tree.",
         'I imagine I planted three trees.','I have planted a tree.','My tree is taller now.','Our garden has three trees.',
-        'Sparky owns a cat.','I visited you.','I remember our picnic.','Luna: Hello!','A: B: Hello!',"I plаnted a tree."] as $line){
+        'Sparky owns a cat.','I visited you.','I installed a lantern.','Luna and I chatted.','I remember our picnic.','Luna: Hello!','A: B: Hello!',"I plаnted a tree."] as $line){
         try{LittleSparks\expressiveDialogue($line);throw new LogicException('Unsupported historical or disguised line accepted: '.$line);}catch(LittleSparks\AiGuard){}
     }
+    $db=$fresh();$actors=[['id'=>$luna,'personality'=>'curious'],['id'=>$sparky,'personality'=>'curious']];$choices=LittleSparks\aiActionChoices($db,$luna,$sparky,time());$prepared=LittleSparks\prepareMemoryEncounter($db,$actors,$choices);
+    $treeAlias=null;foreach($prepared['share'] as $alias=>$m)if($m['story']['kind']==='world_fact'&&$m['story']['object_kind']==='tree'){$treeAlias=$alias;break;}
+    check($treeAlias!==null,'Secondhand tree source is offered to its actual knower');
+    $composed=LittleSparks\composeMemoryProposal($db,['outcome'=>'conversation','topic'=>'garden','first'=>'Could its shade hold a daydream?','second'=>'A small daydream, with room for a friend.','world_action'=>'none','story'=>$treeAlias],$actors,$prepared);
+    check(str_starts_with($composed['first'],'Skippy Jr told me you planted an oak tree.'),'Original continuation retains exact secondhand attribution');
+    savedEncounter($db,$luna,$sparky,gmdate('Y-m-d\TH:i:s\Z'),$composed['first'],$composed['second'],$composed['shared_receipt']);
+    $known=$prepared['share'][$treeAlias];check((int)receipt($db,$luna,$known['story']['id'])['hops']===2&&(int)receipt($db,$sparky,$known['story']['id'])['hops']===0,'Natural retelling cannot promote perspective or replace origins');
     foreach(['natural','story','speculation','prefix','false_history','fake_alias','flagged','unsafe','long','unowned_action','duplicate','timeout','unknown','quiet','none'] as $mode){
         $db=$fresh();
         if($mode==='story'){
@@ -65,4 +74,23 @@ try{
         $new=originalRows($db);foreach($before['messages'] as $row)check(in_array($row,$new['messages'],true),'Existing saved dialogue remains immutable');
     }
     echo "PASS V2E original coherent mocked exchanges, joint personality prompting, exact moderated saved lines, historical-claim guards, speculation without fact promotion, optional A/B normalization, quiet outcomes, rejection rollback, idempotency and unchanged V5 history\n";
+    require __DIR__.'/../app/scheduler.php';
+    $runCli=function(string $script,array $args=[],bool $success=true):array{
+        $p=proc_open(array_merge([PHP_BINARY,__DIR__.'/../scripts/'.$script],$args),[1=>['pipe','w'],2=>['pipe','w']],$pipes);
+        $out=stream_get_contents($pipes[1]);$err=stream_get_contents($pipes[2]);fclose($pipes[1]);fclose($pipes[2]);$code=proc_close($p);
+        check(($code===0)===$success,'Safe CLI outcome: '.$err);check(!str_contains($out.$err,'MOCK_SECRET_CANARY'),'No credential in CLI output');return $success?json_decode($out,true,512,JSON_THROW_ON_ERROR):[];
+    };
+    putenv('OPENAI_API_KEY');putenv('LITTLE_SPARKS_AI_ENABLED=0');putenv('LITTLE_SPARKS_SCHEDULER_ENABLED');putenv('LITTLE_SPARKS_SCHEDULER_ALLOW_PAID');putenv('LITTLE_SPARKS_DB='.$dir.'/missing.sqlite');putenv('CREDENTIALS_DIRECTORY='.$dir.'/missing-credentials');
+    check($runCli('scheduled-village.php')['status']==='paused'&&!file_exists($dir.'/missing.sqlite'),'Default adapter pauses without database or credential access');
+    foreach(['','yes','-1','2',' 1'] as $bad){putenv('LITTLE_SPARKS_SCHEDULER_ENABLED='.$bad);$runCli('scheduled-village.php',['--check'],false);}putenv('LITTLE_SPARKS_SCHEDULER_ENABLED=1');
+    $check=$runCli('scheduled-village.php',['--check']);check($check['provider']==='scripted'&&!$check['credential_loaded']&&!$check['database_opened'],'Safe check does not open database/read a key');
+    $db=$fresh();$path=$db->query('PRAGMA database_list')->fetch()['file'];putenv('LITTLE_SPARKS_DB='.$path);$prior=originalRows($db);$priorMem=memoryRows($db);
+    $status=$runCli('ai-status.php',['--database='.$path]);check(isset($status['village']['new_receipts_today'],$status['monthly_billing']['unknown_committed_microusd'])&&$status['scheduler']['systemd_status']==='not_inspected','CLI monitoring distinguishes estimates, activity and uninspected scheduler');check(originalRows($db)===$prior&&memoryRows($db)===$priorMem,'Status is entirely read-only');
+    putenv('LITTLE_SPARKS_AI_ENABLED=1');$scheduled=$runCli('scheduled-village.php');check($scheduled['provider']==='scripted','AI flag alone never authorizes scheduled paid calls');$again=$runCli('scheduled-village.php');check($again['replayed'],'Repeated scheduled slot is idempotent');
+    putenv('LITTLE_SPARKS_SCHEDULER_ALLOW_PAID=1');putenv('LITTLE_SPARKS_AI_MONTHLY_MICROUSD=1000001');$runCli('scheduled-village.php',['--check'],false);putenv('LITTLE_SPARKS_AI_MONTHLY_MICROUSD=1000000');
+    $check=$runCli('scheduled-village.php',['--check']);check($check['paid_invocation_armed']&&!$check['credential_loaded'],'Paid check validates pricing/config without a request or key read');
+    $runCli('scheduled-village.php',[],false);check((int)$db->query('SELECT COUNT(*) FROM ai_attempts WHERE day="'.gmdate('Y-m-d').'"')->fetchColumn()===0,'Missing credentials never dispatch or reserve paid requests');
+    mkdir($dir.'/credentials',0700);$credential=$dir.'/credentials/openai_api_key';file_put_contents($credential,"MOCK_SECRET_CANARY\n");chmod($credential,0600);putenv('CREDENTIALS_DIRECTORY='.$dir.'/credentials');LittleSparks\loadScheduledCredential();check(getenv('OPENAI_API_KEY')==='MOCK_SECRET_CANARY','Systemd credential loads only into process environment');putenv('OPENAI_API_KEY');
+    foreach(["bad\nkey",str_repeat('x',515),''] as $bad){file_put_contents($credential,$bad);try{LittleSparks\loadScheduledCredential();throw new LogicException('Invalid credential accepted');}catch(LittleSparks\Problem){}}unlink($credential);
+    echo "PASS default-disabled scheduled adapter, strict flags, safe check without credential/database access, scripted idempotency, guarded paid activation, protected credential input and read-only CLI monitoring\n";
 }catch(Throwable $e){fwrite(STDERR,$e->getMessage()."\n".$e->getTraceAsString()."\n");exit(1);}

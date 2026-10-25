@@ -36,8 +36,9 @@ try{
         assert.deepEqual((await (await fetch(origin+'/api/commons.php?ids='+Array(32).fill('a').join(''))).json()),{homes:[],conversations:[],settings:{replay_cooldown_seconds:60}});
         const meadow=await (await fetch(origin+'/village.php')).text();assert.ok(!meadow.includes('class="scene-house"'));assert.ok(meadow.includes('id="home-layer"')&&meadow.includes('assets/commons.js'));assert.ok(!meadow.includes('Its interactions are scripted, not AI conversations.'));
         assert.ok(meadow.includes('href="/resident.php?id='+fixture.residents[0]+'"'),'server-rendered profile link survives disabled JavaScript');
-        for(const asset of ['village.js','commons.js','village.css','world.css']){
+        for(const asset of ['village.js','commons.js','meadow.js','village.css','world.css']){
             const hash=createHash('sha256').update(await readFile(join(root,'public/assets',asset))).digest('hex').slice(0,12);assert.ok(meadow.includes(`assets/${asset}?v=${hash}`),'updated assets have content-versioned URLs');
+            assert.ok((await fetch(origin+`/assets/${asset}?v=${hash}`)).ok,'Versioned UI asset is served successfully');
         }
         await new Promise(resolveExit=>{server.once('exit',resolveExit);server.kill();});server=null;
     }

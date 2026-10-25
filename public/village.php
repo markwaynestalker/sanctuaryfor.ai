@@ -27,6 +27,7 @@ catch (Throwable) { $available = false; }
     <link rel="stylesheet" href="<?= escape(LittleSparks\assetUrl('village.css')) ?>">
     <link rel="stylesheet" href="<?= escape(LittleSparks\assetUrl('world.css')) ?>">
     <script src="<?= escape(LittleSparks\assetUrl('commons.js')) ?>" defer></script>
+    <script src="<?= escape(LittleSparks\assetUrl('meadow.js')) ?>" defer></script>
     <script src="<?= escape(LittleSparks\assetUrl('village.js')) ?>" defer></script>
 </head>
 <body>
@@ -53,6 +54,7 @@ catch (Throwable) { $available = false; }
             <span class="scene-coordinate" aria-hidden="true">SANCTUARY / COMMON GROUND</span>
         </div>
         <p id="chicken-message" class="chicken-message" role="status">The chickens are protected. Always.</p>
+        <p id="commons-freshness" class="field-help" role="status">Refresh residents to discover the latest saved village life. Visiting never starts a simulation.</p>
         <details class="commons-recordings"><summary>Read recent saved conversations</summary><div id="saved-dialogue"><p class="field-help">Saved exchanges will appear here when available. You can also read the <a href="journal.php">village journal</a>.</p></div></details>
     </section>
     <div class="village-columns">

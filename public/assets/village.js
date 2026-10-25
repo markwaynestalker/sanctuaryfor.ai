@@ -6,11 +6,14 @@
     const reduced = matchMedia('(prefers-reduced-motion: reduce)');
     const narrow = matchMedia('(max-width: 650px)');
     const commons = globalThis.SparksCommons;
+    const meadow = globalThis.SparksMeadow;
     const setProfileLink = commons.bindProfileLink($('profile-life-link'), $('resident-profile'));
     let homes = [], exchanges = new Map(), activeMeeting = null, commonsVersion = 0;
-    const lastPlayed = new Map();
+    let replayStorage;
+    try { replayStorage = sessionStorage; } catch { /* Storage may be disabled. */ }
+    const played = commons.replayHistory(replayStorage);
     let replayCooldown = 60;
-    let sceneWidth = 1000, sceneHeight = 460, walkingMin = 68, walkingMax = 84;
+    let sceneWidth = 1000, sceneHeight = 520, sceneGeometry;
     if (typeof ResizeObserver !== 'undefined') new ResizeObserver(entries => {
         const changed = sceneWidth !== entries[0].contentRect.width;
         sceneWidth = entries[0].contentRect.width; sceneHeight = entries[0].contentRect.height;
@@ -108,8 +111,7 @@
             const bubble = document.createElement('span'); bubble.className = 'robot-bubble'; bubble.setAttribute('aria-hidden', 'true');
             actor.append(label, bubble); actor.addEventListener('click', () => showProfile(resident, button));
             $('robot-layer').append(actor);
-            const columns = narrow.matches ? 4 : 6;
-            const walker = {resident, element: actor, bubble, x: 13 + (index % columns) * (narrow.matches ? 23 : 14.5), y: 70 + Math.floor(index / columns) * 7, angle: Math.random() * Math.PI * 2, stop: performance.now() + Math.random() * 2500, ambientUntil: 0, hover: false};
+            const walker = {resident, element: actor, bubble, x: 0, y: 0, stop: performance.now() + Math.random() * 2500, ambientUntil: 0, hover: false};
             actor.addEventListener('pointerenter', () => { walker.hover = true; });
             actor.addEventListener('pointerleave', () => { walker.hover = false; });
             walkers.push(walker); place(walker);
@@ -120,11 +122,14 @@
     function renderHomes() {
         $('home-layer').replaceChildren();
         const visible = new Map(walkers.map(w => [w.resident.id, w.resident]));
-        for (const home of homes) {
+        sceneGeometry=meadow.layout(sceneWidth,homes.filter(home=>visible.has(home.resident_id)&&home.plot),narrow.matches,walkers.length);
+        for (const placement of sceneGeometry.plots) {
+            const home=placement.home;
             const resident = visible.get(home.resident_id);
             if (!resident || !home.plot) continue;
             const link = document.createElement('a'), yard = document.createElement('span'), name = document.createElement('span');
             link.className = `commons-home color-${colors.has(resident.color) ? resident.color : 'mint'}`;
+            link.style.left=`${placement.left}px`;link.style.top=`${placement.top}px`;link.style.width=`${placement.width}px`;
             link.href = commons.profileUrl(resident.id); link.setAttribute('aria-label', `Visit ${resident.name}’s saved home and profile`);
             yard.className = 'saved-yard'; yard.setAttribute('aria-hidden', 'true');
             const glyphs = {tree:'🌳',flowers:'🌼',bush:'🌿',path:'·',decoration:'✧',pet:'🐈',house:''};
@@ -142,15 +147,9 @@
             name.className = 'cottage-name'; name.textContent = resident.name;
             link.append(yard, name); $('home-layer').append(link);
         }
-        const count = $('home-layer').children.length;
-        const columns = Math.max(1, Math.min(count || 1, narrow.matches ? 2 : Math.max(2, Math.min(6, Math.floor(sceneWidth/160)))));
-        $('home-layer').style.gridTemplateColumns = `repeat(${columns},minmax(0,1fr))`;
-        const rows = Math.ceil(count/columns), bottom = rows ? 110+rows*136+Math.max(0,rows-1)*14 : 180;
-        const walkerRows = Math.ceil(walkers.length/(narrow.matches?4:6));
-        sceneHeight = Math.max(narrow.matches?430:460,bottom+105+Math.max(0,walkerRows-1)*90);
+        sceneHeight = sceneGeometry.height;
         $('landscape').style.height = `${sceneHeight}px`;
-        walkingMin = Math.max(60,(bottom+45)/sceneHeight*100); walkingMax = (sceneHeight-55)/sceneHeight*100;
-        walkers.forEach((walker,index) => { walker.y=walkingMin+Math.floor(index/(narrow.matches?4:6))*90/sceneHeight*100; place(walker); });
+        meadow.seed(walkers,sceneGeometry,performance.now(),Math.random);walkers.forEach(place);
     }
     function renderRecordings() {
         const panel = $('saved-dialogue'); panel.replaceChildren();
@@ -177,7 +176,8 @@
             replayCooldown = commons.replayCooldown(data.settings);
             homes = Array.isArray(data.homes) ? data.homes.slice(0, 24) : [];
             exchanges = commons.latestExchanges(Array.isArray(data.conversations) ? data.conversations : [], ids);
-            lastPlayed.clear(); renderHomes(); renderRecordings();
+            renderHomes(); renderRecordings();
+            $('commons-freshness').textContent = `Saved life checked ${new Date().toISOString().replace('T',' ').replace(/\.\d+Z$/, ' UTC')}. Refresh residents for updates. Each exchange plays once per tab session; quiet wandering is welcome.`;
         } catch {
             if (version === commonsVersion) $('saved-dialogue').textContent = 'Saved conversations are resting. You can still browse resident profiles and the village journal.';
         }
@@ -199,8 +199,8 @@
         speaker.bubble.replaceChildren(source, text);
     }
     function place(walker) {
-        walker.element.style.left = `${walker.x}%`; walker.element.style.top = `${walker.y}%`;
-        walker.bubble.style.transform = walker.x < 25 ? 'translateX(-10%)' : walker.x > 75 ? 'translateX(-90%)' : 'translateX(-50%)';
+        walker.element.style.left = `${walker.x}px`; walker.element.style.top = `${walker.y}px`;
+        walker.bubble.style.transform = walker.x < sceneWidth*.25 ? 'translateX(-10%)' : walker.x > sceneWidth*.75 ? 'translateX(-90%)' : 'translateX(-50%)';
     }
     function schedule() {
         if (!frame && !document.hidden && !paused && !$('resident-profile').open && walkers.length) frame = requestAnimationFrame(tick);
@@ -213,16 +213,9 @@
         const delta = lastTick ? Math.min((now - lastTick) / 1000, .2) : 0;
         lastTick = now;
         advancePlayback(now);
+        meadow.step(walkers,sceneGeometry,delta,now,Math.random);
         for (const walker of walkers) {
             if (walker.ambientUntil && now > walker.ambientUntil) { walker.bubble.textContent = ''; walker.ambientUntil = 0; }
-            if (now < walker.stop || walker.hover) continue;
-            if (Math.random() < .014) { walker.stop = now + 900 + Math.random() * 1700; walker.angle += Math.random() * 2 - 1; continue; }
-            const speed = walker.resident.personality === 'playful' ? 1.5 : .9;
-            walker.x += Math.cos(walker.angle) * delta * speed;
-            walker.y += Math.sin(walker.angle) * delta * speed;
-            if (walker.x < 8 || walker.x > 90) walker.angle = Math.PI - walker.angle;
-            if (walker.y < walkingMin || walker.y > walkingMax) walker.angle = -walker.angle;
-            walker.x = Math.max(8, Math.min(90, walker.x)); walker.y = Math.max(walkingMin, Math.min(walkingMax, walker.y));
             place(walker);
         }
         for (let i = 0; !activeMeeting && i < walkers.length; i++) {
@@ -230,13 +223,14 @@
             if (now < a.stop || a.hover) continue;
             for (let j = i + 1; j < walkers.length; j++) {
                 const b = walkers[j];
-                if (now < b.stop || b.hover || Math.hypot((a.x - b.x) * sceneWidth / 100, (a.y - b.y) * sceneHeight / 100) > 80) continue;
+                if (now < b.stop || b.hover || meadow.distance(a,b) > 90) continue;
                 const exchange = exchanges.get(commons.pairKey(a.resident.id, b.resident.id));
-                const canReplay = exchange && (!lastPlayed.has(exchange.id) || now - lastPlayed.get(exchange.id) >= replayCooldown*1000);
+                const canReplay = exchange && played.canPlay(exchange.id, Date.now(), replayCooldown);
                 if (!canReplay) continue; // Ordinary wandering/idle pauses; no invented meeting.
                 const duration = exchange.messages.reduce((sum, m) => sum + commons.turnDuration(m), 0);
-                for (const friend of [a, b]) { friend.stop = now + duration + 1500; friend.angle += Math.PI / 2; }
-                stopPlayback(); lastPlayed.set(exchange.id, now);
+                for (const friend of [a, b]) friend.stop = now + duration + 1500;
+                meadow.separate(a,b,sceneGeometry,Math.random);
+                stopPlayback(); played.record(exchange.id, Date.now());
                 activeMeeting = {a, b, exchange, started:now}; advancePlayback(now);
                 break;
             }

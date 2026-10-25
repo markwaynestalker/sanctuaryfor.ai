@@ -148,7 +148,8 @@ try {
     assert.ok(!pageHtml.includes(created.token));
     const code = await readFile(join(root,'public/assets/village.js'),'utf8');
     assert.ok(!/innerHTML|insertAdjacentHTML|setInterval/.test(code), 'No untrusted HTML rendering or polling');
-    assert.ok(!code.includes('localStorage') && !code.includes('sessionStorage'));
+    assert.ok(!code.includes('localStorage')&&!/\b(?:localStorage|sessionStorage)\.(?:getItem|setItem)/.test(code),'Private revisit/creation flows never write browser storage');
+    assert.match(code,/commons\.replayHistory\(replayStorage\)/,'Only the separately tested public replay-ID helper receives optional session storage');
     await stop(); await start(join(directory,'missing.sqlite'));
     result = await client()('/api/residents.php'); assert.equal(result.response.status,503);
     assert.ok(!JSON.stringify(result.data).includes(directory));

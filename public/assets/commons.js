@@ -23,7 +23,7 @@ globalThis.SparksCommons = (() => {
         }
         return result;
     }
-    const sourceLabel = c => `${c.provider === 'openai' ? 'Saved AI-generated dialogue' : 'Saved scripted dialogue'} · ${c.created_at.replace('T', ' ').replace('Z', ' UTC')}`;
+    const sourceLabel = c => `${c.created_at.slice(0,10) === new Date().toISOString().slice(0,10) ? 'Saved today' : 'From the village journal'} · ${c.provider === 'openai' ? 'Saved AI-generated dialogue' : 'Saved scripted dialogue'} · ${c.created_at.replace('T', ' ').replace('Z', ' UTC')}`;
     const turnDuration = message => Math.max(4500, Math.min(12000, Array.from(message.text).length * 70));
     function replayCooldown(settings) {
         if (settings === undefined) return 60; // Older read-only endpoint compatibility.
@@ -35,5 +35,26 @@ globalThis.SparksCommons = (() => {
         const first = turnDuration(c.messages[0]);
         return elapsed < 0 ? null : elapsed < first ? c.messages[0] : elapsed < first + turnDuration(c.messages[1]) ? c.messages[1] : null;
     }
-    return Object.freeze({validId, pairKey, profileUrl, bindProfileLink, latestExchanges, sourceLabel, turnDuration, playbackTurn, replayCooldown});
+    function replayHistory(storage) {
+        // Public conversation IDs only. Credentials never enter browser storage.
+        const key = 'sparks_public_replays_v1', maximum = 1024;
+        const valid = id => typeof id === 'string' && /^[a-zA-Z0-9:._-]{1,64}$/.test(id);
+        let ids = new Set(), lastAt = 0;
+        try {
+            const raw = storage?.getItem(key);
+            if (raw && raw.length <= 70000) {
+                const saved = JSON.parse(raw);
+                if (Array.isArray(saved.ids) && saved.ids.length <= maximum && saved.ids.every(valid) && Number.isSafeInteger(saved.lastAt) && saved.lastAt >= 0) { ids = new Set(saved.ids); lastAt = saved.lastAt; }
+            }
+        } catch { /* Storage denied: retain the same bounded in-memory policy. */ }
+        return Object.freeze({
+            canPlay(id, now, cooldown) { return valid(id) && !ids.has(id) && ids.size < maximum && (!lastAt || now - lastAt >= cooldown * 1000); },
+            record(id, now) {
+                if (!valid(id) || ids.size >= maximum) return;
+                ids.add(id); lastAt = now;
+                try { storage?.setItem(key, JSON.stringify({ids:[...ids], lastAt})); } catch { /* Local fallback survives refresh actions in this page. */ }
+            }
+        });
+    }
+    return Object.freeze({validId, pairKey, profileUrl, bindProfileLink, latestExchanges, sourceLabel, turnDuration, playbackTurn, replayCooldown, replayHistory});
 })();

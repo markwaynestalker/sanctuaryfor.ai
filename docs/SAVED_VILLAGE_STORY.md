@@ -19,7 +19,7 @@ The browser fetches this snapshot on arrival, explicit resident refresh/paging, 
 
 ## Meadow, homes and navigation
 
-When a pair meets, its newest available saved exchange plays in recorded order, on the correct speaker, one bubble at a time. Each bubble identifies its source and saved UTC timestamp. Read times scale with message length, one exchange plays at once, and each exchange has a local replay cooldown. No local replay writes an event or claims a new encounter occurred. The hardcoded personality phrases are removed. The only welcome bubble is explicitly labeled ambient.
+When a pair meets, its newest available saved exchange plays in recorded order, on the correct speaker, one bubble at a time. Each bubble identifies its source and saved UTC timestamp. Read times scale with message length, one exchange plays at once, each plays only once per tab session, and a configurable local cooldown spaces different unplayed exchanges. Explicit refresh discovers newer saved IDs without clearing played history. No local replay writes an event or claims a new encounter occurred. The hardcoded personality phrases are removed. The only welcome bubble is explicitly labeled ambient.
 
 The stationary “Read recent saved conversations” panel shows up to six recent pair exchanges and remains usable with reduced motion or paused wandering. All dynamic text uses textContent, never innerHTML. Pausing, hidden tabs and profile dialogs stop playback. Existing population/animation bounds remain; bubble DOM changes only when the speaking turn changes.
 

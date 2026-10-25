@@ -30,13 +30,24 @@ function aiConfiguration(int $now): array
     // Verified standard family rates, using the higher cache-write input rate conservatively.
     // https://developers.openai.com/api/docs/pricing (checked 2026-10-24).
     $models=['gpt-6-luna'=>[125000,500000,'none'],'gpt-6.1-sol'=>[2500000,10000000,'low']];
-    $model=getenv('LITTLE_SPARKS_AI_MODEL')?:'gpt-6-luna';
+    $model=getenv('LITTLE_SPARKS_AI_MODEL');$model=$model===false?'gpt-6-luna':$model;
     if(!isset($models[$model]))throw new AiGuard('model_unpriced');
-    $output=getenv('LITTLE_SPARKS_AI_MAX_OUTPUT_TOKENS')?:'512';
-    $monthly=getenv('LITTLE_SPARKS_AI_MONTHLY_MICROUSD');$monthly=$monthly===false?'1000000':$monthly;
-    if(!ctype_digit($output)|| (int)$output<128 || (int)$output>512 || !ctype_digit($monthly) || strlen($monthly)>7 || (int)$monthly>AI_MONTHLY_CAP)throw new AiGuard('configuration_invalid');
+    $output=aiOutputTokenLimit();$monthly=aiMonthlyBudget();
     [$inputRate,$outputRate,$effort]=$models[$model];
     return ['model'=>$model,'input_rate'=>$inputRate,'output_rate'=>$outputRate,'effort'=>$effort,'max_output'=>(int)$output,'monthly_cap'=>(int)$monthly,'daily_requests'=>aiDailyRequestLimit()];
+}
+
+function aiOutputTokenLimit():int
+{
+    $value=getenv('LITTLE_SPARKS_AI_MAX_OUTPUT_TOKENS');$value=$value===false?'512':$value;
+    if(!preg_match('/\A[1-9][0-9]{2}\z/',$value)||(int)$value<128||(int)$value>512)throw new AiGuard('configuration_invalid');
+    return (int)$value;
+}
+function aiMonthlyBudget():int
+{
+    $value=getenv('LITTLE_SPARKS_AI_MONTHLY_MICROUSD');$value=$value===false?'1000000':$value;
+    if(!preg_match('/\A(?:0|[1-9][0-9]{0,6})\z/',$value)||(int)$value>AI_MONTHLY_CAP)throw new AiGuard('configuration_invalid');
+    return (int)$value;
 }
 
 function estimatedAiCost(int $input,int $output,int $inputRate,int $outputRate): int

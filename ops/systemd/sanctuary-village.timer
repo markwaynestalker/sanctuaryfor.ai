@@ -1,0 +1,15 @@
+# Template only. Do not install/start/enable without separate owner approval.
+[Unit]
+Description=Consider the current SanctuaryFor.AI opportunity
+
+[Timer]
+# Frequent wakeups use the configured app interval and replay the same slot
+# without dispatching twice. No missed-slot backlog, even after a reboot.
+OnCalendar=*-*-* *:*:00 UTC
+AccuracySec=10s
+RandomizedDelaySec=5s
+Persistent=false
+Unit=sanctuary-village.service
+
+[Install]
+WantedBy=timers.target

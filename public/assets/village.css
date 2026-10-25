@@ -24,15 +24,15 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 3px s
 .hill-back { height: 100%; top: 85px; left: -30%; background: #263e37; transform: rotate(2deg); }
 .hill-front { height: 100%; top: 110px; left: -4%; background: #304a3b; transform: rotate(-2deg); }
 .scene-path { position: absolute; left: 38%; top: 44%; width: 20%; height: 70%; background: #74806833; transform: rotate(55deg); border-radius: 50%; }
-.commons-homes { position:absolute; inset:110px 18px auto; display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:14px; z-index:1; }
-.commons-home { display:flex; flex-direction:column; align-items:center; justify-content:center; min-width:0; height:136px; padding:6px; text-align:center; border:1px dashed #a3bd8d77; border-radius:18px; color:var(--shell,#b9ebcf); background:#49644366; }
-.saved-yard { display:block; position:relative; width:100px; height:100px; max-width:100%; border-radius:15px; background:radial-gradient(ellipse,#66855733,#38583b11); }
-.yard-object { position:absolute; transform:translate(-50%,-50%); font-size:20px; line-height:1; pointer-events:none; }
-.yard-path { font-size:32px; color:#c6c29b; }.yard-decoration { color:#ffe4a2; }
-.commons-home:hover,.commons-home:focus-visible { border-color:var(--shell,#b9ebcf); background:#12271ddd; outline-offset:1px; }
-.cottage-shape { position:relative; display:block; width:32px; height:22px; margin:0 auto 5px; border:1px solid var(--shell,#b9ebcf); background:#1b332d; }
-.cottage-shape::before { content:''; position:absolute; top:-15px; left:-5px; border-inline:20px solid transparent; border-bottom:15px solid var(--shell,#b9ebcf); }
-.cottage-shape::after { content:''; position:absolute; width:8px; height:13px; bottom:0; left:11px; background:var(--shell,#b9ebcf); }
+.commons-homes { position:absolute; inset:0; z-index:1; pointer-events:none; }
+.commons-home { position:absolute; display:flex; flex-direction:column; align-items:center; min-width:0; height:86px; padding:0; text-align:center; border-radius:50%; color:var(--shell,#b9ebcf); pointer-events:auto; }
+.saved-yard { display:block; position:relative; width:100%; height:66px; flex-shrink:0; border-radius:50%; background:radial-gradient(ellipse at center,#718f4f66 0,#506d3b44 48%,transparent 72%); }
+.yard-object { position:absolute; transform:translate(-50%,-50%); font-size:14px; line-height:1; pointer-events:none; }
+.yard-path { font-size:24px; color:#c6c29b; }.yard-decoration { color:#ffe4a2; }
+.commons-home:hover,.commons-home:focus-visible { background:#b9ebcf0a; outline:2px solid var(--shell,#b9ebcf); outline-offset:2px; }
+.cottage-shape { position:relative; display:block; width:22px; height:16px; margin:0 auto; border:1px solid var(--shell,#b9ebcf); background:#1b332d; }
+.cottage-shape::before { content:''; position:absolute; top:-11px; left:-4px; border-inline:14px solid transparent; border-bottom:11px solid var(--shell,#b9ebcf); }
+.cottage-shape::after { content:''; position:absolute; width:6px; height:10px; bottom:0; left:7px; background:var(--shell,#b9ebcf); }
 .cottage-name { display:block; max-width:100%; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; font-size:10px; line-height:1.4; }
 .commons-recordings { margin-top:18px; font-size:13px; }
 .commons-recordings summary { cursor:pointer; min-height:44px; padding-block:12px; color:var(--mint); }
@@ -106,7 +106,6 @@ dl { font-size: 13px; }dt { color: var(--muted); margin-top: 12px; }dd { margin:
 @media(max-width: 650px) {
     .village-intro { display: block; padding-block: 45px 30px; }.village-invitation { margin-top: 25px; }.village-invitation p { font-size: 19px; }.village-intro h1 { font-size: 44px; }
     .village-columns { grid-template-columns: 1fr; gap: 50px; padding-top: 45px; }.landscape { height: 430px; }.scene-toolbar h2 { font-size: 18px; }.scene-toolbar .small-button { max-width: 120px; }
-    .commons-homes { grid-template-columns:repeat(2,minmax(0,1fr)); top:110px; inset-inline:10px; }
     .scene-coordinate { font-size: 7px; left: 12px; }.scene-moon { right: 14%; top: 20px; width: 28px; height: 28px; }
     .form-row { gap: 12px; }.resident-directory { max-height: 550px; grid-template-columns: 1fr; }.directory-resident { min-height: 95px; }.robot-bubble { max-width: 180px; font-size: 11px; }
 }
