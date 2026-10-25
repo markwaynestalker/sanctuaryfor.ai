@@ -14,6 +14,14 @@ final class StagingMock implements LittleSparks\DirectorTransport
         if($this->permit)$this->permit->authorize($method,$path,$body);
         $this->calls[]=[$method,$path,$body];check($deadline<=time()+60,'Deadline is bounded');
         if($path==='agents/sessions'){
+            // Check the encoded request, not just PHP arrays, against the published
+            // session-create envelope (including its language-specific spend control).
+            $wire=json_decode(LittleSparks\managedWireBody($method,$path,$body,$idempotencyKey),false,32,JSON_THROW_ON_ERROR);
+            check(!array_diff(array_keys((array)$wire),['agent_id','environment','agent','spend_control','input','stream','metadata']),'Session-create wire has only documented top-level fields');
+            check(is_object($wire->environment)&&$wire->environment->type==='none'&&$wire->stream===false,'Documented no-sandbox non-streaming wire shape');
+            check(is_object($wire->spend_control)&&is_int($wire->spend_control->limit)&&$wire->spend_control->limit===1,'Keep the documented positive integer USD-cent setting');
+            check($wire->input[0]->role==='user'&&$wire->input[0]->content[0]->type==='input_text'&&is_string($wire->input[0]->content[0]->text),'Documented initial message shape');
+            check($wire->agent->text->format->type==='json_schema'&&is_object($wire->agent->text->format->schema),'Structured output schema encodes as an object');
             check(($body['agent']['service_tier']??null)==='default','Session override is explicitly default even if saved agent is auto/priority');
             if($this->mode==='validation_400')throw new LittleSparks\ManagedHttpFailure(400,'req_validation_mock',LittleSparks\managedValidationError(400,json_encode(['error'=>['code'=>'unknown_parameter','param'=>'agent.text.format.schema','message'=>'PRIVATE_PROVIDER_CANARY sk-not-a-key']],JSON_THROW_ON_ERROR)));
             if($this->mode==='lost')throw new LittleSparks\ManagedHttpFailure();
