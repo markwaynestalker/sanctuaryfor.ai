@@ -1,6 +1,6 @@
 # Isolated staging setup and owner-run privileged verification
 
-The owner initially proposed these resources and subsequently reported the account/directory/credential installed. Final credential ownership/mode verification is pending:
+The owner reports all privileged security checks passed: hostname sanctuary/operator root; staging UID 999/GID 988 with only its own group; staging directory owned by staging at 0700; credential root:root 0600 regular file; staging cannot read production SQLite/private directory or the raw credential source. No secret content, provider request or database open was involved. These are owner-run results, not a new root login by Codex.
 
 | Resource | Proposed value |
 | --- | --- |
@@ -13,9 +13,9 @@ No resources were created or credentials provisioned by Codex. Do not rerun the 
 
 ## Current no-cost checks and remaining owner action
 
-Read-only SSH through the existing Tailscale alias verified hostname `sanctuary`, login `mark`; the public `canada` route timed out. Verified without privilege: staging UID 999/GID 988 with only its own group; staging directory sanctuarystaging:sanctuarystaging 0700; credential parent root:root 0700; PHP CLI 8.3.6 with PDO SQLite/cURL; production timer inactive and disabled. The key file's metadata was inaccessible to mark. Mark lacks noninteractive sudo. Automatic approval review rejected unapproved root SSH; the owner elected to run privileged checks personally. No key contents, authenticated OpenAI request, SQLite open or service/configuration modification occurred.
+Read-only SSH through Tailscale verified hostname `sanctuary`, login `mark`; public `canada` timed out. Nonprivileged checks verified the staging group/directory, root:root 0700 credential parent, PHP CLI 8.3.6 with PDO SQLite/cURL and timer inactive/disabled. The owner has now supplied the privileged passes summarized above. Do not rerun them or ask for key contents. Mark still lacks sudo; privileged launches remain owner-run, not an assumed root SSH grant.
 
-Run this metadata-only block in the owner's existing privileged Toronto shell; it does not open SQLite or read the key. Send only its metadata/pass/fail output, never secret contents:
+The following metadata-only block is retained as the completed check procedure; it does not open SQLite or read the key. Never send secret contents:
 
 ```sh
 set -eu
@@ -38,6 +38,69 @@ echo 'PASS: staging cannot read production SQLite/private directory or raw crede
 ```
 
 These checks establish permissions, **not** provider/project authorization. Before any live encounter, independently confirm that the dedicated staging key's project can retrieve the existing saved agent `agent_3221531b63ba4de2bb45396e701cd6ff369fbe51938d4cd3a8` with its required restricted permissions. That confirmation has not occurred. A read-only authenticated agent-metadata check may establish access without creating a session/model response, but must use the protected staging credential delivery, retain/count its request evidence and be included in the reviewed staging request envelope; do not improvise a key-bearing curl command or infer authorization from a matching agent ID in configuration. No OpenAI request has been made by this preflight.
+
+## Next: one metadata-only access check through LoadCredential
+
+`scripts/check-director-access.php` implements exactly one fixed `GET https://api.openai.com/v1/agents/agent_3221531b63ba4de2bb45396e701cd6ff369fbe51938d4cd3a8`. The [official retrieval contract](https://developers.openai.com/api/reference/resources/beta/subresources/agents/methods/retrieve) returns a reusable agent scoped to the caller's project. HTTP 200 with the exact agent identity proves that key can retrieve it; 401/403/404 or uncertainty does not. This does not prove permission to generate a session or moderate output, and creates no session/model response.
+
+The verifier requires Linux staging identity, denied production access, all paid/activity flags off and CREDENTIALS_DIRECTORY. It reads only the delivered credential, never the root source file directly. It uses fixed HTTPS/TLS, no redirects/retries, a 15-second timeout, bounded body, and prints/stores only status/request ID and structural booleans. Instructions, metadata, vendor error bodies and key values are discarded. It does not open any database.
+
+It exclusively creates a private JSONL audit file, fsyncs one reserved metadata-request intent **before** reading the delivered credential/network, and appends the safe outcome. Existing audit files refuse another request regardless of success/failure. Do not delete/rename the receipt or choose a fresh filename to retry without review. It reports one reserved HTTP request and zero generation requests; do not misreport this as zero total API requests.
+
+Because mark has no sudo and the owner elected privileged operations, run the following only from the owner's existing root shell, using a separate root-owned read-only checkout of the reviewed PR commit. Do not run it from production code, change production settings, or enable any timer. If the checkout does not exist, prepare that isolated checkout first; do not substitute /var/www/sanctuaryfor.ai. Fill CODE with its exact reviewed full SHA path:
+
+```sh
+set -eu
+umask 077
+CODE=/opt/sanctuaryfor-ai-staging/REVIEWED_FULL_SHA
+AUDIT=/var/lib/sanctuaryfor-ai-staging/preflight
+test -d "$CODE/app"
+test -f "$CODE/scripts/check-director-access.php"
+# Must report zero HTTP, zero generation, no credential and no database:
+/usr/bin/php8.3 "$CODE/scripts/check-director-access.php" --check
+# Create only this staging audit directory if absent; never overwrite receipts.
+if test ! -e "$AUDIT"; then install -d -m 0700 -o sanctuarystaging -g sanctuarystaging "$AUDIT"; fi
+test "$(stat -c %U "$AUDIT")" = sanctuarystaging
+test "$(stat -c %a "$AUDIT")" = 700
+test ! -e "$AUDIT/agent-access.jsonl"
+systemd-run --wait --collect --pipe --service-type=oneshot \
+  --property=User=sanctuarystaging --property=Group=sanctuarystaging \
+  --property=NoNewPrivileges=yes --property=PrivateTmp=yes \
+  --property=ProtectHome=yes --property=ProtectSystem=strict \
+  --property=RuntimeMaxSec=30s \
+  --property="ReadWritePaths=$AUDIT" \
+  --property="InaccessiblePaths=/var/lib/sanctuaryfor-ai /var/www/sanctuaryfor.ai /etc/php/8.3/fpm" \
+  --property=LoadCredential=openai_api_key:/etc/sanctuaryfor-ai/staging-openai-key \
+  --setenv=LITTLE_SPARKS_ENVIRONMENT=staging \
+  --setenv=LITTLE_SPARKS_AI_ENABLED=0 --setenv=LITTLE_SPARKS_DIRECTOR_ENABLED=0 \
+  --setenv=LITTLE_SPARKS_SIMULATION_ENABLED=0 \
+  --setenv=LITTLE_SPARKS_SCHEDULER_ENABLED=0 --setenv=LITTLE_SPARKS_SCHEDULER_ALLOW_PAID=0 \
+  /usr/bin/php8.3 "$CODE/scripts/check-director-access.php" --audit="$AUDIT/agent-access.jsonl"
+```
+
+Send only the safe JSON result, never the delivered/source key. Require authorized=true and configuration_matches=true; service_tier_default is informative because the encounter adapter explicitly requests default tier. A successful read does not activate the Director or authorize a paid test. If it fails, retain the audit and diagnose; no automatic retries or key/permission changes.
+
+The read-only Toronto inspection found `/opt/sanctuaryfor-ai-staging` absent. If still absent, the owner can prepare a **new staging checkout only**, from the existing privileged shell, before the launch above. This does not change the production checkout:
+
+```sh
+SHA=REVIEWED_FULL_40_HEX_SHA_FROM_PR9
+BASE=/opt/sanctuaryfor-ai-staging
+CODE="$BASE/$SHA"
+test ! -e "$CODE"
+if test ! -e "$BASE"; then install -d -m 0755 -o root -g root "$BASE"; fi
+test "$(stat -c %U "$BASE")" = root
+(
+  umask 022
+  git clone --no-checkout https://github.com/markwaynestalker/sanctuaryfor.ai.git "$CODE"
+  git -C "$CODE" checkout --detach "$SHA"
+)
+test "$(git -C "$CODE" rev-parse HEAD)" = "$SHA"
+# Return to the metadata-only launch block above, using this CODE value.
+```
+
+Local mock tests passed for one-request intent, denied/wrong-agent/redirect/timeout outcomes, safe structural booleans, no secret/instruction/vendor-body disclosure and refusal to repeat an existing receipt. The existing Director suite also passed. Toronto PHP 8.3.6 syntax-checked the three new PHP files via stdin without execution; systemd 255 is present. These results do not establish credential delivery or agent access. The owner-run isolated process is still required; no authenticated OpenAI request has been made by Codex.
+
+**Before any paid permit:** reconcile this separate metadata request/evidence into that UTC day's total application request allowance and the approved experiment envelope. The existing eight-call encounter reservation does not silently include this earlier access check. Do not automatically raise its daily limit, omit the receipt from accounting or run the paid command while this reconciliation remains outstanding. No paid approval is being requested by this metadata check.
 
 ## Historical setup plan — do not rerun on installed resources
 
