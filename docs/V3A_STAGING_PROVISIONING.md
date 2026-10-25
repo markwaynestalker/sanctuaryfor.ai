@@ -1,6 +1,6 @@
-# Proposed isolated staging setup — no execution approval yet
+# Isolated staging setup and owner-run privileged verification
 
-The owner selected these names/paths and confirmed they do not exist yet:
+The owner initially proposed these resources and subsequently reported the account/directory/credential installed. Final credential ownership/mode verification is pending:
 
 | Resource | Proposed value |
 | --- | --- |
@@ -9,9 +9,37 @@ The owner selected these names/paths and confirmed they do not exist yet:
 | Dedicated staging-only API-key source | `/etc/sanctuaryfor-ai/staging-openai-key` |
 | Credential delivered to PHP | systemd `LoadCredential=openai_api_key:...` |
 
-This document is a concrete plan for approval, not an instruction already executed. It changes no production file, account, group, service, timer, FPM setting or SQLite. Do not create these resources until the owner explicitly approves this **no-cost setup**. Creating/provisioning the key is an owner-operated step; no key value should be sent through chat or pasted into commands/history. Paid execution needs a later separate approval against an actual permit.
+No resources were created or credentials provisioned by Codex. Do not rerun the historical account/setup commands below against installed resources. Paid execution still needs separate approval against an actual permit. Never send a key value through chat or paste it into commands/history.
 
-## Operator setup after no-cost provisioning approval
+## Current no-cost checks and remaining owner action
+
+Read-only SSH through the existing Tailscale alias verified hostname `sanctuary`, login `mark`; the public `canada` route timed out. Verified without privilege: staging UID 999/GID 988 with only its own group; staging directory sanctuarystaging:sanctuarystaging 0700; credential parent root:root 0700; PHP CLI 8.3.6 with PDO SQLite/cURL; production timer inactive and disabled. The key file's metadata was inaccessible to mark. Mark lacks noninteractive sudo. Automatic approval review rejected unapproved root SSH; the owner elected to run privileged checks personally. No key contents, authenticated OpenAI request, SQLite open or service/configuration modification occurred.
+
+Run this metadata-only block in the owner's existing privileged Toronto shell; it does not open SQLite or read the key. Send only its metadata/pass/fail output, never secret contents:
+
+```sh
+set -eu
+hostname
+whoami
+id sanctuarystaging
+stat -c 'staging-directory owner=%U group=%G mode=%a type=%F' /var/lib/sanctuaryfor-ai-staging
+stat -c 'credential owner=%U group=%G mode=%a type=%F' /etc/sanctuaryfor-ai/staging-openai-key
+test -f /etc/sanctuaryfor-ai/staging-openai-key
+test ! -L /etc/sanctuaryfor-ai/staging-openai-key
+test "$(stat -c %U /etc/sanctuaryfor-ai/staging-openai-key)" = root
+case "$(stat -c %a /etc/sanctuaryfor-ai/staging-openai-key)" in
+  400|600) ;; *) echo 'FAIL: credential source permissions'; exit 1 ;;
+esac
+test -f /var/lib/sanctuaryfor-ai/village.sqlite
+runuser -u sanctuarystaging -- test ! -r /var/lib/sanctuaryfor-ai/village.sqlite
+runuser -u sanctuarystaging -- test ! -r /var/lib/sanctuaryfor-ai
+runuser -u sanctuarystaging -- test ! -r /etc/sanctuaryfor-ai/staging-openai-key
+echo 'PASS: staging cannot read production SQLite/private directory or raw credential source'
+```
+
+These checks establish permissions, **not** provider/project authorization. Before any live encounter, independently confirm that the dedicated staging key's project can retrieve the existing saved agent `agent_3221531b63ba4de2bb45396e701cd6ff369fbe51938d4cd3a8` with its required restricted permissions. That confirmation has not occurred. A read-only authenticated agent-metadata check may establish access without creating a session/model response, but must use the protected staging credential delivery, retain/count its request evidence and be included in the reviewed staging request envelope; do not improvise a key-bearing curl command or infer authorization from a matching agent ID in configuration. No OpenAI request has been made by this preflight.
+
+## Historical setup plan — do not rerun on installed resources
 
 Check that all chosen resources are genuinely unused, review the existing production database owner/groups (metadata only), and confirm the staging account will receive none of those groups. Abort on a name/path collision; do not modify an unrelated account or overwrite a directory/key. Example for an authenticated operator:
 
