@@ -3,8 +3,9 @@ declare(strict_types=1);
 if(PHP_SAPI!=='cli'){http_response_code(404);exit;}
 require __DIR__.'/../app/village.php';require __DIR__.'/../app/activity.php';require __DIR__.'/../app/director.php';require __DIR__.'/../app/scheduler.php';
 require_once __DIR__.'/../app/systemd_credentials.php';
+require_once __DIR__.'/../app/director_access.php';
 try{
-    $o=getopt('',['database:','at:','permit:','plan','allow-paid','check','check-host']);$admission=LittleSparks\managedLiveAdmission();
+    $o=getopt('',['database:','at:','permit:','plan','allow-paid','check','check-host','original-access-sha256:','authorized-access-sha256:']);$admission=LittleSparks\managedLiveAdmission();
     if(isset($o['check-host'])){LittleSparks\assertStagingHostIsolation();echo "{\"host_isolation_check\":\"passed\",\"paid_requests\":0,\"credential_loaded\":false,\"database_opened\":false}\n";exit;}
     if(isset($o['check'])){echo json_encode(['paid_requests'=>0,'admission'=>$admission,'maximum_encounters'=>1,'world_changes'=>false,'staging_permit_required'=>true,'manifest_sha256'=>LittleSparks\stagingCodeFingerprint()],JSON_THROW_ON_ERROR)."\n";exit;}
     if(isset($o['plan'])){
@@ -18,11 +19,14 @@ try{
         ||getenv('LITTLE_SPARKS_SCHEDULER_ENABLED')!=='0'||getenv('LITTLE_SPARKS_SCHEDULER_ALLOW_PAID')!=='0'
         ||getenv('LITTLE_SPARKS_AI_DAILY_REQUESTS')!=='8'||getenv('LITTLE_SPARKS_AI_MONTHLY_MICROUSD')!=='100000'
         ||getenv('LITTLE_SPARKS_AI_MODEL')!=='gpt-6-luna')throw new RuntimeException('Manual isolated staging gates required.');
+    LittleSparks\assertStagingHostIsolation();
+    $access=LittleSparks\reconcileDirectorAccess('/var/lib/sanctuaryfor-ai-staging/preflight',
+        (string)($o['original-access-sha256']??''),(string)($o['authorized-access-sha256']??''));
+    LittleSparks\assertLaterStagingDay($access,time()); // Metadata reservations stay on their original UTC dates; never hide them in a fresh DB.
     $path=LittleSparks\databasePath((string)$o['database']);
     if(str_replace('\\','/',$path)==='/var/lib/sanctuaryfor-ai/village.sqlite')throw new RuntimeException('Production path is forbidden.');
     $db=LittleSparks\connect($path);
     if((int)$db->query('SELECT COUNT(*) FROM residents')->fetchColumn()!==2||(int)$db->query("SELECT COUNT(*) FROM director_attempts WHERE runtime='agents'")->fetchColumn()!==0)throw new RuntimeException('Exactly two staging residents and no earlier managed attempt required.');
-    LittleSparks\assertStagingHostIsolation();
     $permitPath=LittleSparks\databasePath((string)$o['permit']);if(filesize($permitPath)>8192)throw new RuntimeException('Invalid permit.');
     $permit=json_decode((string)file_get_contents($permitPath),true,16,JSON_THROW_ON_ERROR);if(!is_array($permit)||($permit['opportunity']??null)!==$o['at'])throw new RuntimeException('Invalid permit.');
     $grant=LittleSparks\StagingPermit::consume($db,$permit);

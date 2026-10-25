@@ -1,5 +1,7 @@
 # Proposed next step: one real-key agent retrieval
 
+**Completed historical plan:** the owner explicitly approved and ran its one metadata GET. Authorization passed with zero generation/database opens and unchanged original audit. Do not rerun this command or reuse that approval. Both October 25 UTC reservations and the separate, not-yet-approved generation plan are recorded in [staging encounter review](STAGING_ENCOUNTER_APPROVAL.md). The approval-needed language below describes the original review, not a new outstanding metadata check.
+
 **Prepared for owner review; not authorized or executed.** PR #9 stays draft. The owner will run the privileged command, only after explicitly approving this exact metadata request. This is not approval for a paid encounter, a scheduler, a production migration or deployment.
 
 ## Evidence now established

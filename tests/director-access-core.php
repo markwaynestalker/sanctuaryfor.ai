@@ -12,12 +12,13 @@ final class AccessMock implements LittleSparks\AgentAccessReadTransport
         if($this->mode==='unsafe_reason')throw new LittleSparks\SystemdCredentialError('SECRET_KEY_CANARY');
         return ['status'=>$this->mode==='denied'?403:($this->mode==='redirect'?302:200),'request_id'=>'req_test',
             'data'=>['object'=>'agent','id'=>$this->mode==='wrong'?'agent_wrong':LittleSparks\ACCESS_CHECK_AGENT,'model'=>$this->mode==='model'?'other-model':'gpt-6-luna',
-                'tools'=>[],'multi_agent'=>['enabled'=>false],'service_tier'=>'default','instructions'=>'PRIVATE_INSTRUCTIONS_CANARY','metadata'=>['secret'=>'SECRET_KEY_CANARY']]];
+                'tools'=>[],'multi_agent'=>['enabled'=>false],'service_tier'=>$this->mode==='auto_tier'?'auto':'default','instructions'=>'PRIVATE_INSTRUCTIONS_CANARY','metadata'=>['secret'=>'SECRET_KEY_CANARY']]];
     }
 }
-foreach(['good','denied','redirect','wrong','timeout','model','credential','unsafe_reason'] as $mode){
+foreach(['good','denied','redirect','wrong','timeout','model','credential','unsafe_reason','auto_tier'] as $mode){
     $mock=new AccessMock($mode);$file=$dir.'/'.$mode.'.jsonl';$result=LittleSparks\agentAccessPreflight($file,$mock);
-    if($mock->calls!==1||$result['generation_requests']!==0||$result['authorized']!==in_array($mode,['good','model'],true))throw new RuntimeException('Wrong access outcome');
+    if($mock->calls!==1||$result['generation_requests']!==0||$result['authorized']!==in_array($mode,['good','model','auto_tier'],true))throw new RuntimeException('Wrong access outcome');
+    if($mode==='auto_tier'&&($result['service_tier_default']!==false||$result['configuration_matches']!==true))throw new RuntimeException('Saved automatic tier is separate from structural authorization');
     if($mode==='model'&&$result['model_matches']!==false)throw new RuntimeException('Access is not configuration compatibility');
     if($mode==='credential'&&$result['failure_code']!=='credential_file_untrusted')throw new RuntimeException('Missing safe metadata failure');
     if($mode==='unsafe_reason'&&$result['failure_code']!==null)throw new RuntimeException('Untrusted failure reason leaked');
@@ -67,4 +68,40 @@ $inspection=LittleSparks\inspectSystemdCredential();
 if($inspection['reason']===null||$inspection['report']['credential_content_reads']!==0||$inspection['report']['network_requests']!==0||$inspection['report']['database_opens']!==0)throw new RuntimeException('Untrusted directory accepted');
 try{LittleSparks\readSystemdCredential();throw new LogicException('Untrusted secret opened');}catch(LittleSparks\SystemdCredentialError $error){if($error->getMessage()!=='Protected systemd credential unavailable.')throw $error;}
 echo "PASS systemd root-owned ACL 0440 and owner-only delivery; rejected spoofed unit/path, symlinks, unsafe owners/modes, hardlinks, writable/ambiguous mounts; metadata-only checks and immutable receipts\n";
+
+// Reconcile synthetic receipts, not provider calls or production data.
+$auditDir=$dir.'/reconciliation';mkdir($auditDir,0700);
+$original=$auditDir.'/agent-access.jsonl';$successor=$auditDir.'/agent-access-after-validator.jsonl';
+$originalAt='2026-10-25T15:45:02Z';$successorAt='2026-10-25T16:32:54Z';
+foreach([[$dir.'/credential.jsonl',$original,$originalAt],[$dir.'/good.jsonl',$successor,$successorAt]] as [$source,$target,$at]){
+    $rows=array_map(fn($line)=>json_decode($line,true,16,JSON_THROW_ON_ERROR),explode("\n",trim((string)file_get_contents($source))));
+    foreach($rows as &$row)$row['at']=$at;unset($row);
+    file_put_contents($target,implode("\n",array_map(fn($r)=>json_encode($r,JSON_THROW_ON_ERROR),$rows))."\n");
+}
+$originalHash=hash_file('sha256',$original);$successorHash=hash_file('sha256',$successor);
+$reconciled=LittleSparks\reconcileDirectorAccess($auditDir,$originalHash,$successorHash);
+if($reconciled['reserved_by_utc_day']!==['2026-10-25'=>2]||$reconciled['total_requests_reserved']!==2||$reconciled['new_http_requests']!==0||$reconciled['generation_requests']!==0||$reconciled['database_opened']!==false)throw new RuntimeException('Wrong access reservations');
+LittleSparks\assertLaterStagingDay($reconciled,strtotime('2026-10-26T00:05:00Z'));
+foreach(['2026-10-24T23:59:59Z','2026-10-25T23:59:59Z'] as $at){try{LittleSparks\assertLaterStagingDay($reconciled,strtotime($at));throw new LogicException('Same/earlier UTC day admitted');}catch(RuntimeException $error){if(!str_contains($error->getMessage(),'later UTC'))throw $error;}}
+try{LittleSparks\reconcileDirectorAccess($auditDir,substr($originalHash,0,60),$successorHash);throw new LogicException('Short hash admitted');}catch(RuntimeException $error){if(!str_contains($error->getMessage(),'Invalid access evidence'))throw $error;}
+try{LittleSparks\reconcileDirectorAccess($auditDir,str_repeat('0',64),$successorHash);throw new LogicException('Mismatched hash admitted');}catch(RuntimeException $error){if(!str_contains($error->getMessage(),'Invalid access evidence'))throw $error;}
+if(hash_file('sha256',$original)!==$originalHash||hash_file('sha256',$successor)!==$successorHash)throw new RuntimeException('Read-only reconciliation modified receipt');
+$badDir=$dir.'/invalid-reconciliation';mkdir($badDir,0700);copy($original,$badDir.'/agent-access.jsonl');
+$validRows=array_map(fn($line)=>json_decode($line,true,16,JSON_THROW_ON_ERROR),explode("\n",trim((string)file_get_contents($successor))));
+foreach(['duplicate_id','wrong_agent','extra_request','generated','mismatched_time','unconfirmed','wrong_model','extra_row'] as $mode){
+    $rows=$validRows;
+    foreach($rows as &$row){
+        if($mode==='duplicate_id')$row['check_id']=$reconciled['receipts'][0]['check_id'];
+        if($mode==='wrong_agent')$row['agent_id']='agent_other';
+        if($mode==='extra_request')$row['http_requests_reserved']=2;
+        if($mode==='generated')$row['generation_requests']=1;
+    }unset($row);
+    if($mode==='mismatched_time')$rows[1]['at']='2026-10-26T00:00:00Z';
+    if($mode==='unconfirmed')$rows[1]['authorized']=false;
+    if($mode==='wrong_model')$rows[1]['model_matches']=false;
+    if($mode==='extra_row')$rows[]=$rows[1];
+    $badFile=$badDir.'/agent-access-after-validator.jsonl';file_put_contents($badFile,implode("\n",array_map(fn($r)=>json_encode($r,JSON_THROW_ON_ERROR),$rows))."\n");
+    try{LittleSparks\reconcileDirectorAccess($badDir,$originalHash,hash_file('sha256',$badFile));throw new LogicException('Invalid reconciliation admitted: '.$mode);}catch(RuntimeException $error){if(!str_contains($error->getMessage(),'Invalid access evidence'))throw $error;}
+}
+echo "PASS two metadata reservations counted once each by UTC day, full hash pins, immutable receipts, and generation blocked until a later UTC day; zero new requests or database opens\n";
 echo "PASS one-read agent authorization, safe configuration booleans, durable request intent, no automatic repeats, denied/redirect/unknown outcomes and no key/instructions/body disclosure (mocked only)\n";

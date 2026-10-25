@@ -1,5 +1,7 @@
 # V3A supervised staging experiment — implementation and approval boundary
 
+**Current operational review:** [STAGING_ENCOUNTER_APPROVAL.md](STAGING_ENCOUNTER_APPROVAL.md) supersedes the pending-access status and old paid-command example below. Owner-run agent retrieval passed; both October 25 UTC request reservations are retained (2/2 used). The updated paid CLI requires hash-pinned receipt reconciliation and a later UTC day. The proposed eight-slot/$0.10 synthetic experiment still needs Linux offline results, exact permit review and explicit research-risk approval; no paid execution is authorized. The current saved-agent tier is not literal default; session-local default override and rejection/cancellation tests preserve the restriction without editing the shared Director.
+
 PR #10/#11 are merged/deployed, as confirmed by the owner: Toronto runs PHP 8.3.6, SQLite V5 plus identity revision 1, six preserved residents, working owner-written personalities/colors and an inactive village timer. PR #9 is reconciled onto main. Production was not accessed while preparing this work.
 
 The manual staging lifecycle is implemented and tested with mocks. **No paid execution has been approved or performed.** Production managed admission remains blocked. This isolated experiment is a proposed one-time research exception, not unattended activation or proof of a strict final-charge cap. Keep PR #9 draft until the experiment/release decision is reviewed.

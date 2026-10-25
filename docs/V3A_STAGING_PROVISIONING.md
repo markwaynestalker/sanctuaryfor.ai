@@ -1,5 +1,7 @@
 # Isolated staging setup and owner-run privileged verification
 
+**Access subsequently confirmed:** the owner-approved metadata GET passed with the existing staging key, original receipt unchanged and zero generation/database opens. Both October 25 UTC access reservations remain consumed. No further metadata request is approved. See [the synthetic encounter preparation and approval plan](STAGING_ENCOUNTER_APPROVAL.md); earlier pending-authorization instructions below are historical and must not be rerun.
+
 **Latest result:** owner-run unit run-u207.service passed repaired credential validation on Toronto with a non-secret stand-in, zero content/network/database reads and unchanged original audit. See [the proposed real-key access review](DIRECTOR_ACCESS_REVIEW.md) for the next exact owner-run command, fixed successor receipt and request accounting. It is prepared for approval only; no retry is authorized by the stand-in pass.
 
 **Current hold:** the original owner-run access attempt returned `not_confirmed` with null HTTP status/request ID. Its receipt is preserved; do not repeat the launch below, choose a fresh receipt or reset it. Subsequent non-secret LoadCredential testing identified the old guard rejecting root:root `0440` delivery. The code fix and next review-gated **non-network, metadata-only stand-in** are documented in [systemd credential validation](SYSTEMD_CREDENTIAL_VALIDATION.md). Agent authorization remains unconfirmed; no paid call is approved. Older access-launch instructions below are historical procedure, not a retry authorization.

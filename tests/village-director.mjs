@@ -19,7 +19,7 @@ try{
  const cli=(script,args=[],settings={})=>spawnSync(php,['scripts/'+script,...args],{cwd:root,env:{...env,...settings},encoding:'utf8'});
  const seedDb=join(dir,'cli-synthetic.sqlite'),seedFile=join(dir,'synthetic-characters.json');
  for(const script of ['migrate-village.php','migrate-ai.php','migrate-activity.php','migrate-memory.php','migrate-identity.php','migrate-director.php']){const r=cli(script,['--database='+seedDb]);assert.equal(r.status,0,r.stderr);}
- await writeFile(seedFile,JSON.stringify([{name:'Stage Mayor',color:'gold',antenna:'orb',description:'Enjoys welcoming fictional neighbors.'},{name:'Stage Gardener',color:'sage',antenna:'sprout',description:'Enjoys peaceful flowers.'}]),{mode:0o600});
+ await writeFile(seedFile,await readFile(join(root,'docs/staging/synthetic-residents.example.json')),{mode:0o600});
  const seeded=cli('seed-director-staging.php',['--database='+seedDb,'--residents-file='+seedFile],{LITTLE_SPARKS_ENVIRONMENT:'staging'});assert.equal(seeded.status,0,seeded.stderr);assert.equal(JSON.parse(seeded.stdout).synthetic_resident_ids.length,2);assert.equal(JSON.parse(seeded.stdout).paid_calls,0);assert.ok(!seeded.stdout.includes('token'));
  assert.notEqual(cli('seed-director-staging.php',['--database='+seedDb,'--residents-file='+seedFile],{LITTLE_SPARKS_ENVIRONMENT:'staging'}).status,0,'Seeding never overwrites existing synthetic identities');
  console.log('PASS explicit private synthetic seeding uses owner text, refuses nonempty databases and exposes no private links');

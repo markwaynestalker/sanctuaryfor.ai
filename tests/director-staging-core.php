@@ -7,9 +7,14 @@ final class StagingMock implements LittleSparks\DirectorTransport
     public function __construct(public string $mode='good',private ?LittleSparks\StagingPermit $permit=null){}
     public function request(string $method,string $path,?array $body,int $deadline,?string $idempotencyKey=null):array
     {
+        if($path==='agents/sessions'&&$this->mode==='tampered_tier')$body['agent']['service_tier']='priority';
+        if($path==='agents/sessions'&&$this->mode==='omitted_tier')unset($body['agent']['service_tier']);
+        if($path==='agents/sessions'&&$this->mode==='tampered_reasoning')$body['agent']['reasoning']=['effort'=>'high'];
+        if($path==='agents/sessions'&&$this->mode==='streaming')$body['stream']=true;
         if($this->permit)$this->permit->authorize($method,$path,$body);
         $this->calls[]=[$method,$path,$body];check($deadline<=time()+60,'Deadline is bounded');
         if($path==='agents/sessions'){
+            check(($body['agent']['service_tier']??null)==='default','Session override is explicitly default even if saved agent is auto/priority');
             if($this->mode==='lost')throw new LittleSparks\ManagedHttpFailure();
             $this->context=json_decode($body['input'][0]['content'][0]['text'],true);
             return $this->remote();
@@ -27,9 +32,14 @@ final class StagingMock implements LittleSparks\DirectorTransport
             return ['has_more'=>false,'data'=>[['type'=>'message','role'=>'assistant','phase'=>'final_answer','status'=>'completed','turn_id'=>'turn_stage','content'=>[['type'=>'output_text','text'=>json_encode($p,JSON_THROW_ON_ERROR)]]]]];
         }
         if($path==='moderations'){if($this->mode==='moderation_timeout')throw new LittleSparks\ManagedHttpFailure();return ['results'=>[['flagged'=>$this->mode==='flagged']]];}
-        $remote=$this->remote();if($this->mode==='unsafe')$remote['agent']['tools']=[['type'=>'shell']];return $remote;
+        $remote=$this->remote();if($this->mode==='unsafe')$remote['agent']['tools']=[['type'=>'shell']];
+        if($this->mode==='inspect_tier')$remote['agent']['service_tier']='priority';return $remote;
     }
-    private function remote():array{return ['id'=>'session_stage','object'=>'agent.session','status'=>'in_progress','agent'=>['id'=>getenv('LITTLE_SPARKS_DIRECTOR_AGENT_ID'),'model'=>'gpt-6-luna','service_tier'=>'default','tools'=>[],'multi_agent'=>['enabled'=>false]],'environment'=>['type'=>'none'],'spend_control'=>['limit'=>1,'consumed'=>0],'required_actions'=>[],'vault_ids'=>[]];}
+    private function remote():array{
+        $r=['id'=>'session_stage','object'=>'agent.session','status'=>'in_progress','agent'=>['id'=>getenv('LITTLE_SPARKS_DIRECTOR_AGENT_ID'),'model'=>'gpt-6-luna','service_tier'=>'default','tools'=>[],'multi_agent'=>['enabled'=>false]],'environment'=>['type'=>'none'],'spend_control'=>['limit'=>1,'consumed'=>0],'required_actions'=>[],'vault_ids'=>[]];
+        if(in_array($this->mode,['auto_tier','priority_tier'],true))$r['agent']['service_tier']=$this->mode==='auto_tier'?'auto':'priority';
+        if($this->mode==='missing_tier')unset($r['agent']['service_tier']);return $r;
+    }
 }
 try{
     // Exercise actual deployed V5+identity state, including the owner's mayor text.
@@ -55,7 +65,7 @@ try{
     $stage=$stageFresh();$notApproved=LittleSparks\stagingPlan($stage,$at,time()+300);try{LittleSparks\StagingPermit::consume($stage,$notApproved);throw new LogicException('Unapproved permit consumed');}catch(LittleSparks\AiGuard){}
     foreach(['manifest_sha256','database_sha256','installation_sha256','residents_sha256','agent_id','configuration_sha256','model','risk_acceptance','http_slots','allocation_microusd'] as $field){$bad=$approved($stage);$bad[$field]=is_int($bad[$field])?0:'tampered';try{LittleSparks\StagingPermit::consume($stage,$bad);throw new LogicException('Tampered permit admitted: '.$field);}catch(LittleSparks\AiGuard){}}
     putenv('LITTLE_SPARKS_AI_DAILY_REQUESTS=8');putenv('LITTLE_SPARKS_AI_MONTHLY_MICROUSD=100000');putenv('LITTLE_SPARKS_AI_ENABLED=1');putenv('LITTLE_SPARKS_DIRECTOR_ENABLED=1');putenv('LITTLE_SPARKS_SIMULATION_ENABLED=1');
-    foreach(['good','delayed','incomplete','cancel_failure','cancel_still_running','lost','unknown','flagged','moderation_timeout','invalid','unsafe','wrong_session'] as $mode){
+    foreach(['good','delayed','incomplete','cancel_failure','cancel_still_running','lost','unknown','flagged','moderation_timeout','invalid','unsafe','wrong_session','auto_tier','priority_tier','missing_tier','inspect_tier'] as $mode){
         $stage=$stageFresh();$p=$approved($stage);$grant=LittleSparks\StagingPermit::consume($stage,$p);$mock=new StagingMock($mode,$grant);
         $result=LittleSparks\simulateDirectorOpportunity($stage,$at,true,null,$mock,null,null,true,$grant);
         check(count($mock->calls)<=8&&count(array_filter($mock->calls,fn($c)=>$c[1]==='agents/sessions'))===1,'At most one generation/eight counted HTTP calls: '.$mode);
@@ -67,7 +77,18 @@ try{
         if(in_array($mode,['good','delayed'],true)){check($result['status']==='completed','Completed experiment');$review=LittleSparks\reviewManagedBilling($stage,$a['id'],str_repeat('1',32),1000,str_repeat('a',64));check($review['commitment_microusd']===100000,'Final bill review never restores experimental headroom');}
         if(in_array($mode,['lost','cancel_failure','cancel_still_running'],true)){try{LittleSparks\reviewManagedBilling($stage,$a['id'],str_repeat('2',32),0,str_repeat('b',64));throw new LogicException('Unfinished provider work cleared by billing alone');}catch(LittleSparks\AiGuard $e){check($e->reason==='accounting_unresolved','Terminal proof required before billing release');}}
         if($mode==='incomplete'){check((int)$stage->query("SELECT COUNT(*) FROM director_http_calls WHERE kind='cancel'")->fetchColumn()===1,'One cancellation and terminal confirmation');}
+        if(in_array($mode,['auto_tier','priority_tier','missing_tier','inspect_tier'],true)){
+            check(count(array_filter($mock->calls,fn($c)=>str_ends_with($c[1],'/events')))===1,'Unexpected tier attempts exactly one cancellation');
+            check(!array_filter($mock->calls,fn($c)=>$c[1]==='moderations'||str_contains($c[1],'/items?')),'Unexpected tier never accepts or moderates dialogue');
+        }
     }
+    foreach(['tampered_tier','omitted_tier','tampered_reasoning','streaming'] as $mode){
+        $stage=$stageFresh();$grant=LittleSparks\StagingPermit::consume($stage,$approved($stage));$mock=new StagingMock($mode,$grant);
+        LittleSparks\simulateDirectorOpportunity($stage,$at,true,null,$mock,null,null,true,$grant);
+        check(!$mock->calls&&(int)$stage->query('SELECT COUNT(*) FROM messages')->fetchColumn()===0,'Permit rejects non-default/missing tier, effort or streaming before dispatch');
+        check((int)$stage->query('SELECT reserved_microusd FROM ai_attempts LIMIT 1')->fetchColumn()===100000,'Rejected tier keeps allocation and permit consumed');
+    }
+    echo "PASS default session tier pinned before dispatch; missing/auto/priority returned tiers cancel once, stay silent and retain accounting; no saved-agent edits or live calls\n";
     $stage=$stageFresh();$grant=LittleSparks\StagingPermit::consume($stage,$approved($stage));$stage->exec("UPDATE resident_identities SET description='Changed after approval' WHERE resident_id=(SELECT id FROM residents LIMIT 1)");$mock=new StagingMock('good');LittleSparks\simulateDirectorOpportunity($stage,$at,true,null,$mock,null,null,true,$grant);check(!$mock->calls,'Identity changes after permit consumption block generation');
     foreach([['LITTLE_SPARKS_AI_DAILY_REQUESTS','7'],['LITTLE_SPARKS_AI_MONTHLY_MICROUSD','99999']] as [$variable,$value]){
         $stage=$stageFresh();$grant=LittleSparks\StagingPermit::consume($stage,$approved($stage));putenv($variable.'='.$value);$mock=new StagingMock('good');LittleSparks\simulateDirectorOpportunity($stage,$at,true,null,$mock,null,null,true,$grant);check(!$mock->calls,'Insufficient request/budget envelope fails before dispatch');putenv($variable.'='.($variable==='LITTLE_SPARKS_AI_DAILY_REQUESTS'?'8':'100000'));

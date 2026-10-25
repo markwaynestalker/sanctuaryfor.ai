@@ -61,7 +61,8 @@ function directorSchema(array $choices):array
 function managedDirectorPrototype(array $external,array $context,array $choices):array
 {
     $config=validateDirectorExport($external);
-    // Offline only. This demonstrates interoperability, not budget admission.
+    // Production admission stays closed; only a separately approved one-shot
+    // staging permit may exercise this request. It does not prove a billing cap.
     return ['agent_id'=>$config['id'],'environment'=>['type'=>'none'],
         'agent'=>['model'=>$config['model'],'reasoning'=>$config['reasoning'],'tools'=>[],'multi_agent'=>['enabled'=>false],'service_tier'=>'default',
             'text'=>['format'=>['type'=>'json_schema','schema'=>directorSchema($choices)]]],

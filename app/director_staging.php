@@ -74,7 +74,9 @@ final class StagingPermit
         if($method==='POST'&&$path==='agents/sessions'){
             if(($body['agent_id']??null)!==$this->permit['agent_id']||isset($body['agent']['instructions'])||($body['agent']['tools']??null)!==[]
                 ||($body['agent']['multi_agent']['enabled']??null)!==false||($body['environment']??null)!==['type'=>'none']||($body['spend_control']??null)!==['limit'=>1]
-                ||($body['agent']['model']??null)!=='gpt-6-luna'||hash('sha256',$body['input'][0]['content'][0]['text']??'')!==$a['context_sha256'])throw new AiGuard('configuration_invalid');return;
+                ||($body['agent']['model']??null)!=='gpt-6-luna'||($body['agent']['service_tier']??null)!=='default'
+                ||($body['agent']['reasoning']??null)!==['effort'=>'none']||($body['stream']??null)!==false
+                ||hash('sha256',$body['input'][0]['content'][0]['text']??'')!==$a['context_sha256'])throw new AiGuard('configuration_invalid');return;
         }
         $sid=$a['provider_session_id'];if(!is_string($sid)||!preg_match('/\A[a-zA-Z0-9_-]{1,128}\z/',$sid))throw new AiGuard('configuration_invalid');
         if($method==='POST'&&$path==='agents/sessions/'.$sid.'/events'&&$body===['events'=>[['type'=>'agent.session.input.cancel']]])return;
