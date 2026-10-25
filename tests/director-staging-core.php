@@ -11,15 +11,16 @@ final class StagingMock implements LittleSparks\DirectorTransport
         if($path==='agents/sessions'&&$this->mode==='omitted_tier')unset($body['agent']['service_tier']);
         if($path==='agents/sessions'&&$this->mode==='tampered_reasoning')$body['agent']['reasoning']=['effort'=>'high'];
         if($path==='agents/sessions'&&$this->mode==='streaming')$body['stream']=true;
+        if($path==='agents/sessions'&&$this->mode==='tampered_spend_control')$body['spend_control']=['limit'=>1];
         if($this->permit)$this->permit->authorize($method,$path,$body);
         $this->calls[]=[$method,$path,$body];check($deadline<=time()+60,'Deadline is bounded');
         if($path==='agents/sessions'){
             // Check the encoded request, not just PHP arrays, against the published
-            // session-create envelope (including its language-specific spend control).
+            // session-create envelope confirmed against the live validation error.
             $wire=json_decode(LittleSparks\managedWireBody($method,$path,$body,$idempotencyKey),false,32,JSON_THROW_ON_ERROR);
-            check(!array_diff(array_keys((array)$wire),['agent_id','environment','agent','spend_control','input','stream','metadata']),'Session-create wire has only documented top-level fields');
+            check(!array_diff(array_keys((array)$wire),['agent_id','environment','agent','input','stream','metadata']),'Session-create wire excludes the unsupported spend-control field');
             check(is_object($wire->environment)&&$wire->environment->type==='none'&&$wire->stream===false,'Documented no-sandbox non-streaming wire shape');
-            check(is_object($wire->spend_control)&&is_int($wire->spend_control->limit)&&$wire->spend_control->limit===1,'Keep the documented positive integer USD-cent setting');
+            check(!property_exists($wire,'spend_control'),'No unsupported provider spending guarantee');
             check($wire->input[0]->role==='user'&&$wire->input[0]->content[0]->type==='input_text'&&is_string($wire->input[0]->content[0]->text),'Documented initial message shape');
             check($wire->agent->text->format->type==='json_schema'&&is_object($wire->agent->text->format->schema),'Structured output schema encodes as an object');
             check(($body['agent']['service_tier']??null)==='default','Session override is explicitly default even if saved agent is auto/priority');
@@ -46,7 +47,7 @@ final class StagingMock implements LittleSparks\DirectorTransport
         if($this->mode==='inspect_tier')$remote['agent']['service_tier']='priority';return $remote;
     }
     private function remote():array{
-        $r=['id'=>'session_stage','object'=>'agent.session','status'=>'in_progress','agent'=>['id'=>getenv('LITTLE_SPARKS_DIRECTOR_AGENT_ID'),'model'=>'gpt-6-luna','service_tier'=>'default','tools'=>[],'multi_agent'=>['enabled'=>false]],'environment'=>['type'=>'none'],'spend_control'=>['limit'=>1,'consumed'=>0],'required_actions'=>[],'vault_ids'=>[]];
+        $r=['id'=>'session_stage','object'=>'agent.session','status'=>'in_progress','agent'=>['id'=>getenv('LITTLE_SPARKS_DIRECTOR_AGENT_ID'),'model'=>'gpt-6-luna','service_tier'=>'default','tools'=>[],'multi_agent'=>['enabled'=>false]],'environment'=>['type'=>'none'],'required_actions'=>[],'vault_ids'=>[]];
         if(in_array($this->mode,['auto_tier','priority_tier'],true))$r['agent']['service_tier']=$this->mode==='auto_tier'?'auto':'priority';
         if($this->mode==='missing_tier')unset($r['agent']['service_tier']);return $r;
     }
@@ -92,7 +93,7 @@ try{
             check(!array_filter($mock->calls,fn($c)=>$c[1]==='moderations'||str_contains($c[1],'/items?')),'Unexpected tier never accepts or moderates dialogue');
         }
     }
-    foreach(['tampered_tier','omitted_tier','tampered_reasoning','streaming'] as $mode){
+    foreach(['tampered_tier','omitted_tier','tampered_reasoning','streaming','tampered_spend_control'] as $mode){
         $stage=$stageFresh();$grant=LittleSparks\StagingPermit::consume($stage,$approved($stage));$mock=new StagingMock($mode,$grant);
         LittleSparks\simulateDirectorOpportunity($stage,$at,true,null,$mock,null,null,true,$grant);
         check(!$mock->calls&&(int)$stage->query('SELECT COUNT(*) FROM messages')->fetchColumn()===0,'Permit rejects non-default/missing tier, effort or streaming before dispatch');

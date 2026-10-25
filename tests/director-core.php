@@ -30,7 +30,7 @@ final class ManagedMock implements LittleSparks\DirectorTransport
     public function __construct(public string $mode='good',public ?PDO $database=null){}
     public function remote(string $status):array{return ['id'=>'session_mock','object'=>'agent.session','status'=>$status,
         'agent'=>['id'=>getenv('LITTLE_SPARKS_DIRECTOR_AGENT_ID'),'model'=>'gpt-6-luna','service_tier'=>'default','tools'=>[],'multi_agent'=>['enabled'=>false]],
-        'environment'=>['type'=>'none'],'spend_control'=>['limit'=>1,'consumed'=>0],'required_actions'=>[],'vault_ids'=>[]];}
+        'environment'=>['type'=>'none'],'required_actions'=>[],'vault_ids'=>[]];}
     public function request(string $method,string $path,?array $body,int $deadline,?string $idempotencyKey=null):array{
         $this->calls[]=[$method,$path,$body,$idempotencyKey];
         if($this->mode==='timeout')throw new RuntimeException('PRIVATE_VENDOR_CANARY');
@@ -41,7 +41,7 @@ final class ManagedMock implements LittleSparks\DirectorTransport
         if($path==='agents/sessions'){
             check($body['agent_id']===getenv('LITTLE_SPARKS_DIRECTOR_AGENT_ID')&&!isset($body['agent']['instructions']),'Saved agent ID; no PHP instructions');
             check($body['environment']===['type'=>'none']&&$body['agent']['tools']===[]&&$body['agent']['multi_agent']['enabled']===false,'No sandbox/tools/subagents');
-            check($body['spend_control']===['limit'=>1]&&!isset($body['agent']['text']['format']['name']),'Current managed spend/schema contract');
+            check(!array_key_exists('spend_control',$body)&&!isset($body['agent']['text']['format']['name']),'Live-compatible managed spend/schema contract');
             $this->context=json_decode($body['input'][0]['content'][0]['text'],true);$this->turn++;return $this->remote('in_progress');
         }
         if(str_ends_with($path,'/events')){$this->context=json_decode($body['events'][0]['input'][0]['content'][0]['text'],true);check($idempotencyKey!==null,'Stable followup idempotency key');$this->turn++;return [];}

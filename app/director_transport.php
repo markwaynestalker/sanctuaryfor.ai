@@ -34,6 +34,7 @@ function managedWireBody(string $method,string $path,?array $body,?string $key):
     if($key!==null&&!preg_match('/\A[a-f0-9]{32}\z/',$key))throw new AiGuard('configuration_invalid');
     if($method==='GET'){if($body!==null||$key!==null)throw new AiGuard('configuration_invalid');return null;}
     if($body===null)throw new AiGuard('configuration_invalid');
+    if($path==='agents/sessions'&&array_key_exists('spend_control',$body))throw new AiGuard('configuration_invalid');
     $encoded=json_encode($body,JSON_THROW_ON_ERROR|JSON_UNESCAPED_UNICODE);
     if(strlen($encoded)>AI_BODY_BYTES)throw new AiGuard('configuration_invalid');return $encoded;
 }

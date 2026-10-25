@@ -66,6 +66,5 @@ function managedDirectorPrototype(array $external,array $context,array $choices)
     return ['agent_id'=>$config['id'],'environment'=>['type'=>'none'],
         'agent'=>['model'=>$config['model'],'reasoning'=>$config['reasoning'],'tools'=>[],'multi_agent'=>['enabled'=>false],'service_tier'=>'default',
             'text'=>['format'=>['type'=>'json_schema','schema'=>directorSchema($choices)]]],
-        'spend_control'=>['limit'=>1],
         'input'=>[['role'=>'user','content'=>[['type'=>'input_text','text'=>json_encode($context,JSON_THROW_ON_ERROR|JSON_UNESCAPED_UNICODE)]]]],'stream'=>false];
 }

@@ -80,11 +80,10 @@ function saveDirectorMemory(PDO $db,string $conversation,array $proposal,array $
 /** Validate the provider's effective session settings independently of its dialogue. */
 function assertManagedSession(array $remote,array $registered,string $id,bool $reusing):void
 {
-    $agent=$remote['agent']??[];$spend=$remote['spend_control']??[];$consumed=$spend['consumed']??null;
+    $agent=$remote['agent']??[];
     if(($remote['id']??null)!==$id||($remote['object']??null)!=='agent.session'||($agent['id']??null)!==$registered['agent_id']
         ||($agent['model']??null)!==$registered['model']||($agent['service_tier']??null)!=='default'||($agent['tools']??null)!==[]||($agent['multi_agent']['enabled']??null)!==false
         ||($remote['environment']['type']??null)!=='none'||($remote['required_actions']??null)!==[]||($remote['vault_ids']??null)!==[]
-        ||($spend['limit']??null)!==1||(!is_int($consumed)&&!is_float($consumed))||!is_finite((float)$consumed)||$consumed<0||$consumed>=1
         ||!in_array($remote['status']??null,$reusing?['idle']:['idle','in_progress'],true))throw new AiGuard('session_unavailable');
 }
 function managedDirectorEncounter(PDO $db,DirectorTransport $transport,array $attempt,array $session,array $registered,array $prepared,array $choices):array
@@ -143,9 +142,8 @@ function simulateDirectorOpportunity(PDO $db,string $at,bool $allowPaid,?AiTrans
     $now??=time();$cfg=directorConfiguration();
     if(getenv('LITTLE_SPARKS_SIMULATION_ENABLED')!=='1')return ['status'=>'paused'];
     if(!$cfg['enabled']||getenv('LITTLE_SPARKS_AI_ENABLED')!=='1'||!$allowPaid)return ['status'=>'silent','reason'=>'director_disabled'];
-    // Managed spend_control is cent-granular; usage is best effort, internal model
-    // calls are not bounded by the current public configuration contract. Never
-    // claim that this prototype proves a whole-turn token/cost ceiling.
+    // The live API rejects spend_control. Atomic application commitments remain
+    // enforced, but neither these nor best-effort usage prove a provider bill cap.
     $liveManaged=$cfg['runtime']==='agents'&&$managed===null;
     if($liveManaged){
         if(!managedLiveAdmission()['allowed'])return ['status'=>'silent','reason'=>'configuration_invalid'];

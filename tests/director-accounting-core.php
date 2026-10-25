@@ -5,6 +5,10 @@ try{
     check(LittleSparks\managedValidationError(400,'{"error":{"code":"invalid_value","param":"agent.model","message":"PRIVATE_CANARY"}}')===['code'=>'invalid_value','param'=>'agent.model'],'Validation retains only fixed structural fields');
     foreach(['not json','{"error":{"code":"sk-SECRET","param":"PRIVATE_CANARY","message":"SECRET"}}','{"error":"PRIVATE_CANARY"}'] as $raw)check(LittleSparks\managedValidationError(400,$raw)===null,'Reject malformed/unknown validation fields');
     check(LittleSparks\managedValidationError(500,'{"error":{"code":"invalid_value","param":"agent.model"}}')===null,'Only HTTP 400 validation is extracted');
+    foreach([null,['limit'=>1]] as $unsupported){
+        try{LittleSparks\managedWireBody('POST','agents/sessions',['spend_control'=>$unsupported],null);throw new LogicException('Unsupported request field reached transport');}
+        catch(LittleSparks\AiGuard $e){check($e->reason==='configuration_invalid','Reject unsupported spend_control locally, even null');}
+    }
     putenv('LITTLE_SPARKS_AI_DAILY_REQUESTS=200');putenv('LITTLE_SPARKS_DIRECTOR_RUNTIME=agents');
     $db=$directorFresh();$mock=new ManagedMock();$result=LittleSparks\simulateDirectorOpportunity($db,$at,true,null,$mock);$attemptId=$result['id'];
     $calls=$db->query('SELECT * FROM director_http_calls ORDER BY sequence')->fetchAll();
