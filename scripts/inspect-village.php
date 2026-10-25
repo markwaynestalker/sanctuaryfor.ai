@@ -10,6 +10,7 @@ try{
         $baseline=LittleSparks\databasePath((string)$o['matches-v5']);if(filesize($baseline)>1048576)throw new RuntimeException('Oversized baseline.');
         $before=json_decode((string)file_get_contents($baseline),true,16,JSON_THROW_ON_ERROR);
         if(($before['schema_version']??null)!==5||!is_string($before['preserved_v5_sha256']??null)||!hash_equals($before['preserved_v5_sha256'],$manifest['preserved_v5_sha256']??''))throw new RuntimeException('V5 preservation failed.');
+        if(isset($before['identity_sha256'])&&!hash_equals($before['identity_sha256'],$manifest['identity_sha256']??''))throw new RuntimeException('Identity adoption preservation failed.');
         $manifest['matches_v5']=true;
     }
     echo json_encode($manifest,JSON_THROW_ON_ERROR|JSON_PRETTY_PRINT)."\n";$db->commit();

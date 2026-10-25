@@ -2,7 +2,7 @@
 
 **Current decision: do not merge/deploy the live managed Director yet.** See V3A_MANAGED_SAFETY.md for the unresolved provider-bound and staging gates. These are exact future operator steps, not authorization to execute them. No production connection, configuration change, backup, migration, paid call or service operation was performed in preparing this document.
 
-The owner is considering independent no-paid UI/identity releases. See V3A_STAGING_AND_RELEASE_REVIEW.md. Do not use this combined V6 migration runbook for a partially extracted identity release: that release needs its own tested capability/migration and rollback plan. The proposed isolated experiment must not open or copy Toronto's production SQLite; its supervised risk decision is separate from every production step below. No merge strategy has been selected.
+The owner confirms PR #10/#11 merged and deployed: production is V5 plus identity revision 1, six residents, owner-written personalities/colors and PHP 8.3.6; the village timer is inactive. This V6 migration now adopts installed identity tables/audits unchanged. The isolated paid experiment in V3A_STAGING_AND_RELEASE_REVIEW.md uses a fresh synthetic DB and must not open or copy production SQLite. Its execution approval is separate from every production step below.
 
 Owner-confirmed Toronto paths/state on 2026-10-25:
 
@@ -19,9 +19,9 @@ Keep the timer disabled throughout staging, migration, deployment and rollback. 
 
 ## Approval and preconditions
 
-The owner must approve the PR/release, maintenance outage, production backup/migration and rollout separately from any paid experiment. First complete a no-cost PHP 8.3/PDO_SQLITE/cURL staging rehearsal of this exact commit, all eleven offline suites, preservation/restore checks, and UI checks. For the desired live Director release, complete the provider-bound and approved integration gates too. Never treat this runbook as an instruction to deploy an unready draft.
+The owner must approve PR/release, maintenance outage, production backup/migration and rollout separately from any paid experiment. First complete a no-cost PHP 8.3/PDO_SQLITE/cURL staging rehearsal of this exact commit, all thirteen offline suites, installed-identity preservation/restore and UI checks. For the desired live Director release, complete its remaining provider-bound/activation review too. A successful manually approved research experiment alone does not open unattended production admission.
 
-Record the approved full commit SHA and a tested V6-capable fallback SHA. `81413d9ecc7106b0f7bb1aa8fda2204447e53b05` is the original V6 foundation baseline, but it still needs Toronto PHP 8.3 rehearsal before being accepted as a fallback. Its additional-table compatibility permits a paused fallback without dropping accounting data. Preserve both reviewed code checkouts until rollback risk has passed.
+Record the approved full commit SHA and a separately tested identity-aware V6 fallback SHA from the reconciled code. The old pre-identity V3A foundation is not a compatible fallback for the deployed add-on; do not use it. Preserve both reviewed checkouts until rollback risk has passed.
 
 Commands below are for an authenticated Bash operator shell on Toronto **after approval**, as the existing deployment user with the necessary sudo rights. They use no API key value and must not be pasted into a public issue. Fill the two reviewed SHA variables explicitly; the assertions refuse empty/unreviewed placeholders. No command here prints the process environment, FPM configuration or credential file.
 
@@ -102,7 +102,7 @@ sudo -u "$DB_OWNER" "$PHP" "$REVIEW/scripts/inspect-village.php" \
   --database="$REHEARSAL/village.sqlite" --matches-v5="$BACKUP/before-v5.json"
 ```
 
-Require version 6, accounting revision 1, preservation match and successful integrity/FKs. The migration adds fourteen tables (ten foundation plus four accounting), never rebuilds original tables, and refuses pending/active activity. Rerun it on the rehearsal copy to verify idempotency. Private descriptions begin empty for existing residents; categories, colors, credentials, houses, coordinates, histories and ledgers are preserved. The backup secret/hash comparison is performed via digests; no secret is printed.
+Require version 6, accounting revision 1, staging revision 1, preserved V5 AND identity digests and successful integrity/FKs. On installed V5+identity, migration adds eight Director, four accounting and three staging tables. It never recreates/reinitializes the three installed identity tables or their constraints/audits, and refuses pending/held activity. Rerun on the rehearsal copy to verify idempotency. Verify all six original IDs/private links, Sparky's exact mayor description, effective colors/revisions, edit-audit count, history and accounting match the snapshot. No secret is printed. Only bare old V5 fixtures receive empty identity backfill; deployed owner-written text is never overwritten.
 
 ## Approved production migration and code cutover
 
@@ -123,7 +123,7 @@ sudo systemctl start php8.3-fpm.service
 if systemctl is-active --quiet sanctuary-village.timer; then exit 1; fi
 ```
 
-Registration is offline and stores only the saved agent's restricted structural identity; it does not create an agent or call the API. Record its configuration fingerprint privately. Do not enable `LITTLE_SPARKS_DIRECTOR_ENABLED`, AI, simulation or scheduler flags as part of this cutover. Managed live admission is still blocked in this PR. All existing credential provisioning remains unchanged. This sequence can expose the personalities and robot icon after an independently approved disabled-feature release; it does **not** satisfy the desired live Director rollout while its readiness gates remain open.
+Registration is offline and stores the existing saved agent's restricted structural identity; it does not create an agent or call the API. Record its fingerprint privately. Do not enable Director, AI, simulation or scheduler flags as part of cutover. Production managed admission remains blocked. Existing credential provisioning stays unchanged; personalities/icon already deployed are retained. This sequence does not authorize live Director rollout.
 
 Read-only smoke checks: homepage, village creation form/color preview, resident profile, journal, map and icon asset. Verify each public page references `/assets/apple-touch-icon.png?v=1`; confirm its 180×180 PNG response. Use production private links only for an owner-approved read-only revisit, never paste a token in a log/URL query. Test identity edits and creation on staging, not by fabricating production residents. On the owner's iPhone, Safari → Share → Add to Home Screen should preview the robot; existing shortcuts may need to be recreated. Actual iPhone validation is still pending.
 

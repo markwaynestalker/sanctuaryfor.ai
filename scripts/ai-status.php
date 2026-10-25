@@ -45,6 +45,8 @@ try{
         $report['director']=['managed_live_admission'=>false,'reason'=>'managed_accounting_not_verified','admission'=>LittleSparks\managedLiveAdmission(),
             'http_audit'=>$db->query('SELECT attempt_id,sequence,kind,outcome,http_status,request_id,started_at,finished_at FROM director_http_calls ORDER BY rowid DESC LIMIT 20')->fetchAll(),
             'usage_is_final_billing'=>false,
+            'staging_permit'=>$db->query('SELECT permit_id,expires_at,allocation_microusd,http_slots,consumed_at FROM director_staging_permits LIMIT 1')->fetch()?:null,
+            'managed_outcomes'=>$db->query('SELECT attempt_id,session_id,turn_id,status,created_at FROM director_managed_outcomes ORDER BY id DESC LIMIT 10')->fetchAll(),
             'observations'=>$db->query('SELECT attempt_id,turn_id,input_tokens,output_tokens,cached_tokens,reasoning_tokens,estimated_microusd,status,observed_at FROM director_usage_observations ORDER BY id DESC LIMIT 10')->fetchAll(),
             'billing_reviews'=>$db->query('SELECT review_id,attempt_id,amount_microusd,commitment_microusd,outcome,reviewed_at FROM director_billing_reviews ORDER BY rowid DESC LIMIT 10')->fetchAll(),
             'recent'=>$db->query('SELECT id,period,session_id,runtime,contract_version,context_sha256,request_slots,started_requests,input_tokens,output_tokens,estimated_microusd,reserved_microusd,state FROM director_attempts ORDER BY created_at DESC,id DESC LIMIT 10')->fetchAll()];

@@ -16,7 +16,8 @@ function villageManifest(PDO $db):array
     }
     $version=(int)$db->query('PRAGMA user_version')->fetchColumn();
     return ['schema_version'=>$version,'tables'=>$counts,'data_sha256'=>hash_final($hash),
-        'preserved_v5_sha256'=>$version>=5?v5DirectorDigest($db):null];
+        'preserved_v5_sha256'=>$version>=5?v5DirectorDigest($db):null,
+        'identity_sha256'=>identityEnabled($db)?identityAdoptionDigest($db):null];
 }
 function backupVillage(PDO $db,string $output):array
 {

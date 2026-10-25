@@ -4,6 +4,16 @@ namespace LittleSparks;
 use PDO;
 require_once __DIR__.'/memory_schema.php';
 require_once __DIR__.'/director_accounting.php';
+require_once __DIR__.'/identity_schema.php';
+
+function identityAdoptionDigest(PDO $db):string
+{
+    $hash=hash_init('sha256');
+    foreach(['identity_schema','resident_identities','identity_edits'] as $table){
+        foreach($db->query("SELECT type,name,sql FROM sqlite_master WHERE tbl_name='$table' ORDER BY type,name")->fetchAll() as $row)hash_update($hash,json_encode($row,JSON_THROW_ON_ERROR));
+        foreach($db->query("SELECT * FROM $table ORDER BY rowid")->fetchAll() as $row)hash_update($hash,json_encode($row,JSON_THROW_ON_ERROR));
+    }return hash_final($hash);
+}
 
 function v5DirectorDigest(PDO $db):string
 {
@@ -22,17 +32,13 @@ function migrateDirectorSchema(PDO $db):void
     }
     if($version!==5)throw new \RuntimeException('Director migration requires V5.');
     if($db->query("SELECT 1 FROM simulation_opportunities WHERE outcome='pending' LIMIT 1")->fetchColumn()||$db->query("SELECT 1 FROM ai_lease WHERE owner IS NOT NULL AND expires_at>=CAST(strftime('%s','now') AS INTEGER)")->fetchColumn())throw new \RuntimeException('Pause and drain the scheduler before migration.');
-    identityConfiguration();$before=v5DirectorDigest($db);secret($db);
-    $db->exec("CREATE TABLE resident_identities (
-        resident_id TEXT PRIMARY KEY REFERENCES residents(id) ON DELETE RESTRICT,
-        description TEXT NOT NULL CHECK(length(description)<=4000),color TEXT NOT NULL,
-        revision INTEGER NOT NULL CHECK(revision>=0),updated_at TEXT NOT NULL);
-        CREATE TABLE identity_edits (
-            id INTEGER PRIMARY KEY,resident_id TEXT NOT NULL REFERENCES resident_identities(resident_id) ON DELETE RESTRICT,
-            request_id TEXT NOT NULL,request_hash TEXT NOT NULL,previous_description TEXT NOT NULL,description TEXT NOT NULL,
-            previous_color TEXT NOT NULL,color TEXT NOT NULL,revision INTEGER NOT NULL,created_at TEXT NOT NULL,UNIQUE(resident_id,request_id));
-        CREATE INDEX identity_edit_day ON identity_edits(resident_id,created_at);
-        CREATE TABLE resident_states (
+    assertIdentityIdle($db);identityConfiguration();$before=v5DirectorDigest($db);secret($db);
+    // Bare V5 remains migratable for old offline fixtures; installed add-ons are
+    // adopted byte-for-byte, including original constraints, indexes and audits.
+    if(!identityEnabled($db))migrateIdentitySchema($db);
+    $identityBefore=identityAdoptionDigest($db);
+    if($db->query('SELECT 1 FROM residents r LEFT JOIN resident_identities i ON i.resident_id=r.id WHERE i.resident_id IS NULL LIMIT 1')->fetchColumn())throw new \RuntimeException('Incomplete identities; migration refused.');
+    $db->exec("CREATE TABLE resident_states (
             resident_id TEXT PRIMARY KEY REFERENCES residents(id) ON DELETE RESTRICT,
             activity TEXT NOT NULL CHECK(activity='available'),location TEXT NOT NULL CHECK(location='commons'),since TEXT NOT NULL);
         CREATE TABLE resident_goals (
@@ -80,9 +86,9 @@ function migrateDirectorSchema(PDO $db):void
             UNIQUE(resident_id,conversation_id,sequence,quote));
         CREATE INDEX director_note_recall ON director_notes(resident_id,other_resident_id,created_at);
         PRAGMA user_version=6;");
-    foreach(['identity_edits','director_registry','director_runs','director_transmissions','director_notes'] as $table)$db->exec("CREATE TRIGGER {$table}_immutable_update BEFORE UPDATE ON $table BEGIN SELECT RAISE(ABORT,'Director history is immutable'); END; CREATE TRIGGER {$table}_immutable_delete BEFORE DELETE ON $table BEGIN SELECT RAISE(ABORT,'Director history is immutable'); END;");
-    $db->exec("INSERT INTO resident_identities SELECT id,'',color,0,created_at FROM residents;
-        INSERT INTO resident_states SELECT id,'available','commons',created_at FROM residents;");
+    foreach(['director_registry','director_runs','director_transmissions','director_notes'] as $table)$db->exec("CREATE TRIGGER {$table}_immutable_update BEFORE UPDATE ON $table BEGIN SELECT RAISE(ABORT,'Director history is immutable'); END; CREATE TRIGGER {$table}_immutable_delete BEFORE DELETE ON $table BEGIN SELECT RAISE(ABORT,'Director history is immutable'); END;");
+    $db->exec("INSERT INTO resident_states SELECT id,'available','commons',created_at FROM residents;");
     upgradeDirectorAccounting($db);
     if($before!==v5DirectorDigest($db))throw new \RuntimeException('V5 preservation failed.');
+    if($identityBefore!==identityAdoptionDigest($db))throw new \RuntimeException('Identity adoption preservation failed.');
 }

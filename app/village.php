@@ -60,7 +60,7 @@ function connect(string $path): PDO
     ]);
     $db->exec('PRAGMA busy_timeout = 5000');
     $db->exec('PRAGMA foreign_keys = ON');
-    if (!in_array((int) $db->query('PRAGMA user_version')->fetchColumn(), [2,3,4,5], true)) {
+    if (!in_array((int) $db->query('PRAGMA user_version')->fetchColumn(), [2,3,4,5,6], true)) {
         throw new RuntimeException('Unsupported database version.');
     }
     identityEnabled($db); // Refuse incomplete add-ons instead of reverting to legacy behavior.

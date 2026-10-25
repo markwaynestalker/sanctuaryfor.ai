@@ -8,7 +8,7 @@ function upgradeDirectorAccounting(PDO $db):void
 {
     $exists=$db->query("SELECT 1 FROM sqlite_master WHERE type='table' AND name='director_accounting_meta'")->fetchColumn();
     $version=$exists?$db->query('SELECT version FROM director_accounting_meta WHERE singleton=1')->fetchColumn():false;
-    if($version!==false){if((int)$version!==1)throw new \RuntimeException('Unsupported Director accounting revision.');foreach(directorAccountingTables() as $t)$db->query("SELECT * FROM $t LIMIT 0");return;}
+    if($version!==false){if((int)$version!==1)throw new \RuntimeException('Unsupported Director accounting revision.');foreach(directorAccountingTables() as $t)$db->query("SELECT * FROM $t LIMIT 0");upgradeDirectorStagingSchema($db);return;}
     foreach(directorAccountingTables() as $t){$q=$db->prepare("SELECT 1 FROM sqlite_master WHERE name=?");$q->execute([$t]);if($q->fetchColumn())throw new \RuntimeException('Unrecognized partial accounting schema.');}
     $db->exec("CREATE TABLE director_http_calls (
         attempt_id TEXT NOT NULL REFERENCES director_attempts(id) ON DELETE RESTRICT,
@@ -32,6 +32,24 @@ function upgradeDirectorAccounting(PDO $db):void
         CREATE TRIGGER director_http_final BEFORE UPDATE ON director_http_calls WHEN OLD.outcome<>'started' BEGIN SELECT RAISE(ABORT,'HTTP audit is final'); END;");
     foreach(['director_usage_observations','director_billing_reviews'] as $t)$db->exec("CREATE TRIGGER {$t}_no_update BEFORE UPDATE ON $t BEGIN SELECT RAISE(ABORT,'Accounting evidence is immutable'); END; CREATE TRIGGER {$t}_no_delete BEFORE DELETE ON $t BEGIN SELECT RAISE(ABORT,'Accounting evidence is immutable'); END;");
     $db->exec('CREATE TABLE director_accounting_meta(singleton INTEGER PRIMARY KEY CHECK(singleton=1),version INTEGER NOT NULL CHECK(version=1)); INSERT INTO director_accounting_meta VALUES(1,1)');
+    upgradeDirectorStagingSchema($db);
+}
+function upgradeDirectorStagingSchema(PDO $db):void
+{
+    $exists=$db->query("SELECT 1 FROM sqlite_master WHERE name='director_staging_meta'")->fetchColumn();
+    if($exists){if($db->query('SELECT revision FROM director_staging_meta WHERE singleton=1')->fetchColumn()!==1)throw new \RuntimeException('Unsupported staging revision.');foreach(['director_staging_permits','director_managed_outcomes'] as $t)$db->query("SELECT * FROM $t LIMIT 0");return;}
+    foreach(['director_staging_permits','director_managed_outcomes'] as $table){$q=$db->prepare('SELECT 1 FROM sqlite_master WHERE name=?');$q->execute([$table]);if($q->fetchColumn())throw new \RuntimeException('Incomplete staging schema.');}
+    $db->exec("CREATE TABLE director_staging_meta(singleton INTEGER PRIMARY KEY CHECK(singleton=1),revision INTEGER NOT NULL CHECK(revision=1));INSERT INTO director_staging_meta VALUES(1,1);
+        CREATE TABLE director_staging_permits(singleton INTEGER PRIMARY KEY CHECK(singleton=1),permit_id TEXT NOT NULL UNIQUE,permit_sha256 TEXT NOT NULL,
+            manifest_sha256 TEXT NOT NULL,residents_sha256 TEXT NOT NULL,approval_sha256 TEXT NOT NULL,expires_at INTEGER NOT NULL,
+            allocation_microusd INTEGER NOT NULL CHECK(allocation_microusd=100000),http_slots INTEGER NOT NULL CHECK(http_slots=8),consumed_at TEXT NOT NULL);
+        CREATE TABLE director_managed_outcomes(id INTEGER PRIMARY KEY,attempt_id TEXT NOT NULL REFERENCES director_attempts(id) ON DELETE RESTRICT,
+            session_id TEXT,turn_id TEXT,status TEXT NOT NULL CHECK(status IN ('completed','failed','cancelled','unresolved','cancel_requested','cancel_uncertain','session_lost')),created_at TEXT NOT NULL);");
+    foreach(['director_staging_permits','director_managed_outcomes'] as $t)$db->exec("CREATE TRIGGER {$t}_no_update BEFORE UPDATE ON $t BEGIN SELECT RAISE(ABORT,'Staging evidence is immutable'); END; CREATE TRIGGER {$t}_no_delete BEFORE DELETE ON $t BEGIN SELECT RAISE(ABORT,'Staging evidence is immutable'); END;");
+}
+function recordManagedOutcome(PDO $db,array $attempt,?string $session,?string $turn,string $status):void
+{
+    $db->prepare('INSERT INTO director_managed_outcomes(attempt_id,session_id,turn_id,status,created_at) VALUES (?,?,?,?,?)')->execute([$attempt['id'],$session,$turn,$status,gmdate('Y-m-d\TH:i:s\Z')]);
 }
 function managedRoute(string $method,string $path):string
 {
@@ -44,9 +62,11 @@ function managedRoute(string $method,string $path):string
     if($method==='GET'&&preg_match('~\Aagents/sessions/'.$id.'/turns/'.$id.'/items\?limit=20&order=asc\z~',$path))return 'items';
     throw new AiGuard('configuration_invalid');
 }
-function startManagedHttp(PDO $db,array $attempt,string $method,string $path):int
+function startManagedHttp(PDO $db,array $attempt,string $method,string $path,?string $auditKind=null):int
 {
-    $kind=managedRoute($method,$path);$db->exec('BEGIN IMMEDIATE');
+    $kind=managedRoute($method,$path);
+    if($auditKind!==null){if(!(($kind==='turns'&&preg_match('/\A(?:turns_[1-3]|final_turn)\z/',$auditKind))||($kind==='submit'&&$auditKind==='cancel')))throw new AiGuard('configuration_invalid');$kind=$auditKind;}
+    $db->exec('BEGIN IMMEDIATE');
     try{
         assertSimulationLease($db,$attempt['id']);if(gmdate('Y-m-d')!==$attempt['day']||time()>=$attempt['expires'])throw new AiGuard('day_boundary');
         $q=$db->prepare("SELECT request_slots,started_requests,state FROM director_attempts WHERE id=? AND runtime='agents'");$q->execute([$attempt['id']]);$row=$q->fetch();
@@ -69,15 +89,16 @@ function finishManagedHttp(PDO $db,array $attempt,int $sequence,?array $metadata
 }
 function observeManagedUsage(PDO $db,array $attempt,string $turn,mixed $usage,array $pricing):?array
 {
-    $valid=is_array($usage)&&is_int($usage['input_tokens']??null)&&is_int($usage['output_tokens']??null)
-        &&$usage['input_tokens']>0&&$usage['input_tokens']<=AI_INPUT_CEILING&&$usage['output_tokens']>0&&$usage['output_tokens']<=$pricing['max_output']
+    $measurable=is_array($usage)&&is_int($usage['input_tokens']??null)&&is_int($usage['output_tokens']??null)
+        &&$usage['input_tokens']>=0&&$usage['input_tokens']<=1000000000&&$usage['output_tokens']>=0&&$usage['output_tokens']<=1000000000
         &&is_int($usage['total_tokens']??null)&&$usage['total_tokens']===$usage['input_tokens']+$usage['output_tokens'];
     $cached=is_array($usage)?($usage['input_tokens_details']['cached_tokens']??0):0;$reasoning=is_array($usage)?($usage['output_tokens_details']['reasoning_tokens']??0):0;
-    $valid=$valid&&is_int($cached)&&is_int($reasoning)&&$cached>=0&&$cached<=$usage['input_tokens']&&$reasoning>=0&&$reasoning<=$usage['output_tokens'];
-    $cost=$valid?estimatedAiCost($usage['input_tokens'],$usage['output_tokens'],$pricing['input_rate'],$pricing['output_rate']):null;
+    $measurable=$measurable&&is_int($cached)&&is_int($reasoning)&&$cached>=0&&$cached<=$usage['input_tokens']&&$reasoning>=0&&$reasoning<=$usage['output_tokens'];
+    $cost=$measurable?estimatedAiCost($usage['input_tokens'],$usage['output_tokens'],$pricing['input_rate'],$pricing['output_rate']):null;
+    $valid=$measurable&&$usage['input_tokens']>0&&$usage['input_tokens']<=AI_INPUT_CEILING&&$usage['output_tokens']>0&&$usage['output_tokens']<=$pricing['max_output'];
     if($cost!==null&&$cost>$attempt['reserved'])$valid=false;
     $db->prepare('INSERT INTO director_usage_observations(attempt_id,turn_id,input_tokens,output_tokens,cached_tokens,reasoning_tokens,estimated_microusd,status,observed_at) VALUES (?,?,?,?,?,?,?,?,?)')
-        ->execute([$attempt['id'],$turn,$valid?$usage['input_tokens']:null,$valid?$usage['output_tokens']:null,$valid?$cached:null,$valid?$reasoning:null,$valid?$cost:null,$valid?'observed':'unknown',gmdate('Y-m-d\TH:i:s\Z')]);
+        ->execute([$attempt['id'],$turn,$measurable?$usage['input_tokens']:null,$measurable?$usage['output_tokens']:null,$measurable?$cached:null,$measurable?$reasoning:null,$cost,$valid?'observed':'unknown',gmdate('Y-m-d\TH:i:s\Z')]);
     if(!$valid)return null;
     // Observations never settle billing or release the original reservation.
     $db->prepare('UPDATE director_attempts SET input_tokens=?,output_tokens=? WHERE id=?')->execute([$usage['input_tokens'],$usage['output_tokens'],$attempt['id']]);
@@ -93,6 +114,8 @@ function reviewManagedBilling(PDO $db,string $attemptId,string $reviewId,int $am
         if($prior){if($prior['attempt_id']!==$attemptId||(int)$prior['amount_microusd']!==$amount||$prior['evidence_sha256']!==$evidenceHash)throw new AiGuard('configuration_invalid');$db->exec('COMMIT');return $prior;}
         $q=$db->prepare("SELECT a.*,r.status AS run_status,d.state AS director_state FROM ai_attempts a JOIN director_attempts d ON d.id=a.id AND d.runtime='agents' JOIN simulation_runs r ON r.id=a.id WHERE a.id=?");$q->execute([$attemptId]);$a=$q->fetch();
         if(!$a||!in_array($a['state'],['uncertain','applied','rejected'],true))throw new AiGuard('accounting_unresolved');
+        $terminal=$db->prepare('SELECT status FROM director_managed_outcomes WHERE attempt_id=? ORDER BY id DESC LIMIT 1');$terminal->execute([$attemptId]);
+        if(!in_array($terminal->fetchColumn(),['completed','failed','cancelled'],true))throw new AiGuard('accounting_unresolved');
         // A late async bill may belong to a different month. Do not clear a
         // cross-period hold without a separately reviewed allocation procedure.
         if($a['month']!==gmdate('Y-m'))throw new AiGuard('accounting_unresolved');

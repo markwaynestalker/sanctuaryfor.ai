@@ -7,8 +7,9 @@ use PDO;
 function identityEnabled(PDO $db): bool
 {
     $names=$db->query("SELECT name FROM sqlite_master WHERE type='table' AND name IN ('identity_schema','resident_identities','identity_edits')")->fetchAll(PDO::FETCH_COLUMN);
+    $version=(int)$db->query('PRAGMA user_version')->fetchColumn();
     if(!$names)return false;
-    if(count($names)!==3||(int)$db->query('PRAGMA user_version')->fetchColumn()!==5
+    if(count($names)!==3||!in_array($version,[5,6],true)
         ||$db->query('SELECT revision FROM identity_schema WHERE singleton=1')->fetchColumn()!==1)throw new Problem(503,'Identity schema is unavailable.');
     return true;
 }
@@ -36,7 +37,9 @@ function withIdentity(PDO $db,array $resident): array
 function identityForNewResident(PDO $db,string $id,string $description,string $color,string $time): void
 {
     $db->prepare('INSERT INTO resident_identities VALUES (?,?,?,0,?)')->execute([$id,$description,$color,$time]);
+    if(directorEnabled($db))$db->prepare("INSERT INTO resident_states VALUES (?,'available','commons',?)")->execute([$id,$time]);
 }
+function directorEnabled(PDO $db): bool{return (int)$db->query('PRAGMA user_version')->fetchColumn()===6;}
 function assertIdentityIdle(PDO $db): void
 {
     if($db->query('SELECT 1 FROM ai_lease WHERE owner IS NOT NULL')->fetchColumn()

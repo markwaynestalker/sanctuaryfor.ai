@@ -1,5 +1,13 @@
 # SanctuaryFor.AI
 
+## Resumed V3A: identity adoption and supervised staging
+
+Owner confirms PR #10/#11 merged/deployed: Toronto PHP 8.3.6, SQLite V5+identity revision 1, all six residents, working owner-written personalities/colors and inactive timer. Sparky's supplied mayor description is untrusted character context, not a new confirmed historical event. PR #9 is reconciled onto main. V6 adopts the installed three identity tables/constraints/audit unchanged, with full V5/identity preservation digests, private links, accounting, FK/integrity and rollback verification.
+
+The optional one-shot synthetic staging path binds a consumed permit, reserves eight HTTP slots and a nominal $0.10 allocation, observes completion, permits one cancellation and retains private outcome/usage/billing evidence. Production managed egress remains code-blocked. The allocation/one-cent provider setting is not a guaranteed final charge cap; execution requires an explicit research-exception approval, isolated Linux identity/DB and the existing protected credential channel. No paid execution, production access/migration/configuration, timer or deployment is approved/performed. See docs/V3A_STAGING_AND_RELEASE_REVIEW.md for exact steps/approval. Earlier split-release/prototype status below is historical and superseded by this section.
+
+Owner-proposed staging resources do not exist yet: sanctuarystaging account (no www-data/production-access groups), /var/lib/sanctuaryfor-ai-staging, and a dedicated staging-only project key at /etc/sanctuaryfor-ai/staging-openai-key delivered through systemd LoadCredential as openai_api_key. See docs/V3A_STAGING_PROVISIONING.md. Names/paths are not provisioning or paid execution authorization; request no-cost setup approval first, then a separate approval against the exact one-shot permit. Do not read or reuse production FPM credentials.
+
 ## Independent free-text identity release
 
 After icon/colors, prepare owner-written public personalities and private-link color/description editing as a separate PR. See docs/RESIDENT_PERSONALITIES.md for its V5 identity add-on revision 1, strict validation, concurrency/audit protections, offline tests and approval-gated Toronto backup/migration/rollback. No base V5 row/schema, credential, memory, provenance or ledger is reset; user_version stays 5. Original category residents start with an empty new description, not invented prose. New identities receive no PHP-composed speech/preferences. After explicit migration all new simulation entry points pause until the separately reviewed Director runtime is adopted; saved story playback continues.

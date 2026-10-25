@@ -25,10 +25,12 @@ function managedWireBody(string $method,string $path,?array $body,?string $key):
 /** Fixed official HTTPS transport; production egress stays blocked by admission. */
 final class OpenAiManagedTransport implements DirectorTransport
 {
+    public function __construct(private readonly ?StagingPermit $staging=null){}
     public function request(string $method,string $path,?array $body,int $deadline,?string $idempotencyKey=null):array
     {
         $encoded=managedWireBody($method,$path,$body,$idempotencyKey);
-        if(!managedLiveAdmission()['allowed'])throw new AiGuard('managed_accounting_not_verified');
+        if($this->staging!==null){assertStagingHostIsolation();$this->staging->authorize($method,$path,$body);}
+        elseif(!managedLiveAdmission()['allowed'])throw new AiGuard('managed_accounting_not_verified');
         if(time()>=$deadline||!extension_loaded('curl'))throw new ManagedHttpFailure();
         $key=getenv('OPENAI_API_KEY');
         if(!is_string($key)||$key===''||strlen($key)>512||preg_match('/[\r\n]/',$key))throw new ManagedHttpFailure();

@@ -2,7 +2,7 @@
 
 **Merge readiness: NO for the requested live managed-Director V3A release.** The local accounting/transport safeguards are implemented and tested offline, but the provider-enforced total-inference bound and maximum spending overshoot remain unverified. PHP 8.3 staging and an approved live compatibility test are also outstanding. Production egress remains blocked in reviewed code; flags cannot bypass it. This is not a statement that managed Agents has no spending control—it has one, but its documented contract is not sufficient to prove this application's absolute $1 spending requirement.
 
-The owner's subsequent clarification distinguishes a one-time manually approved experiment from unattended production. See V3A_STAGING_AND_RELEASE_REVIEW.md for the current assessment, explicit residual financial exposure, proposed temporary $0.10/eight-slot envelope and independent UI/identity release strategy. This does not change any flag, budget, production gate or merge state. A manual pilot may be considered with explicit risk acceptance; it is not being rejected merely because production readiness remains blocked.
+The independent UI/identity PRs are now deployed, and PR #9 adopts their existing data. The manual one-shot staging implementation is ready for review: bound/consumed permit, two synthetic residents, eight counted HTTP calls, completion/cancellation handling and terminal-evidence billing review. See V3A_STAGING_AND_RELEASE_REVIEW.md for the current exact procedure and residual exposure. Production admission stays blocked, PR #9 stays draft and no paid execution is approved/performed. A nominal $0.10 research allocation is not a guaranteed charge cap.
 
 ## Research result
 
@@ -26,7 +26,7 @@ No documented finite maximum session-limit overshoot was established. A one-cent
 - Manual billing reviews require independently verified provider evidence, private CLI access, a unique review ID and a file hash. They never trust a model's billing assertion, alter conversations or lower committed spending. A below-reservation bill keeps the entire reservation consumed; an above-reservation bill increases the commitment and leaves an unresolved overrun block. Reviews are immutable/idempotent. A later smaller amount cannot erase an overrun.
 - A failed read of an old session before any generation submission can abandon continuity on a later opportunity; its reservation is conservatively consumed rather than restored. It never resends input for the same opportunity. Any potentially dispatched generation remains frozen pending review.
 
-The accounting extension adds four tables inside the explicit transactional V6 migration. For an existing **draft staging V6** database, rerunning that CLI adds the accounting revision without rebuilding original tables. Unknown/partial revisions refuse. HTTP requests never migrate a database. Production is still V5 and has not been touched.
+The explicit V6 migration adopts installed identity revision 1 unchanged, adds four accounting tables plus three staging permit/outcome/revision tables alongside eight Director tables, and verifies both base V5 and identity digests. Identity-aware draft V6 can add these extensions transactionally; unsupported/partial revisions refuse. Pre-identity draft V6 without the identity marker requires separate recovery review. HTTP never migrates. Production remains owner-confirmed V5+identity and has not been accessed by this work.
 
 `php scripts/ai-status.php --database=/private/staging.sqlite` reports started HTTP calls, observations, reviews, committed/unknown amounts and the explicit admission blockers. These are private operational data, not a public dashboard.
 
@@ -45,9 +45,9 @@ The evidence file must be private, nonempty and at most 1 MiB. The operator must
 
 The simple review command refuses attempts from an earlier UTC month. An asynchronous charge can cross a billing boundary, so that case requires a separately reviewed period-allocation procedure rather than clearing the global unknown-cost block and creating false headroom in the new month.
 
-## Earlier strict-budget staging outline — NOT authorized or run
+## Historical strict-budget prototype — superseded, NOT authorized or run
 
-The following four-slot/$0.01 outline describes the currently disabled prototype and its original strict-budget premise. It is superseded for decision-making by the separate supervised-experiment review linked above. If an absolute charge cap is required, the provider-bound prerequisite still applies. An owner-approved one-time risk exception is a different decision, must disclose that the final charge could exceed the nominal allocation, and must never be inherited by production. No exception has been approved or implemented.
+The following four-slot/$0.01 outline documents only the old offline prototype, not the current staging CLI. Use the implemented eight-slot/$0.10 permit procedure in V3A_STAGING_AND_RELEASE_REVIEW.md. If an absolute charge cap is required, the provider-bound prerequisite still applies. Manual risk-exception code is implemented but not execution-approved; it must never be inherited by production.
 
 Scope once those gates are satisfied:
 

@@ -36,7 +36,7 @@ function readDirectorExport(string $path):array
 }
 function registerDirector(PDO $db,array $export):array
 {
-    if(!identityEnabled($db))throw new Problem(503,'Explicit V6 migration required.');
+    if(!directorEnabled($db))throw new Problem(503,'Explicit V6 migration required.');
     $config=validateDirectorExport($export);$encoded=json_encode($config,JSON_THROW_ON_ERROR|JSON_UNESCAPED_UNICODE);$fingerprint=hash('sha256',$encoded);
     $time=gmdate('Y-m-d\TH:i:s\Z');$db->exec('BEGIN IMMEDIATE');
     try{

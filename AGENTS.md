@@ -6,6 +6,12 @@
 
 Read PROJECT_CONTEXT.md before changing content or behavior.
 
+## Resumed V3A Director integration
+
+- PR #10/#11 are merged/deployed; owner confirms V5+identity revision 1, six residents, PHP 8.3.6 and inactive timer. Reconcile draft PR #9 onto main. Adopt descriptions/colors/revisions/audits without recreating/backfilling them. Separate identity and Director capabilities; preserve V5 identity-only pause guards and every credential, memory and ledger. Verify V5 and identity digests, integrity/FKs and rollback.
+- Read docs/V3A_DIRECTOR_CONTRACT.md and docs/V3A_STAGING_AND_RELEASE_REVIEW.md. The Director owns speech, SQLite owns facts, PHP validates actions. Managed production admission stays closed. Only a separately human-approved bound/consumed staging permit may authorize one synthetic encounter. A nominal $0.10 allocation/one-cent setting is not a guaranteed provider cap. No paid call, production migration/deployment or timer activation is authorized now.
+- Run tests/village-director.mjs with mocks plus all existing suites. Cover installed six-resident identity/audit adoption, concurrent one-shot permits, eight HTTP slots, delayed completion/cancellation/unknown billing, moderation rollback and no duplicate generation. Never log credentials/context/vendor bodies. A usage observation/cancel acknowledgement is not final evidence. Keep PR #9 draft pending owner review.
+
 ## Independent identity release
 
 - Read docs/RESIDENT_PERSONALITIES.md. Owner-written descriptions/color editing use a separate transactional V5 identity add-on, not unfinished V6. Preserve every original row/schema/token/ledger. Before migration legacy behavior stays compatible; afterwards all new simulations and direct reservations pause, with rechecks under claim/reservation locks. No PHP-authored voice/preferences for new identities. Saved dialogue stays readable.

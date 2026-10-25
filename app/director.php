@@ -12,6 +12,7 @@ interface DirectorTransport
     public function request(string $method,string $path,?array $body,int $deadline,?string $idempotencyKey=null):array;
 }
 require_once __DIR__.'/director_transport.php';
+require_once __DIR__.'/director_staging.php';
 
 function directorSession(PDO $db,array $registered,array $pair,string $runtime,int $now):array
 {
@@ -114,6 +115,7 @@ function managedDirectorEncounter(PDO $db,DirectorTransport $transport,array $at
         if(!is_array($turn)||($turn['status']??null)!=='completed'||($turn['session_id']??null)!==$sid||($turn['agent_id']??null)!==$registered['agent_id']||($turn['subagent_id']??null)!==null
             ||($turn['error']??null)!==null||!is_string($turn['id']??null)||$turn['id']===$session['last_turn_id']||!preg_match('/\A[a-zA-Z0-9_-]{1,128}\z/',$turn['id']))throw new AiGuard('usage_unknown');
         if(observeManagedUsage($db,$attempt,$turn['id'],$turn['usage']??null,aiConfiguration(time()))===null)throw new AiGuard('usage_unknown');
+        recordManagedOutcome($db,$attempt,$sid,$turn['id'],'completed');
         $items=$request('GET','agents/sessions/'.$sid.'/turns/'.$turn['id'].'/items?limit=20&order=asc');
         if(($items['has_more']??true)!==false||!is_array($items['data']??null))throw new AiGuard('usage_unknown');
         $texts=[];foreach($items['data'] as $item){
@@ -135,7 +137,7 @@ function managedDirectorEncounter(PDO $db,DirectorTransport $transport,array $at
     }
 }
 
-function simulateDirectorOpportunity(PDO $db,string $at,bool $allowPaid,?AiTransport $responses=null,?DirectorTransport $managed=null,?int $now=null,?DirectorContextProvider $contextProvider=null,bool $conversationOnly=false):array
+function simulateDirectorOpportunity(PDO $db,string $at,bool $allowPaid,?AiTransport $responses=null,?DirectorTransport $managed=null,?int $now=null,?DirectorContextProvider $contextProvider=null,bool $conversationOnly=false,?StagingPermit $staging=null):array
 {
     $now??=time();$cfg=directorConfiguration();
     if(getenv('LITTLE_SPARKS_SIMULATION_ENABLED')!=='1')return ['status'=>'paused'];
@@ -159,9 +161,10 @@ function simulateDirectorOpportunity(PDO $db,string $at,bool $allowPaid,?AiTrans
         $pricing['director_once']=$conversationOnly&&$managed!==null;
         $pricing['director_context']=hash('sha256',json_encode($prepared['context'],JSON_THROW_ON_ERROR|JSON_UNESCAPED_UNICODE));
         if($managed!==null)$pricing['director_slots']=$session['provider_session_id']===null?4:5;
+        if($staging!==null){$staging->assertEncounter($db,$at,$registered,$prepared);$pricing['director_slots']=8;$pricing['staging_allocation']=100000;}
         $attempt=reserveAi($db,$claim['id'],$claim['pair'],$pricing,$now);
         if($managed!==null){
-            $result=managedDirectorEncounter($db,$managed,$attempt,$session,$registered,$prepared,$choices);$proposal=$result['proposal'];
+            $result=$staging!==null?stagingManagedEncounter($db,$managed,$attempt,$session,$registered,$prepared,$choices):managedDirectorEncounter($db,$managed,$attempt,$session,$registered,$prepared,$choices);$proposal=$result['proposal'];
             // Best-effort usage is observation, not settlement. Hold the full reserved
             // cost and freeze subsequent paid work until an operator reconciles it.
             $usage=null; // Best-effort observations must remain uncertain even if apply later fails.

@@ -116,3 +116,4 @@ try{
     echo "PASS V3A migration/rollback, identities/private links, exact dialogue, moderation, unverified memory, session scope, request accounting, fail-closed live admission and offline adapters\n";
 }catch(Throwable $e){fwrite(STDERR,$e->getMessage()."\n".$e->getTraceAsString()."\n");exit(1);}
 require __DIR__.'/director-accounting-core.php';
+require __DIR__.'/director-staging-core.php';

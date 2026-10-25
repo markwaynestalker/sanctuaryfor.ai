@@ -10,8 +10,21 @@ await chmod(dir,0o700);
 try{
  const result=spawnSync(php,['tests/director-core.php',dir],{cwd:root,encoding:'utf8',env});
  assert.equal(result.status,0,result.stderr||result.error?.message);process.stdout.write(result.stdout);
+ // Concurrent operator invocations consume the same permit once, before any HTTP.
+ const permitDb=join(dir,'permit-race.sqlite'),permitFile=join(dir,'offline-permit.json');await copyFile(join(dir,'synthetic-stage-template.sqlite'),permitDb);
+ const plan=spawnSync(php,['tests/director-permit-worker.php',permitDb,'plan'],{cwd:root,env,encoding:'utf8'});assert.equal(plan.status,0,plan.stderr);await writeFile(permitFile,plan.stdout,{mode:0o600});
+ const consume=()=>new Promise((ok,no)=>{const p=spawn(php,['tests/director-permit-worker.php',permitDb,permitFile],{cwd:root,env});let out='',err='';p.stdout.on('data',v=>out+=v);p.stderr.on('data',v=>err+=v);p.on('error',no);p.on('exit',c=>{try{assert.equal(c,0,err);ok(JSON.parse(out));}catch(e){no(e);}});});
+ assert.equal((await Promise.all([consume(),consume()])).filter(r=>r.accepted).length,1);
+ console.log('PASS concurrent one-shot staging permits serialize and retain consumption without credentials or network');
  const cli=(script,args=[],settings={})=>spawnSync(php,['scripts/'+script,...args],{cwd:root,env:{...env,...settings},encoding:'utf8'});
+ const seedDb=join(dir,'cli-synthetic.sqlite'),seedFile=join(dir,'synthetic-characters.json');
+ for(const script of ['migrate-village.php','migrate-ai.php','migrate-activity.php','migrate-memory.php','migrate-identity.php','migrate-director.php']){const r=cli(script,['--database='+seedDb]);assert.equal(r.status,0,r.stderr);}
+ await writeFile(seedFile,JSON.stringify([{name:'Stage Mayor',color:'gold',antenna:'orb',description:'Enjoys welcoming fictional neighbors.'},{name:'Stage Gardener',color:'sage',antenna:'sprout',description:'Enjoys peaceful flowers.'}]),{mode:0o600});
+ const seeded=cli('seed-director-staging.php',['--database='+seedDb,'--residents-file='+seedFile],{LITTLE_SPARKS_ENVIRONMENT:'staging'});assert.equal(seeded.status,0,seeded.stderr);assert.equal(JSON.parse(seeded.stdout).synthetic_resident_ids.length,2);assert.equal(JSON.parse(seeded.stdout).paid_calls,0);assert.ok(!seeded.stdout.includes('token'));
+ assert.notEqual(cli('seed-director-staging.php',['--database='+seedDb,'--residents-file='+seedFile],{LITTLE_SPARKS_ENVIRONMENT:'staging'}).status,0,'Seeding never overwrites existing synthetic identities');
+ console.log('PASS explicit private synthetic seeding uses owner text, refuses nonempty databases and exposes no private links');
  const readiness=cli('stage-director-once.php',['--check'],{CREDENTIALS_DIRECTORY:join(dir,'no-credential-access')});assert.equal(readiness.status,0,readiness.stderr);assert.equal(JSON.parse(readiness.stdout).paid_requests,0);assert.equal(JSON.parse(readiness.stdout).admission.allowed,false);
+ const hostCheck=cli('stage-director-once.php',['--check-host'],{CREDENTIALS_DIRECTORY:join(dir,'no-credential-access'),OPENAI_API_KEY:'PRIVATE_CANARY_NOT_A_KEY'});assert.ok(![hostCheck.stdout,hostCheck.stderr].join('').includes('PRIVATE_CANARY'));if(hostCheck.status===0){const host=JSON.parse(hostCheck.stdout);assert.equal(host.paid_requests,0);assert.equal(host.credential_loaded,false);assert.equal(host.database_opened,false);}else assert.notEqual(hostCheck.status,0,'Unsupported/nonisolated host refuses safely');
  const armed=cli('stage-director-once.php',['--allow-paid','--database=/var/lib/sanctuaryfor-ai/village.sqlite','--at='+new Date().toISOString()],{OPENAI_API_KEY:'PRIVATE_CANARY_NOT_A_KEY',LITTLE_SPARKS_ENVIRONMENT:'staging',LITTLE_SPARKS_AI_ENABLED:'1',LITTLE_SPARKS_DIRECTOR_ENABLED:'1',LITTLE_SPARKS_SIMULATION_ENABLED:'1'});assert.notEqual(armed.status,0);assert.ok(![armed.stdout,armed.stderr].join('').includes('PRIVATE_CANARY'));
  const cliDb=join(dir,'cli-migration.sqlite'),backupFile=join(dir,'cli-backup.sqlite'),baselineFile=join(dir,'v5-manifest.json');await copyFile(join(dir,'memory-template.sqlite'),cliDb);
  const backed=cli('backup-village.php',['--database='+cliDb,'--output='+backupFile]);assert.equal(backed.status,0,backed.stderr);assert.equal(JSON.parse(backed.stdout).schema_version,5);await writeFile(baselineFile,backed.stdout,{mode:0o600});
