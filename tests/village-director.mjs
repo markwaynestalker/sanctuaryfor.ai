@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import {spawn,spawnSync} from 'node:child_process';
-import {mkdtemp,mkdir,chmod,copyFile,rm,readFile} from 'node:fs/promises';
+import {mkdtemp,mkdir,chmod,copyFile,rm,readFile,writeFile} from 'node:fs/promises';
 import {createServer} from 'node:net';
 import {setTimeout as delay} from 'node:timers/promises';
 import {tmpdir} from 'node:os';import {join,resolve,dirname} from 'node:path';import {fileURLToPath} from 'node:url';
@@ -10,6 +10,14 @@ await chmod(dir,0o700);
 try{
  const result=spawnSync(php,['tests/director-core.php',dir],{cwd:root,encoding:'utf8',env});
  assert.equal(result.status,0,result.stderr||result.error?.message);process.stdout.write(result.stdout);
+ const cli=(script,args=[],settings={})=>spawnSync(php,['scripts/'+script,...args],{cwd:root,env:{...env,...settings},encoding:'utf8'});
+ const readiness=cli('stage-director-once.php',['--check'],{CREDENTIALS_DIRECTORY:join(dir,'no-credential-access')});assert.equal(readiness.status,0,readiness.stderr);assert.equal(JSON.parse(readiness.stdout).paid_requests,0);assert.equal(JSON.parse(readiness.stdout).admission.allowed,false);
+ const armed=cli('stage-director-once.php',['--allow-paid','--database=/var/lib/sanctuaryfor-ai/village.sqlite','--at='+new Date().toISOString()],{OPENAI_API_KEY:'PRIVATE_CANARY_NOT_A_KEY',LITTLE_SPARKS_ENVIRONMENT:'staging',LITTLE_SPARKS_AI_ENABLED:'1',LITTLE_SPARKS_DIRECTOR_ENABLED:'1',LITTLE_SPARKS_SIMULATION_ENABLED:'1'});assert.notEqual(armed.status,0);assert.ok(![armed.stdout,armed.stderr].join('').includes('PRIVATE_CANARY'));
+ const cliDb=join(dir,'cli-migration.sqlite'),backupFile=join(dir,'cli-backup.sqlite'),baselineFile=join(dir,'v5-manifest.json');await copyFile(join(dir,'memory-template.sqlite'),cliDb);
+ const backed=cli('backup-village.php',['--database='+cliDb,'--output='+backupFile]);assert.equal(backed.status,0,backed.stderr);assert.equal(JSON.parse(backed.stdout).schema_version,5);await writeFile(baselineFile,backed.stdout,{mode:0o600});
+ const migration=cli('migrate-director.php',['--database='+cliDb]);assert.equal(migration.status,0,migration.stderr);
+ const inspected=cli('inspect-village.php',['--database='+cliDb,'--matches-v5='+baselineFile]);assert.equal(inspected.status,0,inspected.stderr);assert.equal(JSON.parse(inspected.stdout).matches_v5,true);assert.equal(JSON.parse(inspected.stdout).schema_version,6);
+ console.log('PASS no-egress staging preflight, armed-path refusal, standalone private backup CLI and V5→V6 preservation verification');
  const path=join(dir,'concurrent.sqlite');await copyFile(join(dir,'director-template.sqlite'),path);
  const at=new Date(Date.now()-60000).toISOString().slice(0,16)+':00Z';
  const worker=()=>new Promise((ok,no)=>{const p=spawn(php,['tests/director-worker.php',path,at],{cwd:root,env:{...env,LITTLE_SPARKS_AI_ENABLED:'1',LITTLE_SPARKS_SIMULATION_ENABLED:'1',LITTLE_SPARKS_DIRECTOR_ENABLED:'1',LITTLE_SPARKS_DIRECTOR_RUNTIME:'responses',LITTLE_SPARKS_AI_DAILY_REQUESTS:'2',LITTLE_SPARKS_AI_MODEL:'gpt-6-luna',LITTLE_SPARKS_AI_PRICING_CONFIRMED:'2026-10-24-standard-v1'}});let out='',err='';p.stdout.on('data',s=>{out+=s;});p.stderr.on('data',s=>{err+=s;});p.on('error',no);p.on('exit',c=>c===0?ok(JSON.parse(out)):no(new Error(err)));});

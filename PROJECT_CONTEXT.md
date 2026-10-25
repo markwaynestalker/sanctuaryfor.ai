@@ -12,6 +12,10 @@ The owner approved extracting the little robot iPhone home-screen icon and 24-co
 
 The 180×180 opaque PNG is checked in; scripts/render-touch-icon.py is an optional Pillow-based development renderer, not a server dependency. Existing shortcuts may need to be added again after an approved deployment. No production/iPhone deployment is performed by this PR.
 
+V3A safety follow-up: durable HTTP-call audit, append-only token observations, manual billing-evidence reviews, a fixed official HTTPS transport and verified SQLite backup/inspection tools are implemented for offline review. Managed egress remains blocked because official documentation does not establish the total-inference/maximum-overshoot bound needed to prove the unchanged hard $1 budget. No post-response token check or single cheap trial establishes that guarantee. The one-shot staging proposal/CLI is intentionally blocked until provider evidence and owner approval; no automatic activation or silent Responses substitution is added. Reviews never restore reserved headroom, overruns remain unresolved, and prior-month uncertainty cannot be cleared by the simple review command. PR #9 is not yet ready for the requested live Director merge/deployment; see docs/V3A_MANAGED_SAFETY.md.
+
+Toronto paths confirmed by the owner on 2026-10-25: /var/www/sanctuaryfor.ai (public/ web root), /var/lib/sanctuaryfor-ai/village.sqlite, php8.3-fpm.service enabled, sanctuary-village.service static, sanctuary-village.timer **disabled**. Preserve the disabled timer through staging, migration, deployment and rollback. No V3A production change has occurred. docs/TORONTO_V3A_RUNBOOK.md records exact future approval-gated backup, V6 migration, preservation verification and non-destructive rollback steps.
+
 ## Vision
 
 An elegant, welcoming place to imagine peaceful human–AI coexistence. The founding slogan is **Love is Love. Regardless of how you plug in.** The tone mixes sincere compassion with playful farm humor. Visitors should smile first, then think about a kinder future. All intelligences welcome; chickens protected.

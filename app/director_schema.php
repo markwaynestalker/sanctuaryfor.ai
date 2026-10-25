@@ -3,6 +3,7 @@ declare(strict_types=1);
 namespace LittleSparks;
 use PDO;
 require_once __DIR__.'/memory_schema.php';
+require_once __DIR__.'/director_accounting.php';
 
 function v5DirectorDigest(PDO $db):string
 {
@@ -14,7 +15,11 @@ function v5DirectorDigest(PDO $db):string
 function migrateDirectorSchema(PDO $db):void
 {
     $version=(int)$db->query('PRAGMA user_version')->fetchColumn();
-    if($version===6){foreach(['resident_identities','identity_edits','resident_states','resident_goals','director_registry','director_sessions','director_attempts','director_runs','director_transmissions','director_notes'] as $table)$db->query("SELECT * FROM $table LIMIT 0");secret($db);return;}
+    if($version===6){
+        foreach(['resident_identities','identity_edits','resident_states','resident_goals','director_registry','director_sessions','director_attempts','director_runs','director_transmissions','director_notes'] as $table)$db->query("SELECT * FROM $table LIMIT 0");secret($db);
+        if($db->query("SELECT 1 FROM simulation_opportunities WHERE outcome='pending' LIMIT 1")->fetchColumn()||$db->query('SELECT 1 FROM ai_lease WHERE owner IS NOT NULL LIMIT 1')->fetchColumn())throw new \RuntimeException('Drain claims before accounting upgrade.');
+        upgradeDirectorAccounting($db);return;
+    }
     if($version!==5)throw new \RuntimeException('Director migration requires V5.');
     if($db->query("SELECT 1 FROM simulation_opportunities WHERE outcome='pending' LIMIT 1")->fetchColumn()||$db->query("SELECT 1 FROM ai_lease WHERE owner IS NOT NULL AND expires_at>=CAST(strftime('%s','now') AS INTEGER)")->fetchColumn())throw new \RuntimeException('Pause and drain the scheduler before migration.');
     identityConfiguration();$before=v5DirectorDigest($db);secret($db);
@@ -78,5 +83,6 @@ function migrateDirectorSchema(PDO $db):void
     foreach(['identity_edits','director_registry','director_runs','director_transmissions','director_notes'] as $table)$db->exec("CREATE TRIGGER {$table}_immutable_update BEFORE UPDATE ON $table BEGIN SELECT RAISE(ABORT,'Director history is immutable'); END; CREATE TRIGGER {$table}_immutable_delete BEFORE DELETE ON $table BEGIN SELECT RAISE(ABORT,'Director history is immutable'); END;");
     $db->exec("INSERT INTO resident_identities SELECT id,'',color,0,created_at FROM residents;
         INSERT INTO resident_states SELECT id,'available','commons',created_at FROM residents;");
+    upgradeDirectorAccounting($db);
     if($before!==v5DirectorDigest($db))throw new \RuntimeException('V5 preservation failed.');
 }

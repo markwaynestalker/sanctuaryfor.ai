@@ -66,6 +66,7 @@ function reserveAi(PDO $db,string $period,array $pair,array $config,int $now): a
         $lease=$db->query('SELECT owner FROM ai_lease WHERE singleton=1')->fetchColumn();
         if($lease!==null && $lease!==false)throw new AiGuard('simulation_busy');
         if($db->query("SELECT 1 FROM ai_attempts WHERE state IN ('reserved','uncertain','settled') LIMIT 1")->fetchColumn())throw new AiGuard('accounting_unresolved');
+        if(($config['director_once']??false)===true&&$db->query("SELECT 1 FROM director_attempts WHERE runtime='agents' LIMIT 1")->fetchColumn())throw new AiGuard('period_recorded');
         $query=$db->prepare('SELECT 1 FROM simulation_runs WHERE period=? UNION ALL SELECT 1 FROM ai_attempts WHERE period=?');$query->execute([$period,$period]);
         if($query->fetchColumn())throw new AiGuard('period_recorded');
         $day=gmdate('Y-m-d',$now);$month=gmdate('Y-m',$now);

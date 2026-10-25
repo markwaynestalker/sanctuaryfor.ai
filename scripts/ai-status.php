@@ -38,10 +38,15 @@ try{
     $report['monthly_billing']=['values_are_application_estimates'=>true]+$q->fetch();
     $report['recent_provider_failures']=$db->query("SELECT state,error_code,created_at FROM ai_attempts WHERE error_code IS NOT NULL OR state IN ('rejected','uncertain') ORDER BY created_at DESC,id DESC LIMIT 10")->fetchAll();
     if($version>=6){
+        require_once __DIR__.'/../app/director.php';
         $q=$db->prepare("SELECT COALESCE(SUM(request_slots-2),0) AS extra_slots,COALESCE(SUM(CASE WHEN runtime='agents' THEN started_requests ELSE 0 END),0) AS managed_started FROM director_attempts WHERE day=?");$q->execute([$day]);$extra=$q->fetch();
         $report['daily']['reserved_requests']=(int)$report['daily']['reserved_requests']+(int)$extra['extra_slots'];
         $report['daily']['started_requests']=(int)$report['daily']['started_requests']+(int)$extra['managed_started'];
-        $report['director']=['managed_live_admission'=>false,'reason'=>'managed_accounting_not_verified',
+        $report['director']=['managed_live_admission'=>false,'reason'=>'managed_accounting_not_verified','admission'=>LittleSparks\managedLiveAdmission(),
+            'http_audit'=>$db->query('SELECT attempt_id,sequence,kind,outcome,http_status,request_id,started_at,finished_at FROM director_http_calls ORDER BY rowid DESC LIMIT 20')->fetchAll(),
+            'usage_is_final_billing'=>false,
+            'observations'=>$db->query('SELECT attempt_id,turn_id,input_tokens,output_tokens,cached_tokens,reasoning_tokens,estimated_microusd,status,observed_at FROM director_usage_observations ORDER BY id DESC LIMIT 10')->fetchAll(),
+            'billing_reviews'=>$db->query('SELECT review_id,attempt_id,amount_microusd,commitment_microusd,outcome,reviewed_at FROM director_billing_reviews ORDER BY rowid DESC LIMIT 10')->fetchAll(),
             'recent'=>$db->query('SELECT id,period,session_id,runtime,contract_version,context_sha256,request_slots,started_requests,input_tokens,output_tokens,estimated_microusd,reserved_microusd,state FROM director_attempts ORDER BY created_at DESC,id DESC LIMIT 10')->fetchAll()];
     }
     $db->commit();echo json_encode($report,JSON_THROW_ON_ERROR|JSON_PRETTY_PRINT)."\n";

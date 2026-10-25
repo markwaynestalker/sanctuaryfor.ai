@@ -4,12 +4,14 @@ namespace LittleSparks;
 use PDO;
 require_once __DIR__.'/director_config.php';
 require_once __DIR__.'/director_context.php';
+require_once __DIR__.'/director_accounting.php';
 
 /** A provider protocol seam; tests supply this interface, never an API key. */
 interface DirectorTransport
 {
     public function request(string $method,string $path,?array $body,int $deadline,?string $idempotencyKey=null):array;
 }
+require_once __DIR__.'/director_transport.php';
 
 function directorSession(PDO $db,array $registered,array $pair,string $runtime,int $now):array
 {
@@ -74,34 +76,44 @@ function saveDirectorMemory(PDO $db,string $conversation,array $proposal,array $
 }
 
 /** Offline managed-runtime prototype. Paid admission remains deliberately closed. */
+function assertManagedSession(array $remote,array $registered,string $id,bool $reusing):void
+{
+    $agent=$remote['agent']??[];$spend=$remote['spend_control']??[];$consumed=$spend['consumed']??null;
+    if(($remote['id']??null)!==$id||($remote['object']??null)!=='agent.session'||($agent['id']??null)!==$registered['agent_id']
+        ||($agent['model']??null)!==$registered['model']||($agent['service_tier']??null)!=='default'||($agent['tools']??null)!==[]||($agent['multi_agent']['enabled']??null)!==false
+        ||($remote['environment']['type']??null)!=='none'||($remote['required_actions']??null)!==[]||($remote['vault_ids']??null)!==[]
+        ||($spend['limit']??null)!==1||(!is_int($consumed)&&!is_float($consumed))||!is_finite((float)$consumed)||$consumed<0||$consumed>=1
+        ||!in_array($remote['status']??null,$reusing?['idle']:['idle','in_progress'],true))throw new AiGuard('session_unavailable');
+}
 function managedDirectorEncounter(PDO $db,DirectorTransport $transport,array $attempt,array $session,array $registered,array $prepared,array $choices):array
 {
     $sid=$session['provider_session_id'];$step=0;
     $request=function(string $method,string $path,?array $body=null,?string $key=null)use($db,$transport,$attempt,&$step):array{
         if($step++>4)throw new AiGuard('daily_request_cap');
-        $db->exec('BEGIN IMMEDIATE');try{
-            assertSimulationLease($db,$attempt['id']);
-            $q=$db->prepare('UPDATE director_attempts SET started_requests=started_requests+1 WHERE id=? AND started_requests<request_slots');$q->execute([$attempt['id']]);
-            if($q->rowCount()!==1)throw new AiGuard('daily_request_cap');$db->exec('COMMIT');
-        }catch(\Throwable $e){$db->exec('ROLLBACK');throw $e;}
-        return $transport->request($method,$path,$body,$attempt['expires'],$key);
+        $sequence=startManagedHttp($db,$attempt,$method,$path);
+        try{$result=$transport->request($method,$path,$body,$attempt['expires'],$key);finishManagedHttp($db,$attempt,$sequence,$result['_http']??[]);unset($result['_http']);return $result;}
+        catch(\Throwable $e){finishManagedHttp($db,$attempt,$sequence,$e instanceof ManagedHttpFailure?['status'=>$e->status,'request_id'=>$e->requestId,'succeeded'=>false]:null);throw $e;}
     };
     try{
         if($sid!==null){
             $remote=$request('GET','agents/sessions/'.$sid);
-            if(($remote['status']??null)!=='idle'||($remote['agent']['id']??null)!==$registered['agent_id'])throw new AiGuard('session_unavailable');
+            assertManagedSession($remote,$registered,$sid,true);
             $request('POST','agents/sessions/'.$sid.'/events',['events'=>[['type'=>'agent.session.input.message','input'=>[['role'=>'user','content'=>[['type'=>'input_text','text'=>json_encode($prepared['context'],JSON_THROW_ON_ERROR|JSON_UNESCAPED_UNICODE)]]]]]]],$attempt['id']);
         }else{
             $external=json_decode($registered['configuration'],true,16,JSON_THROW_ON_ERROR);
-            $remote=$request('POST','agents/sessions',managedDirectorPrototype($external,$prepared['context'],$choices),$attempt['id']);
+            $body=managedDirectorPrototype($external,$prepared['context'],$choices);
+            $body['metadata']=['sanctuary_attempt_id'=>$attempt['id'],'contract'=>'sanctuary.director.v1'];
+            $remote=$request('POST','agents/sessions',$body,$attempt['id']);
             $sid=$remote['id']??null;
             if(!is_string($sid)||!preg_match('/\A[a-zA-Z0-9_-]{1,128}\z/',$sid))throw new AiGuard('transport_uncertain');
             $db->prepare("UPDATE director_sessions SET provider_session_id=?,state='ready',updated_at=? WHERE id=?")->execute([$sid,gmdate('Y-m-d\TH:i:s\Z'),$session['id']]);
+            assertManagedSession($remote,$registered,$sid,false);
         }
         // One bounded inspection, never a polling loop or automatic resend.
         $turns=$request('GET','agents/sessions/'.$sid.'/turns?limit=1&order=desc');$turn=$turns['data'][0]??null;
         if(!is_array($turn)||($turn['status']??null)!=='completed'||($turn['session_id']??null)!==$sid||($turn['agent_id']??null)!==$registered['agent_id']||($turn['subagent_id']??null)!==null
             ||($turn['error']??null)!==null||!is_string($turn['id']??null)||$turn['id']===$session['last_turn_id']||!preg_match('/\A[a-zA-Z0-9_-]{1,128}\z/',$turn['id']))throw new AiGuard('usage_unknown');
+        if(observeManagedUsage($db,$attempt,$turn['id'],$turn['usage']??null,aiConfiguration(time()))===null)throw new AiGuard('usage_unknown');
         $items=$request('GET','agents/sessions/'.$sid.'/turns/'.$turn['id'].'/items?limit=20&order=asc');
         if(($items['has_more']??true)!==false||!is_array($items['data']??null))throw new AiGuard('usage_unknown');
         $texts=[];foreach($items['data'] as $item){
@@ -117,13 +129,13 @@ function managedDirectorEncounter(PDO $db,DirectorTransport $transport,array $at
         $moderation=$request('POST','moderations',['model'=>'omni-moderation-latest','input'=>json_encode([$prepared['context'],$decoded],JSON_THROW_ON_ERROR|JSON_UNESCAPED_UNICODE)]);
         if(count($moderation['results']??[])!==1||($moderation['results'][0]['flagged']??null)!==false)throw new AiGuard('moderation_rejected');
         $db->prepare('UPDATE director_sessions SET turns=turns+1,last_turn_id=? WHERE id=?')->execute([$turn['id'],$session['id']]);
-        return ['proposal'=>$proposal,'observed_usage'=>$turn['usage']??null];
+        return ['proposal'=>$proposal,'observed_usage'=>$turn['usage']??null,'turn_id'=>$turn['id']];
     }catch(\Throwable $e){
         $db->prepare("UPDATE director_sessions SET state=? WHERE id=?")->execute([$e instanceof AiGuard&&$e->reason==='session_unavailable'?'unavailable':'uncertain',$session['id']]);throw $e;
     }
 }
 
-function simulateDirectorOpportunity(PDO $db,string $at,bool $allowPaid,?AiTransport $responses=null,?DirectorTransport $managed=null,?int $now=null,?DirectorContextProvider $contextProvider=null):array
+function simulateDirectorOpportunity(PDO $db,string $at,bool $allowPaid,?AiTransport $responses=null,?DirectorTransport $managed=null,?int $now=null,?DirectorContextProvider $contextProvider=null,bool $conversationOnly=false):array
 {
     $now??=time();$cfg=directorConfiguration();
     if(getenv('LITTLE_SPARKS_SIMULATION_ENABLED')!=='1')return ['status'=>'paused'];
@@ -139,10 +151,12 @@ function simulateDirectorOpportunity(PDO $db,string $at,bool $allowPaid,?AiTrans
     try{
         if(count($claim['pair'])!==2)return applyActivity($db,$claim,['outcome'=>'none','topic'=>'quiet','first'=>'','second'=>'','world_action'=>'none'],['none'=>null],$now);
         $choices=aiActionChoices($db,$claim['pair'][0]['id'],$claim['pair'][1]['id'],$now);
+        if($conversationOnly)$choices=['none'=>null];
         $prepared=($contextProvider??new SqliteDirectorContextProvider())->prepare($db,$claim['pair'],$choices,$claim,$cfg);
         $db->exec('BEGIN IMMEDIATE');try{$session=directorSession($db,$registered,$claim['pair'],$cfg['runtime'],$now);$db->exec('COMMIT');}catch(\Throwable $e){$db->exec('ROLLBACK');throw $e;}
         $body=$cfg['runtime']==='responses'?directorRequest($pricing,$registered,$prepared,$choices):null;
         $pricing['director_session']=$session['id'];$pricing['director_runtime']=$cfg['runtime'];
+        $pricing['director_once']=$conversationOnly&&$managed!==null;
         $pricing['director_context']=hash('sha256',json_encode($prepared['context'],JSON_THROW_ON_ERROR|JSON_UNESCAPED_UNICODE));
         if($managed!==null)$pricing['director_slots']=$session['provider_session_id']===null?4:5;
         $attempt=reserveAi($db,$claim['id'],$claim['pair'],$pricing,$now);
@@ -150,10 +164,7 @@ function simulateDirectorOpportunity(PDO $db,string $at,bool $allowPaid,?AiTrans
             $result=managedDirectorEncounter($db,$managed,$attempt,$session,$registered,$prepared,$choices);$proposal=$result['proposal'];
             // Best-effort usage is observation, not settlement. Hold the full reserved
             // cost and freeze subsequent paid work until an operator reconciles it.
-            $u=$result['observed_usage'];
-            if(!is_array($u)||!is_int($u['input_tokens']??null)||!is_int($u['output_tokens']??null)||$u['input_tokens']<0||$u['output_tokens']<0||$u['input_tokens']>AI_INPUT_CEILING||$u['output_tokens']>$pricing['max_output'])throw new AiGuard('usage_unknown');
-            $db->prepare('UPDATE director_attempts SET input_tokens=?,output_tokens=? WHERE id=?')->execute([$u['input_tokens'],$u['output_tokens'],$attempt['id']]);
-            $usage=['input_tokens'=>0,'output_tokens'=>0,'cost_microusd'=>0];
+            $usage=null; // Best-effort observations must remain uncertain even if apply later fails.
         }else{
             $responses??=new OpenAiTransport();startAiRequest($db,$attempt,'responses_started');$result=$responses->post('responses',$body,$attempt['expires']);
             $usage=recordAiUsage($db,$attempt,$result,$pricing);$proposal=parseDirectorProposal(decodedAiProposal($result),$prepared['context']['participants'],$choices);
@@ -165,6 +176,17 @@ function simulateDirectorOpportunity(PDO $db,string $at,bool $allowPaid,?AiTrans
         return $result;
     }catch(\Throwable $e){
         if(isset($session)&&$managed!==null)$db->prepare("UPDATE director_sessions SET state='uncertain' WHERE id=? AND state<>'unavailable'")->execute([$session['id']]);
+        if($attempt!==null&&$managed!==null){
+            $q=$db->prepare("SELECT 1 FROM director_http_calls WHERE attempt_id=? AND kind IN ('create','submit','moderation') LIMIT 1");$q->execute([$attempt['id']]);
+            if(!$q->fetchColumn()){
+                // A failed read before any generation was dispatched may abandon
+                // continuity on the next opportunity. Keep all reserved headroom
+                // consumed conservatively; never retry this opportunity's input.
+                $db->prepare('UPDATE ai_attempts SET estimated_microusd=reserved_microusd WHERE id=?')->execute([$attempt['id']]);
+                $db->prepare('UPDATE director_attempts SET estimated_microusd=reserved_microusd WHERE id=?')->execute([$attempt['id']]);
+                $usage=['input_tokens'=>0,'output_tokens'=>0,'cost_microusd'=>0];
+            }
+        }
         return failActivity($db,$claim,$attempt,$usage,$e instanceof AiGuard?$e->reason:'apply_rejected');
     }
 }

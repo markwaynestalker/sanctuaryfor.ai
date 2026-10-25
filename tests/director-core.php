@@ -27,24 +27,30 @@ final class DirectorMock implements LittleSparks\AiTransport
 final class ManagedMock implements LittleSparks\DirectorTransport
 {
     public array $calls=[];public int $turn=0;public array $context=[];
-    public function __construct(public string $mode='good'){}
+    public function __construct(public string $mode='good',public ?PDO $database=null){}
+    public function remote(string $status):array{return ['id'=>'session_mock','object'=>'agent.session','status'=>$status,
+        'agent'=>['id'=>getenv('LITTLE_SPARKS_DIRECTOR_AGENT_ID'),'model'=>'gpt-6-luna','service_tier'=>'default','tools'=>[],'multi_agent'=>['enabled'=>false]],
+        'environment'=>['type'=>'none'],'spend_control'=>['limit'=>1,'consumed'=>0],'required_actions'=>[],'vault_ids'=>[]];}
     public function request(string $method,string $path,?array $body,int $deadline,?string $idempotencyKey=null):array{
         $this->calls[]=[$method,$path,$body,$idempotencyKey];
         if($this->mode==='timeout')throw new RuntimeException('PRIVATE_VENDOR_CANARY');
-        if($path==='moderations')return ['results'=>[['flagged'=>$this->mode==='flagged']]];
+        if($path==='moderations'){
+            if($this->mode==='apply_failure')$this->database->exec("UPDATE simulation_opportunities SET expires_at=0 WHERE outcome='pending'");
+            return ['results'=>[['flagged'=>$this->mode==='flagged']]];
+        }
         if($path==='agents/sessions'){
             check($body['agent_id']===getenv('LITTLE_SPARKS_DIRECTOR_AGENT_ID')&&!isset($body['agent']['instructions']),'Saved agent ID; no PHP instructions');
             check($body['environment']===['type'=>'none']&&$body['agent']['tools']===[]&&$body['agent']['multi_agent']['enabled']===false,'No sandbox/tools/subagents');
             check($body['spend_control']===['limit'=>1]&&!isset($body['agent']['text']['format']['name']),'Current managed spend/schema contract');
-            $this->context=json_decode($body['input'][0]['content'][0]['text'],true);$this->turn++;return ['id'=>'session_mock','status'=>'in_progress'];
+            $this->context=json_decode($body['input'][0]['content'][0]['text'],true);$this->turn++;return $this->remote('in_progress');
         }
         if(str_ends_with($path,'/events')){$this->context=json_decode($body['events'][0]['input'][0]['content'][0]['text'],true);check($idempotencyKey!==null,'Stable followup idempotency key');$this->turn++;return [];}
-        if(str_contains($path,'/turns?'))return ['data'=>[['id'=>'turn_'.$this->turn,'session_id'=>'session_mock','agent_id'=>getenv('LITTLE_SPARKS_DIRECTOR_AGENT_ID'),'subagent_id'=>null,'status'=>$this->mode==='incomplete'?'in_progress':'completed','usage'=>$this->mode==='unknown'?null:['input_tokens'=>2300,'output_tokens'=>180]]]];
+        if(str_contains($path,'/turns?'))return ['data'=>[['id'=>'turn_'.$this->turn,'session_id'=>'session_mock','agent_id'=>getenv('LITTLE_SPARKS_DIRECTOR_AGENT_ID'),'subagent_id'=>null,'status'=>$this->mode==='incomplete'?'in_progress':'completed','usage'=>$this->mode==='unknown'?null:['input_tokens'=>2300,'output_tokens'=>180,'total_tokens'=>2480]]]];
         if(str_contains($path,'/items?')){
             $a=$this->context['participants'];$p=['contract'=>'sanctuary.director.v1','outcome'=>'conversation','topic'=>'Garden daydreams','messages'=>[['resident_id'=>$a[0]['id'],'text'=>'Could a daydream fit inside a lavender flower?'],['resident_id'=>$a[1]['id'],'text'=>'Perhaps, if it folds its wings.']],'world_action'=>'none','transmissions'=>[],'notes'=>[]];
             return ['has_more'=>false,'data'=>[['type'=>'message','role'=>'assistant','phase'=>'final_answer','status'=>'completed','turn_id'=>'turn_'.$this->turn,'content'=>[['type'=>'output_text','text'=>json_encode($p,JSON_THROW_ON_ERROR)]]]]];
         }
-        return ['status'=>'idle','agent'=>['id'=>getenv('LITTLE_SPARKS_DIRECTOR_AGENT_ID')]];
+        return $this->remote('idle');
     }
 }
 try{
@@ -109,3 +115,4 @@ try{
     $db=$directorFresh();$mock=new ManagedMock();$result=LittleSparks\simulateDirectorOpportunity($db,$at,true,null,$mock);check(!$mock->calls&&$result['status']==='failed','Default two-request cap blocks four-request managed encounter before dispatch');
     echo "PASS V3A migration/rollback, identities/private links, exact dialogue, moderation, unverified memory, session scope, request accounting, fail-closed live admission and offline adapters\n";
 }catch(Throwable $e){fwrite(STDERR,$e->getMessage()."\n".$e->getTraceAsString()."\n");exit(1);}
+require __DIR__.'/director-accounting-core.php';
