@@ -2,6 +2,8 @@
 
 **Merge readiness: NO for the requested live managed-Director V3A release.** The local accounting/transport safeguards are implemented and tested offline, but the provider-enforced total-inference bound and maximum spending overshoot remain unverified. PHP 8.3 staging and an approved live compatibility test are also outstanding. Production egress remains blocked in reviewed code; flags cannot bypass it. This is not a statement that managed Agents has no spending control—it has one, but its documented contract is not sufficient to prove this application's absolute $1 spending requirement.
 
+The owner's subsequent clarification distinguishes a one-time manually approved experiment from unattended production. See V3A_STAGING_AND_RELEASE_REVIEW.md for the current assessment, explicit residual financial exposure, proposed temporary $0.10/eight-slot envelope and independent UI/identity release strategy. This does not change any flag, budget, production gate or merge state. A manual pilot may be considered with explicit risk acceptance; it is not being rejected merely because production readiness remains blocked.
+
 ## Research result
 
 Official OpenAI documentation checked on 2026-10-25:
@@ -43,9 +45,9 @@ The evidence file must be private, nonempty and at most 1 MiB. The operator must
 
 The simple review command refuses attempts from an earlier UTC month. An asynchronous charge can cross a billing boundary, so that case requires a separately reviewed period-allocation procedure rather than clearing the global unknown-cost block and creating false headroom in the new month.
 
-## One proposed staging experiment — NOT authorized or run
+## Earlier strict-budget staging outline — NOT authorized or run
 
-This proposal is conditional on independently establishing a finite provider bound compatible with the unchanged hard monthly ceiling. **Do not run a paid experiment merely to discover whether an unbounded charge is safe.** Owner approval remains necessary after that evidence is available; this document is not approval and is not currently a request to relax the $1 requirement.
+The following four-slot/$0.01 outline describes the currently disabled prototype and its original strict-budget premise. It is superseded for decision-making by the separate supervised-experiment review linked above. If an absolute charge cap is required, the provider-bound prerequisite still applies. An owner-approved one-time risk exception is a different decision, must disclose that the final charge could exceed the nominal allocation, and must never be inherited by production. No exception has been approved or implemented.
 
 Scope once those gates are satisfied:
 

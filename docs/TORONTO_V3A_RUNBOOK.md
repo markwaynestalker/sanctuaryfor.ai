@@ -2,6 +2,8 @@
 
 **Current decision: do not merge/deploy the live managed Director yet.** See V3A_MANAGED_SAFETY.md for the unresolved provider-bound and staging gates. These are exact future operator steps, not authorization to execute them. No production connection, configuration change, backup, migration, paid call or service operation was performed in preparing this document.
 
+The owner is considering independent no-paid UI/identity releases. See V3A_STAGING_AND_RELEASE_REVIEW.md. Do not use this combined V6 migration runbook for a partially extracted identity release: that release needs its own tested capability/migration and rollback plan. The proposed isolated experiment must not open or copy Toronto's production SQLite; its supervised risk decision is separate from every production step below. No merge strategy has been selected.
+
 Owner-confirmed Toronto paths/state on 2026-10-25:
 
 | Item | Confirmed value |
