@@ -138,7 +138,7 @@ function managedDirectorEncounter(PDO $db,DirectorTransport $transport,array $at
     }
 }
 
-function simulateDirectorOpportunity(PDO $db,string $at,bool $allowPaid,?AiTransport $responses=null,?DirectorTransport $managed=null,?int $now=null,?DirectorContextProvider $contextProvider=null,bool $conversationOnly=false,?StagingPermit $staging=null,bool $configuredManaged=false):array
+function simulateDirectorOpportunity(PDO $db,string $at,bool $allowPaid,?AiTransport $responses=null,?DirectorTransport $managed=null,?int $now=null,?DirectorContextProvider $contextProvider=null,bool $conversationOnly=false,?StagingPermit $staging=null,bool $configuredManaged=false,?string $stagingContinueAfter=null):array
 {
     $now??=time();$cfg=directorConfiguration();
     if(getenv('LITTLE_SPARKS_SIMULATION_ENABLED')!=='1')return ['status'=>'paused'];
@@ -165,6 +165,7 @@ function simulateDirectorOpportunity(PDO $db,string $at,bool $allowPaid,?AiTrans
     }
     // Explicit injected transports can exercise the same configured lifecycle offline.
     $configuredManaged=$configuredManaged||$liveManaged;
+    if($stagingContinueAfter!==null&&(!$configuredManaged||!$conversationOnly||$staging!==null))throw new AiGuard('configuration_invalid');
     $registered=registeredDirector($db,$cfg);$pricing=aiConfiguration($now);if($registered['model']!==$pricing['model'])throw new AiGuard('model_unpriced');
     simulationInterval();memoryConfiguration();
     $claim=claimActivity($db,$at,$now);if(isset($claim['replay']))return $claim['replay']+['replayed'=>true];
@@ -181,6 +182,7 @@ function simulateDirectorOpportunity(PDO $db,string $at,bool $allowPaid,?AiTrans
         $pricing['director_context']=hash('sha256',json_encode($prepared['context'],JSON_THROW_ON_ERROR|JSON_UNESCAPED_UNICODE));
         if($managed!==null)$pricing['director_slots']=$session['provider_session_id']===null?4:5;
         if($configuredManaged)$pricing['director_slots']=8; // Bounded wire lifecycle, not a daily ceiling.
+        if($stagingContinueAfter!==null)$pricing['staging_continue_after']=$stagingContinueAfter;
         if($staging!==null){$staging->assertEncounter($db,$at,$registered,$prepared);$pricing['director_slots']=8;$pricing['staging_allocation']=100000;}
         $attempt=reserveAi($db,$claim['id'],$claim['pair'],$pricing,$now);
         if($managed!==null){

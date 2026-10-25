@@ -55,6 +55,20 @@ function estimatedAiCost(int $input,int $output,int $inputRate,int $outputRate):
     return intdiv($input*$inputRate+$output*$outputRate+999999,1000000);
 }
 
+/** A single staging continuation after a completed HTTP rejection, not a refund. */
+function assertRejectedCreateContinuation(PDO $db,string $id):void
+{
+    if(PHP_SAPI!=='cli'||getenv('LITTLE_SPARKS_ENVIRONMENT')!=='staging'||!directorEnabled($db)||!preg_match('/\A[a-f0-9]{32}\z/',$id))throw new AiGuard('accounting_unresolved');
+    $q=$db->prepare("SELECT a.state,d.state AS director_state,d.started_requests,s.provider_session_id FROM ai_attempts a JOIN director_attempts d ON d.id=a.id AND d.runtime='agents' JOIN director_sessions s ON s.id=d.session_id WHERE a.id=?");$q->execute([$id]);$a=$q->fetch();
+    if(!$a||$a['state']!=='uncertain'||$a['director_state']!=='uncertain'||(int)$a['started_requests']!==1||$a['provider_session_id']!==null)throw new AiGuard('accounting_unresolved');
+    $q=$db->prepare('SELECT kind,http_status,finished_at FROM director_http_calls WHERE attempt_id=?');$q->execute([$id]);$calls=$q->fetchAll();
+    if(count($calls)!==1||$calls[0]['kind']!=='create'||(int)$calls[0]['http_status']!==400||$calls[0]['finished_at']===null)throw new AiGuard('accounting_unresolved');
+    $q=$db->prepare('SELECT status FROM director_managed_outcomes WHERE attempt_id=? ORDER BY id DESC LIMIT 1');$q->execute([$id]);
+    if($q->fetchColumn()!=='session_lost')throw new AiGuard('accounting_unresolved');
+    $q=$db->prepare('SELECT 1 FROM settings WHERE name=?');$q->execute(['director_rejected_create_continuation:'.$id]);
+    if($q->fetchColumn())throw new AiGuard('period_recorded');
+}
+
 function reserveAi(PDO $db,string $period,array $pair,array $config,int $now): array
 {
     if(identityEnabled($db)&&!directorEnabled($db))throw new AiGuard('migration_required');
@@ -65,7 +79,12 @@ function reserveAi(PDO $db,string $period,array $pair,array $config,int $now): a
         if(identityEnabled($db)&&!directorEnabled($db))throw new AiGuard('migration_required');
         $lease=$db->query('SELECT owner FROM ai_lease WHERE singleton=1')->fetchColumn();
         if($lease!==null && $lease!==false)throw new AiGuard('simulation_busy');
-        if($db->query("SELECT 1 FROM ai_attempts WHERE state IN ('reserved','uncertain','settled') LIMIT 1")->fetchColumn())throw new AiGuard('accounting_unresolved');
+        $unresolved=$db->query("SELECT id FROM ai_attempts WHERE state IN ('reserved','uncertain','settled') ORDER BY id")->fetchAll(PDO::FETCH_COLUMN);
+        $continuation=$config['staging_continue_after']??null;
+        if($continuation!==null){
+            if(($config['director_runtime']??null)!=='agents'||($config['director_slots']??null)!==8||($config['director_once']??false)!==false||$unresolved!==[$continuation])throw new AiGuard('accounting_unresolved');
+            assertRejectedCreateContinuation($db,$continuation);
+        }elseif($unresolved)throw new AiGuard('accounting_unresolved');
         if(($config['director_once']??false)===true&&$db->query("SELECT 1 FROM director_attempts WHERE runtime='agents' LIMIT 1")->fetchColumn())throw new AiGuard('period_recorded');
         $query=$db->prepare('SELECT 1 FROM simulation_runs WHERE period=? UNION ALL SELECT 1 FROM ai_attempts WHERE period=?');$query->execute([$period,$period]);
         if($query->fetchColumn())throw new AiGuard('period_recorded');
@@ -91,6 +110,7 @@ function reserveAi(PDO $db,string $period,array $pair,array $config,int $now): a
         $db->prepare('UPDATE ai_lease SET owner=?,expires_at=? WHERE singleton=1')->execute([$id,$expires]);
         if(isset($config['director_session']))$db->prepare("INSERT INTO director_attempts(id,period,session_id,day,month,runtime,context_sha256,contract_version,request_slots,reserved_microusd,state,created_at) VALUES (?,?,?,?,?,?,?,'sanctuary.director.v1',?,?,'reserved',?)")
             ->execute([$id,$period,$config['director_session'],$day,$month,$config['director_runtime'],$config['director_context'],$slots,$reserved,gmdate('Y-m-d\TH:i:s\Z',$now)]);
+        if($continuation!==null)$db->prepare('INSERT INTO settings(name,value) VALUES (?,?)')->execute(['director_rejected_create_continuation:'.$continuation,$id]);
         $db->exec('COMMIT');return ['id'=>$id,'day'=>$day,'month'=>$month,'expires'=>$expires,'reserved'=>$reserved];
     }catch(\Throwable $error){$db->exec('ROLLBACK');throw $error;}
 }

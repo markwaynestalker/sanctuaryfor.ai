@@ -165,6 +165,37 @@ try{
             check((int)$stage->query('SELECT request_slots FROM director_attempts LIMIT 1')->fetchColumn()===8,'Reviewed HTTP 400 still consumes all original request slots');
         }
     }
+    $previousEnvironment=getenv('LITTLE_SPARKS_ENVIRONMENT');putenv('LITTLE_SPARKS_ENVIRONMENT=staging');
+    foreach(['good','validation_400'] as $nextMode){
+        $stage=$stageFresh();LittleSparks\recordDirectorAccessReservations($stage,$evidence);putenv('LITTLE_SPARKS_AI_DAILY_REQUESTS=20');putenv('LITTLE_SPARKS_AI_MONTHLY_MICROUSD=100000');
+        $old=LittleSparks\simulateDirectorOpportunity($stage,gmdate('Y-m-d\TH:i:00\Z',time()-300),true,null,new StagingMock('validation_400'),null,null,true,null,true);
+        $oldId=$old['id'];
+        $oldRows=static function()use($stage,$oldId):string{
+            $rows=[];foreach(['ai_attempts'=>'id','director_attempts'=>'id','director_http_calls'=>'attempt_id','director_managed_outcomes'=>'attempt_id'] as $table=>$column){$q=$stage->prepare("SELECT * FROM $table WHERE $column=? ORDER BY rowid");$q->execute([$oldId]);$rows[$table]=$q->fetchAll();}return json_encode($rows,JSON_THROW_ON_ERROR);
+        };
+        $before=$oldRows();
+        foreach(["UPDATE director_http_calls SET http_status=500", "UPDATE director_http_calls SET http_status=NULL", "UPDATE director_sessions SET provider_session_id='session_returned'"] as $mutation){
+            // Audit rows are immutable; replace only inside a rolled-back fixture transaction.
+            $stage->beginTransaction();$stage->exec('DROP TRIGGER director_http_final');$stage->exec($mutation);
+            try{LittleSparks\assertRejectedCreateContinuation($stage,$oldId);throw new LogicException('Uncertain transport/session was waived');}catch(LittleSparks\AiGuard){}finally{$stage->rollBack();}
+        }
+        putenv('LITTLE_SPARKS_ENVIRONMENT=production');try{LittleSparks\assertRejectedCreateContinuation($stage,$oldId);throw new LogicException('Production continuation admitted');}catch(LittleSparks\AiGuard){}putenv('LITTLE_SPARKS_ENVIRONMENT=staging');
+        foreach([[17,100000],[20,19999]] as $i=>[$daily,$monthly]){
+            putenv('LITTLE_SPARKS_AI_DAILY_REQUESTS='.$daily);putenv('LITTLE_SPARKS_AI_MONTHLY_MICROUSD='.$monthly);$mock=new StagingMock('good');
+            LittleSparks\simulateDirectorOpportunity($stage,gmdate('Y-m-d\TH:i:00\Z',time()-240+$i*60),true,null,$mock,null,null,true,null,true,$oldId);
+            check(!$mock->calls,'Continuation still counts all ten previous daily slots and full monthly hold');
+        }
+        putenv('LITTLE_SPARKS_AI_DAILY_REQUESTS=20');putenv('LITTLE_SPARKS_AI_MONTHLY_MICROUSD=100000');$mock=new StagingMock($nextMode);
+        $result=LittleSparks\simulateDirectorOpportunity($stage,gmdate('Y-m-d\TH:i:00\Z',time()-120),true,null,$mock,null,null,true,null,true,$oldId);
+        check(($result['status']==='completed')===($nextMode==='good')&&count($mock->calls)>0,'One configured continuation can save dialogue or retain a second sanitized rejection');
+        check($oldRows()===$before,'Original uncertain attempt and audit rows are byte-for-byte unchanged');
+        check((int)$stage->query('SELECT SUM(reserved_microusd) FROM ai_attempts')->fetchColumn()===20000&&LittleSparks\directorAccessReservedRequests($stage,$day)===2,'Both full cost commitments and metadata reservations retained');
+        check((int)$stage->query('SELECT SUM(request_slots) FROM director_attempts')->fetchColumn()===16,'Eighteen total daily slots remain reserved');
+        $again=new StagingMock('good');LittleSparks\simulateDirectorOpportunity($stage,gmdate('Y-m-d\TH:i:00\Z',time()-60),true,null,$again,null,null,true,null,true,$oldId);
+        check(!$again->calls&&(int)$stage->query('SELECT COUNT(*) FROM ai_attempts')->fetchColumn()===2,'Consumed continuation never permits a third attempt, even after a second HTTP 400');
+    }
+    putenv($previousEnvironment===false?'LITTLE_SPARKS_ENVIRONMENT':'LITTLE_SPARKS_ENVIRONMENT='.$previousEnvironment);
+    echo "PASS one staging-only rejected-create continuation, retained uncertainty/slots/costs, budget enforcement, immutable old rows and no third attempt (mocked)\n";
     foreach(['LITTLE_SPARKS_AI_ENABLED','LITTLE_SPARKS_DIRECTOR_ENABLED','LITTLE_SPARKS_SIMULATION_ENABLED'] as $flag){putenv($flag.'=0');check(!LittleSparks\managedLiveAdmission()['allowed'],'Each activation flag controls admission');putenv($flag.'=1');}
     check(LittleSparks\managedLiveAdmission()['allowed'],'Explicit configured activation admits routine provider');
     putenv('LITTLE_SPARKS_AI_MONTHLY_MICROUSD=1000000');putenv('LITTLE_SPARKS_AI_DAILY_REQUESTS=200');
