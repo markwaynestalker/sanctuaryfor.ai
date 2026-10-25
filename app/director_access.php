@@ -1,6 +1,7 @@
 <?php
 declare(strict_types=1);
 namespace LittleSparks;
+require_once __DIR__.'/systemd_credentials.php';
 
 const ACCESS_CHECK_AGENT='agent_3221531b63ba4de2bb45396e701cd6ff369fbe51938d4cd3a8';
 
@@ -14,12 +15,9 @@ final class OpenAiAgentAccessRead implements AgentAccessReadTransport
     public function __construct(private readonly string $credentialFile){}
     public function retrieve():array
     {
-        if(!extension_loaded('curl')||!is_file($this->credentialFile)||is_link($this->credentialFile)
-            ||!is_readable($this->credentialFile)||filesize($this->credentialFile)>514
-            ||(fileperms($this->credentialFile)&0077)!==0)throw new \RuntimeException('Protected credential unavailable.');
-        $key=@file_get_contents($this->credentialFile,false,null,0,514);
-        if(!is_string($key))throw new \RuntimeException('Protected credential unavailable.');$key=rtrim($key,"\r\n");
-        if($key===''||strlen($key)>512||preg_match('/[\x00-\x20\x7f]/',$key))throw new \RuntimeException('Protected credential unavailable.');
+        if(!extension_loaded('curl'))throw new SystemdCredentialError('curl_unavailable');
+        $dir=getenv('CREDENTIALS_DIRECTORY');if(!is_string($dir)||$this->credentialFile!==$dir.'/openai_api_key')throw new SystemdCredentialError('credential_path_invalid');
+        $key=readSystemdCredential();
         $body='';$requestId=null;$curl=curl_init('https://api.openai.com/v1/agents/'.ACCESS_CHECK_AGENT);
         curl_setopt_array($curl,[CURLOPT_HTTPGET=>true,CURLOPT_HTTPHEADER=>['Authorization: Bearer '.$key,'OpenAI-Beta: agents=v1','Accept: application/json'],
             CURLOPT_CONNECTTIMEOUT=>5,CURLOPT_TIMEOUT=>15,CURLOPT_FOLLOWLOCATION=>false,CURLOPT_MAXREDIRS=>0,CURLOPT_PROTOCOLS=>CURLPROTO_HTTPS,
@@ -49,7 +47,9 @@ function agentAccessPreflight(string $auditPath,AgentAccessReadTransport $transp
         // Durable intent before credentials/network. Existing receipt refuses even
         // after timeout or failure; neither a key nor vendor body is persisted.
         $write($base+['state'=>'started']);
-        try{$response=$transport->retrieve();}catch(\Throwable){$response=['status'=>null,'data'=>null,'request_id'=>null];}
+        $failure=null;
+        try{$response=$transport->retrieve();}catch(SystemdCredentialError $e){$failure=$e->reason;$response=['status'=>null,'data'=>null,'request_id'=>null];}
+        catch(\Throwable){$failure='local_or_transport_failure';$response=['status'=>null,'data'=>null,'request_id'=>null];}
         $status=$response['status']??null;if(!is_int($status)||$status<100||$status>599)$status=null;
         $requestId=$response['request_id']??null;
         if(!is_string($requestId)||!preg_match('/\Areq_[a-zA-Z0-9_-]{1,120}\z/',$requestId)||str_contains($requestId,'sk-'))$requestId=null;
@@ -61,6 +61,8 @@ function agentAccessPreflight(string $auditPath,AgentAccessReadTransport $transp
             'subagents_disabled'=>$authorized&&($agent['multi_agent']['enabled']??null)===false,
             'service_tier_default'=>$authorized&&($agent['service_tier']??null)==='default'];
         $result['configuration_matches']=$result['model_matches']&&$result['tools_disabled']&&$result['subagents_disabled'];
+        $safeFailures=['unsupported_identity','unit_binding_invalid','credential_path_invalid','metadata_unavailable','credential_file_untrusted','credential_directory_untrusted','runtime_parent_untrusted','credential_access_denied','credential_mount_not_readonly','kernel_metadata_unavailable','credential_open_failed','credential_changed','credential_read_failed','credential_content_invalid','curl_unavailable','local_or_transport_failure'];
+        $result['failure_code']=in_array($failure,$safeFailures,true)?$failure:null;
         $write($result);return $result;
     }finally{fclose($handle);}
 }

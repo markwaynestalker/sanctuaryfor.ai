@@ -2,6 +2,7 @@
 declare(strict_types=1);
 if(PHP_SAPI!=='cli'){http_response_code(404);exit;}
 require __DIR__.'/../app/village.php';require __DIR__.'/../app/activity.php';require __DIR__.'/../app/director.php';require __DIR__.'/../app/scheduler.php';
+require_once __DIR__.'/../app/systemd_credentials.php';
 try{
     $o=getopt('',['database:','at:','permit:','plan','allow-paid','check','check-host']);$admission=LittleSparks\managedLiveAdmission();
     if(isset($o['check-host'])){LittleSparks\assertStagingHostIsolation();echo "{\"host_isolation_check\":\"passed\",\"paid_requests\":0,\"credential_loaded\":false,\"database_opened\":false}\n";exit;}
@@ -25,7 +26,7 @@ try{
     $permitPath=LittleSparks\databasePath((string)$o['permit']);if(filesize($permitPath)>8192)throw new RuntimeException('Invalid permit.');
     $permit=json_decode((string)file_get_contents($permitPath),true,16,JSON_THROW_ON_ERROR);if(!is_array($permit)||($permit['opportunity']??null)!==$o['at'])throw new RuntimeException('Invalid permit.');
     $grant=LittleSparks\StagingPermit::consume($db,$permit);
-    LittleSparks\loadScheduledCredential(); // Existing protected CLI mechanism; no key is printed or stored.
+    putenv('OPENAI_API_KEY='.LittleSparks\readSystemdCredential()); // Same validated systemd delivery; no key is printed or persisted.
     $result=LittleSparks\simulateDirectorOpportunity($db,(string)$o['at'],true,null,new LittleSparks\OpenAiManagedTransport($grant),null,null,true,$grant);
     echo json_encode($result,JSON_THROW_ON_ERROR)."\n";
 }catch(Throwable){fwrite(STDERR,"Staging encounter refused or failed. Separate owner approval, isolated host and a bound one-shot permit are required. Inspect private accounting; do not retry generation.\n");exit(1);}

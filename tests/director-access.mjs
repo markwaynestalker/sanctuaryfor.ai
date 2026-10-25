@@ -1,8 +1,12 @@
-import assert from 'node:assert/strict';import {spawnSync} from 'node:child_process';import {mkdtemp,chmod,rm} from 'node:fs/promises';import {tmpdir} from 'node:os';import {join,resolve,dirname} from 'node:path';import {fileURLToPath} from 'node:url';
+import assert from 'node:assert/strict';import {spawnSync} from 'node:child_process';import {mkdtemp,chmod,rm,readFile} from 'node:fs/promises';import {tmpdir} from 'node:os';import {join,resolve,dirname} from 'node:path';import {fileURLToPath} from 'node:url';
 const root=resolve(dirname(fileURLToPath(import.meta.url)),'..'),dir=await mkdtemp(join(tmpdir(),'sparks-agent-access-')),php=process.env.PHP_BINARY||'php';await chmod(dir,0o700);
 const env={...process.env,OPENAI_API_KEY:'',LITTLE_SPARKS_AI_ENABLED:'0',LITTLE_SPARKS_DIRECTOR_ENABLED:'0',LITTLE_SPARKS_SIMULATION_ENABLED:'0'};
 try{
  const core=spawnSync(php,['tests/director-access-core.php',dir],{cwd:root,env,encoding:'utf8'});assert.equal(core.status,0,core.stderr||core.error?.message);process.stdout.write(core.stdout);
  const check=spawnSync(php,['scripts/check-director-access.php','--check'],{cwd:root,env:{...env,CREDENTIALS_DIRECTORY:join(dir,'missing')},encoding:'utf8'});assert.equal(check.status,0,check.stderr);assert.deepEqual(JSON.parse(check.stdout),{http_requests:0,generation_requests:0,credential_loaded:false,database_opened:false,only_method:'GET'});
+ const receipt=await readFile(join(dir,'good.jsonl'),'utf8');
+ const delivery=spawnSync(php,['scripts/check-director-access.php','--check-delivery','--audit='+join(dir,'good.jsonl')],{cwd:root,env:{...env,CREDENTIALS_DIRECTORY:dir},encoding:'utf8'});
+ assert.equal(delivery.status,1,'untrusted credential directory must fail closed');assert.ok(!delivery.stdout.includes('SECRET_KEY_CANARY'));assert.ok(!delivery.stderr.includes('SECRET_KEY_CANARY'));
+ assert.equal(await readFile(join(dir,'good.jsonl'),'utf8'),receipt,'metadata-only delivery check must not touch receipts');
  console.log('PASS no-network/no-credential CLI preflight; no database opens or generation endpoints');
 }finally{await rm(dir,{recursive:true,force:true});}

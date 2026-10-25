@@ -1,5 +1,7 @@
 # Isolated staging setup and owner-run privileged verification
 
+**Current hold:** the original owner-run access attempt returned `not_confirmed` with null HTTP status/request ID. Its receipt is preserved; do not repeat the launch below, choose a fresh receipt or reset it. Subsequent non-secret LoadCredential testing identified the old guard rejecting root:root `0440` delivery. The code fix and next review-gated **non-network, metadata-only stand-in** are documented in [systemd credential validation](SYSTEMD_CREDENTIAL_VALIDATION.md). Agent authorization remains unconfirmed; no paid call is approved. Older access-launch instructions below are historical procedure, not a retry authorization.
+
 The owner reports all privileged security checks passed: hostname sanctuary/operator root; staging UID 999/GID 988 with only its own group; staging directory owned by staging at 0700; credential root:root 0600 regular file; staging cannot read production SQLite/private directory or the raw credential source. No secret content, provider request or database open was involved. These are owner-run results, not a new root login by Codex.
 
 | Resource | Proposed value |
