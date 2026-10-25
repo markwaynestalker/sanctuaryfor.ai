@@ -81,7 +81,7 @@ try{
         $stage=$stageFresh();$p=$approved($stage);$grant=LittleSparks\StagingPermit::consume($stage,$p);$mock=new StagingMock($mode,$grant);
         $result=LittleSparks\simulateDirectorOpportunity($stage,$at,true,null,$mock,null,null,true,$grant);
         check(count($mock->calls)<=8&&count(array_filter($mock->calls,fn($c)=>$c[1]==='agents/sessions'))===1,'At most one generation/eight counted HTTP calls: '.$mode);
-        $count=(int)$stage->query('SELECT COUNT(*) FROM messages')->fetchColumn();check($count===(in_array($mode,['good','delayed','auto_tier'],true)?2:0),'Only successful moderated canonical dialogue saved: '.$mode);
+        $count=(int)$stage->query('SELECT COUNT(*) FROM messages')->fetchColumn();check($count===(in_array($mode,['good','delayed','auto_tier','unknown'],true)?2:0),'Only successful moderated canonical dialogue saved: '.$mode);
         $a=$stage->query('SELECT * FROM ai_attempts LIMIT 1')->fetch();check($a['state']==='uncertain'&&$a['estimated_microusd']===null&&(int)$a['reserved_microusd']===100000,'Full experimental allocation stays held pending billing: '.$mode);
         check((int)$stage->query('SELECT started_requests FROM director_attempts LIMIT 1')->fetchColumn()===count($mock->calls),'All requests counted including cancellation/moderation: '.$mode);
         try{LittleSparks\StagingPermit::consume($stage,$p);throw new LogicException('Permit reused after completion/failure');}catch(LittleSparks\AiGuard){}
@@ -147,7 +147,7 @@ try{
     $r=LittleSparks\simulateDirectorOpportunity($stage,gmdate('Y-m-d\TH:i:00\Z',time()-180),true,null,$mock,null,null,false,null,true);
     check(!$mock->calls&&$r['status']==='failed','Configured monthly allocation blocks next routine encounter');
     putenv('LITTLE_SPARKS_AI_MONTHLY_MICROUSD=1000000');
-    foreach(['unknown','flagged','validation_400'] as $mode){
+    foreach(['flagged','validation_400'] as $mode){
         $stage=$stageFresh();$mock=new StagingMock($mode);$r=LittleSparks\simulateDirectorOpportunity($stage,$at,true,null,$mock,null,null,false,null,true);
         check($r['status']==='failed'&&(int)$stage->query('SELECT COUNT(*) FROM messages')->fetchColumn()===0,'Unknown/moderation failure persists no conversation');
         if($mode==='validation_400'){

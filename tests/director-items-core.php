@@ -18,13 +18,20 @@ function recordedItemPage(array $proposal,string $turn,string $mode='mixed'):arr
 }
 final class RecordedItemTransport implements LittleSparks\DirectorTransport
 {
-    public StagingMock $inner;public array $moderations=[];
-    public function __construct(public array $proposal,public string $mode){$this->inner=new StagingMock($mode==='flagged'?'flagged':'good');}
+    public StagingMock $inner;public array $moderations=[];private int $turnReads=0;
+    public function __construct(public array $proposal,public string $mode){$this->inner=new StagingMock(in_array($mode,['flagged','usage_flagged'],true)?'flagged':'good');}
     public function request(string $method,string $path,?array $body,int $deadline,?string $key=null):array
     {
         $r=$this->inner->request($method,$path,$body,$deadline,$key);
+        if(str_contains($path,'/turns?')){
+            $this->turnReads++;
+            if(in_array($this->mode,['usage_missing','usage_flagged','usage_wrong_id'],true)
+                ||($this->mode==='usage_initial_missing'&&$this->turnReads===1)||($this->mode==='usage_final_missing'&&$this->turnReads>1))unset($r['data'][0]['usage']);
+            if($this->mode==='usage_null')$r['data'][0]['usage']=null;
+            if($this->mode==='usage_invalid')$r['data'][0]['usage']=['input_tokens'=>'invalid'];
+        }
         if($path==='moderations')$this->moderations[]=$body;
-        if(preg_match('~/turns/([^/]+)/items\?~',$path,$m))return recordedItemPage($this->proposal,$m[1],$this->mode);
+        if(preg_match('~/turns/([^/]+)/items\?~',$path,$m))return recordedItemPage($this->proposal,$m[1],$this->mode==='usage_wrong_id'?'wrong_id':$this->mode);
         return $r;
     }
 }
@@ -60,13 +67,23 @@ try{
         LittleSparks\assignHome($d,$actor['id'],$time);LittleSparks\identityForNewResident($d,$actor['id'],'Offline synthetic fixture personality.','mint',$time);
     }$d->commit();LittleSparks\registerDirector($d,$export);$d=null;
     putenv('LITTLE_SPARKS_AI_ENABLED=1');putenv('LITTLE_SPARKS_SIMULATION_ENABLED=1');putenv('LITTLE_SPARKS_DIRECTOR_ENABLED=1');putenv('LITTLE_SPARKS_DIRECTOR_RUNTIME=agents');putenv('LITTLE_SPARKS_AI_DAILY_REQUESTS=200');putenv('LITTLE_SPARKS_AI_MONTHLY_MICROUSD=1000000');
-    foreach(['mixed','null_phase','multipart','envelope','json','wrong_id','flagged'] as $mode){
+    foreach(['mixed','null_phase','multipart','envelope','json','wrong_id','flagged','usage_missing','usage_null','usage_initial_missing','usage_final_missing','usage_flagged','usage_wrong_id','usage_invalid'] as $mode){
         $path=$dir.'/recorded-items-'.$mode.'.sqlite';copy($itemsBase,$path);$d=LittleSparks\connect($path);$mock=new RecordedItemTransport($recorded,$mode);
         $r=LittleSparks\simulateDirectorOpportunity($d,$at,true,null,$mock,null,null,false,null,true);
-        $success=in_array($mode,['mixed','null_phase','multipart'],true);check(($r['status']==='completed')===$success,'Full mocked managed pipeline: '.$mode);
+        $missing=in_array($mode,['usage_missing','usage_null','usage_initial_missing','usage_final_missing'],true);
+        $success=in_array($mode,['mixed','null_phase','multipart'],true)||$missing;check(($r['status']==='completed')===$success,'Full mocked managed pipeline: '.$mode);
         $lines=$d->query('SELECT body FROM messages ORDER BY sequence')->fetchAll(PDO::FETCH_COLUMN);
         check($lines===($success?array_column($recorded['messages'],'text'):[]),'Only original moderated dialogue reaches SQLite: '.$mode);
         if($success){check(count($mock->moderations)===1,'Exactly one moderation before commit');$input=json_decode($mock->moderations[0]['input'],true);check($input[1]['messages']===$recorded['messages'],'Moderation sees the original words and ordered IDs');}
+        if($missing){
+            $a=$d->query('SELECT * FROM ai_attempts')->fetch();$da=$d->query('SELECT * FROM director_attempts')->fetch();
+            check($a['state']==='uncertain'&&$da['state']==='uncertain'&&$a['error_code']==='usage_unknown','Successful world commit retains uncertain accounting');
+            check($a['input_tokens']===null&&$a['output_tokens']===null&&$a['estimated_microusd']===null&&$da['estimated_microusd']===null,'Missing usage never becomes zero tokens or a settled estimate');
+            $unknown=$d->query("SELECT * FROM director_usage_observations WHERE status='unknown'")->fetchAll();check(count($unknown)>=1,'Missing metadata remains durably unknown');
+            foreach($unknown as $u)check($u['input_tokens']===null&&$u['output_tokens']===null&&$u['estimated_microusd']===null,'Unknown observation retains null usage/cost');
+            check((int)$da['request_slots']===8&&(int)$da['started_requests']===6&&LittleSparks\aiCommittedTotal($d,gmdate('Y-m'))===(int)$a['reserved_microusd'],'All eight reserved HTTP slots and full cost commitment retained');
+            check((int)$d->query("SELECT COUNT(*) FROM conversations c JOIN ai_conversations a ON a.conversation_id=c.id JOIN events e ON e.run_id=c.run_id AND e.kind='conversation' WHERE c.visibility='public'")->fetchColumn()===1,'Actual completed saved conversation is available to the journal');
+        }
         if(in_array($mode,['envelope','json','wrong_id'],true)){$q=$d->prepare('SELECT value FROM settings WHERE name=?');$q->execute(['director_proposal_rejection:'.$r['id']]);$receipt=json_decode($q->fetchColumn(),true);check($receipt===['stage'=>match($mode){'envelope'=>'item_envelope','json'=>'proposal_json','wrong_id'=>'proposal_content'}],'Safe failure receipt distinguishes envelope, JSON and proposal-content rejection');check(!$mock->moderations,'Invalid envelope/JSON/identity never reaches moderation or apply');}
         $n=count($mock->inner->calls);LittleSparks\simulateDirectorOpportunity($d,$at,true,null,$mock,null,null,false,null,true);check(count($mock->inner->calls)===$n,'No regeneration of a completed or failed opportunity');
     }

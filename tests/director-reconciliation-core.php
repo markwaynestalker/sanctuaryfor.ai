@@ -4,7 +4,7 @@ require_once __DIR__.'/../app/director_reconciliation.php';require __DIR__.'/dir
 try{
     putenv('LITTLE_SPARKS_DIRECTOR_RUNTIME=agents');putenv('LITTLE_SPARKS_AI_DAILY_REQUESTS=200');putenv('LITTLE_SPARKS_AI_MONTHLY_MICROUSD=1000000');
     $uncertain=function()use($directorFresh,$at):array{
-        $d=$directorFresh();$r=LittleSparks\simulateDirectorOpportunity($d,$at,true,null,new ManagedMock('unknown'));
+        $d=$directorFresh();$r=LittleSparks\simulateDirectorOpportunity($d,$at,true,null,new ManagedMock('flagged'));
         check($r['status']==='failed','Fixture is an actual failed mocked generation');
         return [$d,$d->query("SELECT id FROM ai_attempts WHERE state='uncertain'")->fetchColumn()];
     };

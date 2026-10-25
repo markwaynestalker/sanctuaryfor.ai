@@ -6,7 +6,7 @@ try{
     putenv('LITTLE_SPARKS_DIRECTOR_RUNTIME=agents');putenv('LITTLE_SPARKS_AI_DAILY_REQUESTS=200');putenv('LITTLE_SPARKS_AI_MONTHLY_MICROUSD=1000000');
     $op=static fn(int $offset)=>gmdate('Y-m-d\TH:i:00\Z',time()-$offset*60);
     $run=static fn(PDO $d,string $at,LittleSparks\DirectorTransport $t)=>LittleSparks\simulateDirectorOpportunity($d,$at,true,null,$t,null,null,false,null,true);
-    foreach(['lost','unknown','invalid','flagged','validation_400'] as $mode){
+    foreach(['lost','invalid','flagged','validation_400'] as $mode){
         $d=$stageFresh();$first=new StagingMock($mode);$failed=$run($d,$op(8),$first);check($failed['status']==='failed','Individual failure recorded: '.$mode);
         $id=$failed['id'];$q=$d->prepare('SELECT * FROM ai_attempts WHERE id=?');$q->execute([$id]);$old=$q->fetch();$oldCalls=count($first->calls);
         $run($d,$op(8),$first);check(count($first->calls)===$oldCalls,'Failed opportunity never redispatches: '.$mode);
