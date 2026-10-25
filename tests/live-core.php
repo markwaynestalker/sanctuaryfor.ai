@@ -9,7 +9,7 @@ final class LiveMock implements LittleSparks\AiTransport
     public function post(string $endpoint,array $body,int $deadline):array
     {
         $this->calls[]=$endpoint;
-        if($endpoint==='moderations'){$this->moderated=json_decode($body['input'],true);return ['results'=>[['flagged'=>$this->mode==='flagged']]];}
+        if($endpoint==='moderations'){$this->moderated=json_decode($body['input'],true);return ['results'=>[['flagged'=>in_array($this->mode,['flagged','grammar_flagged'],true)]]];}
         check(!isset($body['text']['format']['schema']['properties']['first']['enum']),'Original dialogue is no longer a reflection enum');
         check(str_contains($body['instructions'],'B must answer')&&str_contains($body['instructions'],'distinct saved personalities'),'Joint coherent exchange and distinct voices are instructed');
         $ctx=json_decode($body['input'],true);$story='none';
@@ -18,6 +18,12 @@ final class LiveMock implements LittleSparks\AiTransport
             'second'=>'Only after sunset—and they are much too high to trip over!','world_action'=>'none','story'=>$story];
         if($story!=='none'){$p['first']='Could its shade hold a daydream?';$p['second']='A small daydream, with room for a friend.';}
         if($this->mode==='speculation'){$p['first']='I wonder whether trees can hear music.';$p['second']='Perhaps the wind is their favorite orchestra.';}
+        if(in_array($this->mode,['grammar_question','grammar_flagged'],true)){$p['first']='Did you see that shooting star?';$p['second']='A tiny spark with an excellent sense of timing.';}
+        if($this->mode==='grammar_wondering'){$p['first']='I was wondering if the moon gets lonely.';$p['second']='Perhaps we could send it a constellation-sized hug.';}
+        if($this->mode==='grammar_reminder'){$p['first']='Remember to water your garden tomorrow.';$p['second']='Only if you remind the clouds to bring a watering can.';}
+        if($this->mode==='false_memory')$p['first']='I remember watching Luna plant a tree yesterday.';
+        if($this->mode==='self_verified')$p['verified']=true;
+        if($this->mode==='forged_receipt')$p['shared_receipt']=str_repeat('f',32);
         if($this->mode==='false_history')$p['first']='I watched Luna plant three trees yesterday.';
         if($this->mode==='fake_alias')$p['story']='S999';
         if($this->mode==='prefix'){$p['first']='A: '.$p['first'];$p['second']='B: '.$p['second'];}
@@ -39,11 +45,21 @@ try{
     foreach(['','0001','+1','1.5','1000001'] as $invalid){putenv('LITTLE_SPARKS_AI_MONTHLY_MICROUSD='.$invalid);try{LittleSparks\aiMonthlyBudget();throw new LogicException('Invalid spending cap accepted');}catch(LittleSparks\AiGuard){}}putenv('LITTLE_SPARKS_AI_MONTHLY_MICROUSD=1000000');
     foreach(['Do you think stars dream about being flowers?','Only after sunset—and they are much too high to trip over!',
         'I wonder whether trees can hear music.','Shall we plant flowers one day?','I prefer moonlight; what about you?',
-        'A: I think stars look like scattered seeds.','What a lovely idea: a garden of constellations!'] as $line)check(LittleSparks\expressiveDialogue($line)!=='','Original expressive dialogue accepted');
+        'A: I think stars look like scattered seeds.','What a lovely idea: a garden of constellations!',
+        'Did you see that shooting star?','I was wondering if the moon gets lonely.','Remember to water your garden tomorrow.',
+        'If I were a tree, I would dream of stars.','I heard the moon humming.','Have you heard of moonflowers?',
+        'I remember how to make a wish.','Do you remember your favorite color?','I had a dream about a garden.',
+        'Were the clouds shaped like tiny cottages?','The moon was a silver lantern.','We made room for flowers.',
+        'We could plant flowers today.','I was thinking about planting flowers.','Was your garden quiet?'] as $line)check(LittleSparks\expressiveDialogue($line)===LittleSparks\safeAiDialogue($line),'Original expressive dialogue preserved: '.$line);
     foreach(['I watched Luna plant three trees yesterday.','Did Luna plant a tree yesterday?',"Skippy Jr told me you planted a tree.",
         'I imagine I planted three trees.','I have planted a tree.','My tree is taller now.','Our garden has three trees.',
-        'Sparky owns a cat.','I visited you.','I installed a lantern.','Luna and I chatted.','I remember our picnic.','Luna: Hello!','A: B: Hello!',"I plаnted a tree."] as $line){
-        try{LittleSparks\expressiveDialogue($line);throw new LogicException('Unsupported historical or disguised line accepted: '.$line);}catch(LittleSparks\AiGuard){}
+        'Sparky owns a cat.','I visited you.','I installed a lantern.','Luna and I chatted.','I remember our picnic.','Luna: Hello!','A: B: Hello!',"I plаnted a tree.",
+        'I remember watching Luna plant a tree yesterday.','I saw Luna plant a tree.','We were planting flowers yesterday.',
+        'I was wondering whether Luna planted a tree.','Skippy Jr said the moon is lonely.','I heard Luna enjoys gardening.',
+        'Remember our last conversation?','Nobody planted a tree.','What if I had planted a tree?',
+        'Did Luna really plant a tree?','We never planted a tree.','I visited Luna.','I met Sparky.','I made a stone path.',
+        'I trust source S1.','O’Spark said the moon is lonely.','Étoile said the moon is lonely.',"I plant\u{200b}ed a tree."] as $line){
+        try{LittleSparks\expressiveDialogue($line,['Sparky','Skippy Jr','Luna','O’Spark','Étoile']);throw new LogicException('Unsupported historical or disguised line accepted: '.$line);}catch(LittleSparks\AiGuard){}
     }
     $db=$fresh();$actors=[['id'=>$luna,'personality'=>'curious'],['id'=>$sparky,'personality'=>'curious']];$choices=LittleSparks\aiActionChoices($db,$luna,$sparky,time());$prepared=LittleSparks\prepareMemoryEncounter($db,$actors,$choices);
     $treeAlias=null;foreach($prepared['share'] as $alias=>$m)if($m['story']['kind']==='world_fact'&&$m['story']['object_kind']==='tree'){$treeAlias=$alias;break;}
@@ -52,14 +68,26 @@ try{
     check(str_starts_with($composed['first'],'Skippy Jr told me you planted an oak tree.'),'Original continuation retains exact secondhand attribution');
     savedEncounter($db,$luna,$sparky,gmdate('Y-m-d\TH:i:s\Z'),$composed['first'],$composed['second'],$composed['shared_receipt']);
     $known=$prepared['share'][$treeAlias];check((int)receipt($db,$luna,$known['story']['id'])['hops']===2&&(int)receipt($db,$sparky,$known['story']['id'])['hops']===0,'Natural retelling cannot promote perspective or replace origins');
-    foreach(['natural','story','speculation','prefix','false_history','fake_alias','flagged','unsafe','long','unowned_action','duplicate','timeout','unknown','quiet','none'] as $mode){
+    $p=['outcome'=>'conversation','topic'=>'garden','first'=>'Did you see that shooting star?','second'=>'I was wondering if the moon gets lonely.','world_action'=>'none','story'=>$treeAlias];
+    try{LittleSparks\composeMemoryProposal($db,$p,array_reverse($actors),$prepared);throw new LogicException('Alias offered to another speaker accepted');}catch(LittleSparks\AiGuard){}
+    $before=originalRows($db);$memoryBefore=memoryRows($db);
+    try{savedEncounter($db,$luna,$sol,gmdate('Y-m-d\TH:i:s\Z'),$p['first'],$p['second'],$known['receipt']['id']);throw new LogicException('Unmentioned story acquired a receipt');}catch(LittleSparks\Problem){}
+    check(originalRows($db)===$before&&memoryRows($db)===$memoryBefore,'A real receipt alias without its supporting utterance rolls back the entire encounter');
+    // Deliberately bypass the prose guard: memory integrity must not depend on
+    // recognizing every possible English claim or on model self-attestation.
+    savedEncounter($db,$luna,$sol,gmdate('Y-m-d\TH:i:s\Z'),'I planted three trees yesterday.','That sounds surprising.');
+    check(memoryRows($db)['memory_stories']===$memoryBefore['memory_stories']&&memoryRows($db)['memory_receipts']===$memoryBefore['memory_receipts'],'Unsupported saved dialogue alone cannot establish a world fact or receipt');
+    $before=originalRows($db);$memoryBefore=memoryRows($db);
+    try{savedEncounter($db,$luna,$sol,gmdate('Y-m-d\TH:i:s\Z'),'I planted three trees yesterday.','That sounds surprising.',$known['receipt']['id']);throw new LogicException('False utterance acquired a real story receipt');}catch(LittleSparks\Problem){}
+    check(originalRows($db)===$before&&memoryRows($db)===$memoryBefore,'False historical utterance cannot validate a provenance receipt, even with a real source ID');
+    foreach(['natural','story','speculation','grammar_question','grammar_wondering','grammar_reminder','prefix','false_history','false_memory','fake_alias','self_verified','forged_receipt','flagged','grammar_flagged','unsafe','long','unowned_action','duplicate','timeout','unknown','quiet','none'] as $mode){
         $db=$fresh();
         if($mode==='story'){
             $selected=LittleSparks\selectActivityResidents($db,gmdate('Y-m-d'));$choices=LittleSparks\aiActionChoices($db,$selected[0]['id'],$selected[1]['id'],time());
             $db->exec('BEGIN IMMEDIATE');LittleSparks\performResidentAction($db,$selected[0]['id'],$choices['plant_tree'],gmdate('Y-m-d\TH:i:s\Z',time()-60),'live-real-tree','visitor');$db->exec('COMMIT');
         }
         $before=originalRows($db);$memoryBefore=memoryRows($db);$mock=new LiveMock($mode);$r=LittleSparks\simulateOpportunity($db,$at,true,$mock);
-        $success=in_array($mode,['natural','story','speculation','prefix','quiet','none'],true);check(($r['status']==='completed')===$success,'Expected outcome for '.$mode);
+        $success=in_array($mode,['natural','story','speculation','grammar_question','grammar_wondering','grammar_reminder','prefix','quiet','none'],true);check(($r['status']==='completed')===$success,'Expected outcome for '.$mode);
         if(!$success){foreach(['relationships','conversations','messages','world_objects','memories','events'] as $table)check(originalRows($db)[$table]===$before[$table],'Failure has no effects for '.$mode);check(memoryRows($db)===$memoryBefore,'No memory from failed '.$mode);continue;}
         check(count($mock->calls)===2,'Only one Responses and one moderation request');
         $again=LittleSparks\simulateOpportunity($db,$at,true,$mock);check($again['replayed']&&count($mock->calls)===2,'No charge on completed replay');
@@ -68,7 +96,7 @@ try{
         check(count($lines)===2&&$lines[0]['resident_id']!==$lines[1]['resident_id'],'Two attributed saved turns');
         check($mock->moderated[1]['first']===$lines[0]['body']&&$mock->moderated[1]['second']===$lines[1]['body'],'Exactly moderated final dialogue is saved');
         if(in_array($mode,['natural','prefix'],true))check($lines[0]['body']==='Do you think the stars arrange themselves into garden paths?'&&$lines[1]['body']==='Only after sunset—and they are much too high to trip over!','Original pair survives unchanged, optional A/B removed');
-        if($mode==='speculation')check(memoryRows($db)['memory_stories']===$memoryBefore['memory_stories']&&memoryRows($db)['memory_receipts']===$memoryBefore['memory_receipts'],'Imaginative questions do not create historical stories or receipts');
+        if(in_array($mode,['speculation','grammar_question','grammar_wondering','grammar_reminder'],true))check(memoryRows($db)['memory_stories']===$memoryBefore['memory_stories']&&memoryRows($db)['memory_receipts']===$memoryBefore['memory_receipts'],'Harmless grammar does not create historical stories or receipts');
         if($mode==='story')check(isset($mock->moderated[1]['shared_receipt'])&&str_contains($lines[0]['body'],'Could its shade hold a daydream?'),'Validated history composes with original continuation');
         check((int)$db->query('PRAGMA user_version')->fetchColumn()===5,'No V6 migration');
         $new=originalRows($db);foreach($before['messages'] as $row)check(in_array($row,$new['messages'],true),'Existing saved dialogue remains immutable');
