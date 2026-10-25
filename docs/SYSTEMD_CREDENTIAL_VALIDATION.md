@@ -1,5 +1,7 @@
 # systemd staging credential validation
 
+**Linux verification passed:** the owner reports run-u207.service accepted root:root 0440 delivery, UID/GID 999/988, readable 10-byte hostname stand-in, valid=true/failure_code=null, zero PHP credential-content reads/network requests/database opens, and unchanged original audit. The actual key/project is still unverified. [The next access-check plan](DIRECTOR_ACCESS_REVIEW.md) is prepared for separate review, not execution approval.
+
 The owner-run `run-u206.service` stand-in (invocation `5403278f81b649c8878d6f389a199aad`) delivered a root:root `0440` regular file readable by UID 999/GID 988. PHP read no credential contents; no network/database access occurred; the original audit digest remained unchanged. This diagnoses the old blanket group-bit rejection, not the staging key's content or project authorization.
 
 [systemd v255's credential implementation](https://github.com/systemd/systemd/blob/v255/src/core/exec-credential.c) sets a credential to `0400`, then grants the service UID read access through a POSIX ACL. The ACL mask can appear as group-read mode bits (`0440`). Without ACL support, systemd can instead transfer ownership to the service UID once read-only mounting is safe. The [systemd credential design](https://systemd.io/CREDENTIALS/) provides a private, read-only, per-unit credential directory. Do not chmod the root-owned secret source to accommodate the delivered copy.
