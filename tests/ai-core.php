@@ -204,7 +204,6 @@ try{
     LittleSparks\finishAi($db,$next,'uncertain','usage_unknown');
     try{LittleSparks\reserveAi($db,gmdate('Y-m-d',$nextMonth+86400),$pair,$config,$nextMonth+86400);throw new LogicException('Uncertain prior cost ignored');}
     catch(LittleSparks\AiGuard $error){check($error->reason==='accounting_unresolved','Unknown costs remain blocked across month/day changes');}
-    try{LittleSparks\aiConfiguration(strtotime('2026-11-24 12:00 UTC'));throw new LogicException('Expired pricing accepted');}
-    catch(LittleSparks\AiGuard $error){check($error->reason==='pricing_unverified','Pricing validity window enforced');}
+    check(LittleSparks\aiConfiguration(strtotime('2026-11-24 12:00 UTC'))['model']==='gpt-6-luna','Confirmed pricing has no hardcoded calendar admission cutoff');
     echo "PASS monthly budget, configuration limits, priced-model allowlist, day boundary, crash reservation and safe fallback\n";
 }catch(Throwable $error){fwrite(STDERR,$error->getMessage()."\n".$error->getTraceAsString()."\n");exit(1);}

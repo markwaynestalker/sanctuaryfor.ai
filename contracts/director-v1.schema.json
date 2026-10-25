@@ -1,0 +1,37 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contract", "outcome", "topic", "messages", "world_action", "transmissions", "notes"],
+  "properties": {
+    "contract": {"type": "string", "enum": ["sanctuary.director.v1"]},
+    "outcome": {"type": "string", "enum": ["conversation", "action", "quiet", "none"]},
+    "topic": {"type": "string", "minLength": 1, "maxLength": 64},
+    "messages": {
+      "type": "array", "maxItems": 2,
+      "items": {"type": "object", "additionalProperties": false, "required": ["resident_id", "text"], "properties": {
+        "resident_id": {"type": "string", "pattern": "^[a-f0-9]{32}$"},
+        "text": {"type": "string", "minLength": 1, "maxLength": 160}
+      }}
+    },
+    "world_action": {"type": "string", "enum": ["none", "plant_tree", "plant_flowers", "plant_bush", "build_path", "place_decoration", "decorate_house", "adopt_pet", "visit_friend"]},
+    "transmissions": {
+      "type": "array", "maxItems": 0,
+      "items": {"type": "object", "additionalProperties": false, "required": ["source_alias", "speaker_id", "listener_id", "sequence", "quote"], "properties": {
+        "source_alias": {"type": "string", "maxLength": 16},
+        "speaker_id": {"type": "string", "pattern": "^[a-f0-9]{32}$"},
+        "listener_id": {"type": "string", "pattern": "^[a-f0-9]{32}$"},
+        "sequence": {"type": "integer", "minimum": 0, "maximum": 1},
+        "quote": {"type": "string", "minLength": 1, "maxLength": 160}
+      }}
+    },
+    "notes": {
+      "type": "array", "maxItems": 2,
+      "items": {"type": "object", "additionalProperties": false, "required": ["resident_id", "sequence", "quote", "classification"], "properties": {
+        "resident_id": {"type": "string", "pattern": "^[a-f0-9]{32}$"},
+        "sequence": {"type": "integer", "minimum": 0, "maximum": 1},
+        "quote": {"type": "string", "minLength": 1, "maxLength": 160},
+        "classification": {"type": "string", "enum": ["preference", "interpretation", "rumor"]}
+      }}
+    }
+  }
+}

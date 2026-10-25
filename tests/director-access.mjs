@@ -1,0 +1,30 @@
+import assert from 'node:assert/strict';import {spawnSync} from 'node:child_process';import {mkdtemp,chmod,rm,readFile} from 'node:fs/promises';import {tmpdir} from 'node:os';import {join,resolve,dirname} from 'node:path';import {fileURLToPath} from 'node:url';import {createHash} from 'node:crypto';
+const root=resolve(dirname(fileURLToPath(import.meta.url)),'..'),dir=await mkdtemp(join(tmpdir(),'sparks-agent-access-')),php=process.env.PHP_BINARY||'php';await chmod(dir,0o700);
+const env={...process.env,OPENAI_API_KEY:'',LITTLE_SPARKS_AI_ENABLED:'0',LITTLE_SPARKS_DIRECTOR_ENABLED:'0',LITTLE_SPARKS_SIMULATION_ENABLED:'0'};
+try{
+ const core=spawnSync(php,['tests/director-access-core.php',dir],{cwd:root,env,encoding:'utf8'});assert.equal(core.status,0,core.stderr||core.error?.message);process.stdout.write(core.stdout);
+ const check=spawnSync(php,['scripts/check-director-access.php','--check'],{cwd:root,env:{...env,CREDENTIALS_DIRECTORY:join(dir,'missing')},encoding:'utf8'});assert.equal(check.status,0,check.stderr);assert.deepEqual(JSON.parse(check.stdout),{http_requests:0,generation_requests:0,credential_loaded:false,database_opened:false,only_method:'GET'});
+ const receipt=await readFile(join(dir,'good.jsonl'),'utf8');
+ const delivery=spawnSync(php,['scripts/check-director-access.php','--check-delivery','--audit='+join(dir,'good.jsonl')],{cwd:root,env:{...env,CREDENTIALS_DIRECTORY:dir},encoding:'utf8'});
+ assert.equal(delivery.status,1,'untrusted credential directory must fail closed');assert.ok(!delivery.stdout.includes('SECRET_KEY_CANARY'));assert.ok(!delivery.stderr.includes('SECRET_KEY_CANARY'));
+ assert.equal(await readFile(join(dir,'good.jsonl'),'utf8'),receipt,'metadata-only delivery check must not touch receipts');
+ const auditDir=join(dir,'reconciliation'),hash=async name=>createHash('sha256').update(await readFile(join(auditDir,name))).digest('hex');
+ const original=await hash('agent-access.jsonl'),authorized=await hash('agent-access-after-validator.jsonl');
+ const reconcile=spawnSync(php,['scripts/reconcile-director-access.php','--directory='+auditDir,'--original-sha256='+original,'--authorized-sha256='+authorized],{cwd:root,env,encoding:'utf8'});
+ assert.equal(reconcile.status,0,reconcile.stderr);const ledger=JSON.parse(reconcile.stdout);assert.deepEqual(ledger.reserved_by_utc_day,{'2026-10-25':2});assert.equal(ledger.new_http_requests,0);assert.equal(ledger.generation_requests,0);assert.equal(ledger.database_opened,false);assert.equal(ledger.credential_loaded,false);
+ assert.equal(await hash('agent-access.jsonl'),original);assert.equal(await hash('agent-access-after-validator.jsonl'),authorized);
+ const args=['scripts/reconcile-director-access.php','--directory='+auditDir,'--original-sha256='+original,'--authorized-sha256='+authorized];
+ const disabledArgv=spawnSync(php,['-d','register_argc_argv=0',...args],{cwd:root,env,encoding:'utf8'});assert.equal(disabledArgv.status,1);assert.equal(JSON.parse(disabledArgv.stdout).failure_code,'cli_arguments_unavailable');
+ const enabledArgv=spawnSync(php,['-d','register_argc_argv=1',...args],{cwd:root,env,encoding:'utf8'});assert.equal(enabledArgv.status,0,enabledArgv.stderr);assert.equal(JSON.parse(enabledArgv.stdout).total_requests_reserved,2);
+ const missingArg=spawnSync(php,['-d','register_argc_argv=1','scripts/reconcile-director-access.php','--directory='+auditDir],{cwd:root,env,encoding:'utf8'});assert.equal(missingArg.status,1);assert.equal(JSON.parse(missingArg.stdout).failure_code,'cli_option_missing');assert.equal(JSON.parse(missingArg.stdout).field,'original-sha256');
+ const duplicateArg=spawnSync(php,['-d','register_argc_argv=1',...args,'--original-sha256='+original],{cwd:root,env,encoding:'utf8'});assert.equal(duplicateArg.status,1);assert.equal(JSON.parse(duplicateArg.stdout).failure_code,'cli_option_invalid');
+ const spacedArgs=spawnSync(php,['-d','register_argc_argv=1','scripts/reconcile-director-access.php','--directory',auditDir,'--original-sha256',original,'--authorized-sha256',authorized],{cwd:root,env,encoding:'utf8'});assert.equal(spacedArgs.status,0,spacedArgs.stderr);assert.equal(JSON.parse(spacedArgs.stdout).total_requests_reserved,2);
+ assert.equal(await hash('agent-access.jsonl'),original);assert.equal(await hash('agent-access-after-validator.jsonl'),authorized);
+ console.log('PASS disabled argv reproducer, per-process argv fix, equals/spaced options, missing/duplicate option rejection and unchanged receipts');
+ const invalid=spawnSync(php,['scripts/reconcile-director-access.php','--directory='+auditDir,'--original-sha256=PRIVATE_CANARY','--authorized-sha256='+authorized],{cwd:root,env,encoding:'utf8'});assert.equal(invalid.status,1);assert.ok(!invalid.stderr.includes('PRIVATE_CANARY'));
+ assert.deepEqual(JSON.parse(invalid.stdout),{valid:false,failure_code:'hash_format_invalid',receipt:'agent-access.jsonl',field:'sha256',row:null,new_http_requests:0,generation_requests:0,credential_loaded:false,database_opened:false});assert.ok(!invalid.stdout.includes('PRIVATE_CANARY'));
+ const badDir=join(dir,'invalid-reconciliation'),badHash=createHash('sha256').update(await readFile(join(badDir,'agent-access-after-validator.jsonl'))).digest('hex');
+ const fieldFailure=spawnSync(php,['scripts/reconcile-director-access.php','--directory='+badDir,'--original-sha256='+original,'--authorized-sha256='+badHash],{cwd:root,env,encoding:'utf8'});assert.equal(fieldFailure.status,1);const diagnostic=JSON.parse(fieldFailure.stdout);assert.equal(diagnostic.failure_code,'authorization_field_invalid');assert.equal(diagnostic.receipt,'agent-access-after-validator.jsonl');assert.equal(diagnostic.field,'model_matches');assert.equal(diagnostic.row,1);assert.equal(diagnostic.new_http_requests,0);assert.equal(diagnostic.database_opened,false);
+ console.log('PASS read-only reconciliation CLI: two retained UTC reservations, hash verification, no key/network/SQLite access or receipt mutation');
+ console.log('PASS no-network/no-credential CLI preflight; no database opens or generation endpoints');
+}finally{await rm(dir,{recursive:true,force:true});}

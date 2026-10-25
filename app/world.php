@@ -115,7 +115,8 @@ function profile(PDO $db, string $id): array
     $query = $db->prepare("SELECT m.summary,m.significance,m.created_at,r.name AS neighbor FROM memories m JOIN residents r ON r.id=m.other_resident_id
         WHERE m.resident_id=? AND m.visibility='public' ORDER BY significance DESC,m.created_at DESC,m.id DESC LIMIT 12");
     $query->execute([$id]); $memories = $query->fetchAll();
-    $query = $db->prepare("SELECT c.id,c.topic,c.created_at FROM conversations c JOIN conversation_participants p ON p.conversation_id=c.id
+    $topic=directorEnabled($db)?'COALESCE(d.topic,c.topic)':'c.topic';$directorJoin=directorEnabled($db)?' LEFT JOIN director_runs d ON d.conversation_id=c.id ':'';
+    $query = $db->prepare("SELECT c.id,$topic AS topic,c.created_at FROM conversations c JOIN conversation_participants p ON p.conversation_id=c.id $directorJoin
         WHERE p.resident_id=? AND c.visibility='public' ORDER BY c.created_at DESC,c.id DESC LIMIT 3");
     $query->execute([$id]); $conversations = $query->fetchAll();
     foreach ($conversations as &$conversation) {

@@ -119,10 +119,10 @@ function recoverActivityClaims(PDO $db,int $now): void
 
 function claimActivity(PDO $db,string $at,int $now): array
 {
-    if(!in_array((int)$db->query('PRAGMA user_version')->fetchColumn(),[4,5],true))throw new Problem(503,'Explicit V4 migration required.');
+    if(!in_array((int)$db->query('PRAGMA user_version')->fetchColumn(),[4,5,6],true))throw new Problem(503,'Explicit V4 migration required.');
     $id=opportunityId($at);$db->exec('BEGIN IMMEDIATE');
     try{
-        if(identityEnabled($db)){$db->exec('COMMIT');return ['replay'=>['status'=>'paused','reason'=>'identity_runtime_pending']];}
+        if(identityEnabled($db)&&!directorEnabled($db)){$db->exec('COMMIT');return ['replay'=>['status'=>'paused','reason'=>'identity_runtime_pending']];}
         recoverActivityClaims($db,$now);
         $existing=activityResultOrNull($db,$id);
         if($existing){$db->exec('COMMIT');return ['replay'=>$existing];}
@@ -180,7 +180,7 @@ function applyActivity(PDO $db,array $claim,array $proposal,array $choices,int $
             ->execute([$run,$claim['id'],$ai?'openai':'scripted',$claim['created_at'],$time,$outcome==='conversation'?1:0,$usage['input_tokens']??0,$usage['output_tokens']??0,$usage['cost_microusd']??0]);
         if($outcome==='conversation'){
             if(count($pair)!==2||!hasSocialRoom($db,$pair[0]['id'],$pair[1]['id']))throw new AiGuard('apply_rejected');
-            $a=$pair[0]['id'];$b=$pair[1]['id'];$topic=$proposal['topic'];
+            $a=$pair[0]['id'];$b=$pair[1]['id'];$topic=isset($proposal['director'])?'welcome':$proposal['topic'];
             strengthen($db,$a,$b,$topic==='quiet'?-1:2,$time);$conversation=bin2hex(random_bytes(16));
             $db->prepare("INSERT INTO conversations(id,run_id,topic,visibility,created_at) VALUES (?,?,?,'public',?)")->execute([$conversation,$run,$topic,$time]);
             if($ai)$db->prepare('INSERT INTO ai_conversations VALUES (?,?)')->execute([$conversation,$run]);
@@ -188,7 +188,7 @@ function applyActivity(PDO $db,array $claim,array $proposal,array $choices,int $
                 $db->prepare('INSERT INTO conversation_participants VALUES (?,?)')->execute([$conversation,$resident]);
                 $body=$sequence===0?$proposal['first']:$proposal['second'];
                 $db->prepare('INSERT INTO messages VALUES (?,?,?,?)')->execute([$conversation,$sequence,$resident,$body]);
-                remember($db,$resident,$sequence===0?$b:$a,$run,'Heard a neighbor say: '.($sequence===0?$proposal['second']:$proposal['first']),2,$time);
+                if(!isset($proposal['director']))remember($db,$resident,$sequence===0?$b:$a,$run,'Heard a neighbor say: '.($sequence===0?$proposal['second']:$proposal['first']),2,$time);
             }
             event($db,$a,$b,'conversation','simulation',$time,'activity:'.$claim['id'].':conversation',$run);
         }
@@ -196,11 +196,24 @@ function applyActivity(PDO $db,array $claim,array $proposal,array $choices,int $
             if(!$pair||!isset($choices[$proposal['world_action']]))throw new AiGuard('invalid_proposal');
             performResidentAction($db,$pair[0]['id'],$choices[$proposal['world_action']],$time,'activity:'.$claim['id'].':world','simulation',$run);
         }
-        if($outcome==='conversation'&&memoryEnabled($db))conversationMemory($db,$conversation,$proposal['shared_receipt']??null);
+        if(isset($proposal['director'])){
+            $db->prepare('INSERT INTO director_runs VALUES (?,?,?,?,?,?)')->execute([$run,$proposal['director_session'],$proposal['director_fingerprint'],$conversation??null,$proposal['topic'],$time]);
+            if($outcome==='conversation')saveDirectorMemory($db,$conversation,$proposal,$pair,$time);
+        }elseif($outcome==='conversation'&&memoryEnabled($db))conversationMemory($db,$conversation,$proposal['shared_receipt']??null);
         if($outcome==='quiet'&&$pair)event($db,$pair[0]['id'],null,'quiet_time','simulation',$time,'activity:'.$claim['id'].':quiet',$run);
         $db->prepare('UPDATE simulation_opportunities SET run_id=?,outcome=?,finished_at=? WHERE id=?')->execute([$run,$outcome,$time,$claim['id']]);
         if($ai){
             $db->prepare("UPDATE ai_attempts SET state='applied',finished_at=? WHERE id=?")->execute([$time,$run]);
+            if(directorEnabled($db)){
+                if(isset($proposal['managed_commitment'])){
+                    // Application commitment is retained in full; this is not final provider billing.
+                    $db->prepare("UPDATE director_attempts SET state='applied',estimated_microusd=reserved_microusd WHERE id=? AND runtime='agents'")->execute([$run]);
+                    $db->prepare("UPDATE ai_attempts SET estimated_microusd=reserved_microusd WHERE id=?")->execute([$run]);
+                }
+                $q=$db->prepare("UPDATE director_attempts SET state='uncertain' WHERE id=? AND runtime='agents' AND estimated_microusd IS NULL");$q->execute([$run]);
+                if($q->rowCount())$db->prepare("UPDATE ai_attempts SET state='uncertain',error_code='usage_unknown' WHERE id=?")->execute([$run]);
+                $db->prepare("UPDATE director_attempts SET state='applied' WHERE id=? AND runtime='responses'")->execute([$run]);
+            }
             $db->prepare('UPDATE ai_lease SET owner=NULL,expires_at=0 WHERE owner=?')->execute([$run]);
         }
         $db->exec('COMMIT');return activityResult($db,$claim['id'])+['replayed'=>false];
@@ -220,6 +233,7 @@ function failActivity(PDO $db,array $claim,?array $attempt,?array $usage,string 
         if($attempt){
             $code=$usage===null?($reason==='usage_unknown'?'usage_unknown':'transport_uncertain'):(in_array($reason,['invalid_proposal','moderation_rejected'],true)?$reason:'apply_rejected');
             $db->prepare('UPDATE ai_attempts SET state=?,error_code=?,finished_at=? WHERE id=?')->execute([$usage===null?'uncertain':'rejected',$code,$time,$run]);
+            if(directorEnabled($db))$db->prepare('UPDATE director_attempts SET state=? WHERE id=?')->execute([$usage===null?'uncertain':'rejected',$run]);
             $db->prepare('UPDATE ai_lease SET owner=NULL,expires_at=0 WHERE owner=?')->execute([$run]);
         }
         $db->exec('COMMIT');return activityResult($db,$claim['id'])+['replayed'=>false,'error_code'=>'simulation_failed'];
@@ -228,6 +242,7 @@ function failActivity(PDO $db,array $claim,?array $attempt,?array $usage,string 
 
 function simulateOpportunity(PDO $db,string $at,bool $allowPaid=false,?AiTransport $transport=null,?int $now=null): array
 {
+    if(directorEnabled($db)){require_once __DIR__.'/director.php';return simulateDirectorOpportunity($db,$at,$allowPaid,$transport,null,$now);}
     if(identityEnabled($db))return ['status'=>'paused','reason'=>'identity_runtime_pending','replayed'=>false];
     $now??=time();
     if(getenv('LITTLE_SPARKS_SIMULATION_ENABLED')!=='1')return ['status'=>'paused','replayed'=>false];

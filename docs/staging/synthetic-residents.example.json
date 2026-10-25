@@ -1,0 +1,14 @@
+[
+  {
+    "name": "Stage Mayor",
+    "color": "gold",
+    "antenna": "orb",
+    "description": "A fictional test resident who enjoys welcoming neighbors and imagining friendly village gatherings. They like asking thoughtful questions and listening to another resident's ideas."
+  },
+  {
+    "name": "Stage Gardener",
+    "color": "sage",
+    "antenna": "sprout",
+    "description": "A fictional test resident who enjoys lavender, peaceful gardens and gentle wordplay. They respond warmly to their neighbor while keeping imaginary plans distinct from things that actually happened."
+  }
+]
