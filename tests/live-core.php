@@ -1,0 +1,68 @@
+<?php
+declare(strict_types=1);
+// Reuse the populated, disposable V5 fixture and preservation assertions.
+require __DIR__.'/memory-core.php';
+final class LiveMock implements LittleSparks\AiTransport
+{
+    public array $calls=[];public array $moderated=[];
+    public function __construct(public string $mode='natural'){}
+    public function post(string $endpoint,array $body,int $deadline):array
+    {
+        $this->calls[]=$endpoint;
+        if($endpoint==='moderations'){$this->moderated=json_decode($body['input'],true);return ['results'=>[['flagged'=>$this->mode==='flagged']]];}
+        check(!isset($body['text']['format']['schema']['properties']['first']['enum']),'Original dialogue is no longer a reflection enum');
+        check(str_contains($body['instructions'],'B must answer')&&str_contains($body['instructions'],'distinct saved personalities'),'Joint coherent exchange and distinct voices are instructed');
+        $ctx=json_decode($body['input'],true);$story='none';
+        if($this->mode==='story')foreach($ctx['characters'][0]['memories'] as $memory)if($memory['source_alias']&&$memory['kind']==='world_fact'){$story=$memory['source_alias'];break;}
+        $p=['outcome'=>'conversation','topic'=>'stars','first'=>'Do you think the stars arrange themselves into garden paths?',
+            'second'=>'Only after sunset—and they are much too high to trip over!','world_action'=>'none','story'=>$story];
+        if($story!=='none'){$p['first']='Could its shade hold a daydream?';$p['second']='A small daydream, with room for a friend.';}
+        if($this->mode==='speculation'){$p['first']='I wonder whether trees can hear music.';$p['second']='Perhaps the wind is their favorite orchestra.';}
+        if($this->mode==='false_history')$p['first']='I watched Luna plant three trees yesterday.';
+        if($this->mode==='fake_alias')$p['story']='S999';
+        if($this->mode==='prefix'){$p['first']='A: '.$p['first'];$p['second']='B: '.$p['second'];}
+        if($this->mode==='unsafe')$p['first']='<script>alert(1)</script>';
+        if($this->mode==='long')$p['second']=str_repeat('x',121);
+        if($this->mode==='unowned_action')$p['world_action']='edit_neighbor_house';
+        if($this->mode==='duplicate')$p['second']=$p['first'];
+        if($this->mode==='quiet'){$p['outcome']='quiet';$p['first']=$p['second']='';}
+        if($this->mode==='none'){$p['outcome']='none';$p['first']=$p['second']='';}
+        if($this->mode==='timeout')throw new RuntimeException('PRIVATE_CANARY');
+        $response=['status'=>'completed','model'=>$body['model'],'service_tier'=>'default','usage'=>['input_tokens'=>2000,'output_tokens'=>180,'total_tokens'=>2180],
+            'output'=>[['type'=>'message','role'=>'assistant','content'=>[['type'=>'output_text','text'=>json_encode($p,JSON_THROW_ON_ERROR|JSON_UNESCAPED_UNICODE)]]]]];
+        if($this->mode==='unknown')unset($response['usage']);return $response;
+    }
+}
+try{
+    putenv('LITTLE_SPARKS_AI_MONTHLY_MICROUSD=1000000');putenv('LITTLE_SPARKS_AI_DAILY_REQUESTS=2');
+    foreach(['Do you think stars dream about being flowers?','Only after sunset—and they are much too high to trip over!',
+        'I wonder whether trees can hear music.','Shall we plant flowers one day?','I prefer moonlight; what about you?',
+        'A: I think stars look like scattered seeds.','What a lovely idea: a garden of constellations!'] as $line)check(LittleSparks\expressiveDialogue($line)!=='','Original expressive dialogue accepted');
+    foreach(['I watched Luna plant three trees yesterday.','Did Luna plant a tree yesterday?',"Skippy Jr told me you planted a tree.",
+        'I imagine I planted three trees.','I have planted a tree.','My tree is taller now.','Our garden has three trees.',
+        'Sparky owns a cat.','I visited you.','I remember our picnic.','Luna: Hello!','A: B: Hello!',"I plаnted a tree."] as $line){
+        try{LittleSparks\expressiveDialogue($line);throw new LogicException('Unsupported historical or disguised line accepted: '.$line);}catch(LittleSparks\AiGuard){}
+    }
+    foreach(['natural','story','speculation','prefix','false_history','fake_alias','flagged','unsafe','long','unowned_action','duplicate','timeout','unknown','quiet','none'] as $mode){
+        $db=$fresh();
+        if($mode==='story'){
+            $selected=LittleSparks\selectActivityResidents($db,gmdate('Y-m-d'));$choices=LittleSparks\aiActionChoices($db,$selected[0]['id'],$selected[1]['id'],time());
+            $db->exec('BEGIN IMMEDIATE');LittleSparks\performResidentAction($db,$selected[0]['id'],$choices['plant_tree'],gmdate('Y-m-d\TH:i:s\Z',time()-60),'live-real-tree','visitor');$db->exec('COMMIT');
+        }
+        $before=originalRows($db);$memoryBefore=memoryRows($db);$mock=new LiveMock($mode);$r=LittleSparks\simulateOpportunity($db,$at,true,$mock);
+        $success=in_array($mode,['natural','story','speculation','prefix','quiet','none'],true);check(($r['status']==='completed')===$success,'Expected outcome for '.$mode);
+        if(!$success){foreach(['relationships','conversations','messages','world_objects','memories','events'] as $table)check(originalRows($db)[$table]===$before[$table],'Failure has no effects for '.$mode);check(memoryRows($db)===$memoryBefore,'No memory from failed '.$mode);continue;}
+        check(count($mock->calls)===2,'Only one Responses and one moderation request');
+        $again=LittleSparks\simulateOpportunity($db,$at,true,$mock);check($again['replayed']&&count($mock->calls)===2,'No charge on completed replay');
+        if(in_array($mode,['quiet','none'],true)){check(originalRows($db)['conversations']===$before['conversations'],'Quiet/none creates no conversation');continue;}
+        $q=$db->prepare('SELECT m.* FROM conversations c JOIN messages m ON m.conversation_id=c.id WHERE c.run_id=? ORDER BY m.sequence');$q->execute([$r['id']]);$lines=$q->fetchAll();
+        check(count($lines)===2&&$lines[0]['resident_id']!==$lines[1]['resident_id'],'Two attributed saved turns');
+        check($mock->moderated[1]['first']===$lines[0]['body']&&$mock->moderated[1]['second']===$lines[1]['body'],'Exactly moderated final dialogue is saved');
+        if(in_array($mode,['natural','prefix'],true))check($lines[0]['body']==='Do you think the stars arrange themselves into garden paths?'&&$lines[1]['body']==='Only after sunset—and they are much too high to trip over!','Original pair survives unchanged, optional A/B removed');
+        if($mode==='speculation')check(memoryRows($db)['memory_stories']===$memoryBefore['memory_stories']&&memoryRows($db)['memory_receipts']===$memoryBefore['memory_receipts'],'Imaginative questions do not create historical stories or receipts');
+        if($mode==='story')check(isset($mock->moderated[1]['shared_receipt'])&&str_contains($lines[0]['body'],'Could its shade hold a daydream?'),'Validated history composes with original continuation');
+        check((int)$db->query('PRAGMA user_version')->fetchColumn()===5,'No V6 migration');
+        $new=originalRows($db);foreach($before['messages'] as $row)check(in_array($row,$new['messages'],true),'Existing saved dialogue remains immutable');
+    }
+    echo "PASS V2E original coherent mocked exchanges, joint personality prompting, exact moderated saved lines, historical-claim guards, speculation without fact promotion, optional A/B normalization, quiet outcomes, rejection rollback, idempotency and unchanged V5 history\n";
+}catch(Throwable $e){fwrite(STDERR,$e->getMessage()."\n".$e->getTraceAsString()."\n");exit(1);}
