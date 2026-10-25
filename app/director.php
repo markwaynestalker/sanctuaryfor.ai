@@ -1,0 +1,170 @@
+<?php
+declare(strict_types=1);
+namespace LittleSparks;
+use PDO;
+require_once __DIR__.'/director_config.php';
+require_once __DIR__.'/director_context.php';
+
+/** A provider protocol seam; tests supply this interface, never an API key. */
+interface DirectorTransport
+{
+    public function request(string $method,string $path,?array $body,int $deadline,?string $idempotencyKey=null):array;
+}
+
+function directorSession(PDO $db,array $registered,array $pair,string $runtime,int $now):array
+{
+    $ids=array_column($pair,'id');sort($ids);$revisions=[];
+    foreach($ids as $id){$q=$db->prepare('SELECT revision FROM resident_identities WHERE resident_id=?');$q->execute([$id]);$revisions[$id]=(int)$q->fetchColumn();}
+    $scope=hash('sha256',json_encode([$ids,$revisions,$runtime],JSON_THROW_ON_ERROR));
+    $q=$db->prepare("SELECT * FROM director_sessions WHERE fingerprint=? AND scope=? AND state IN ('new','ready') AND turns<8 AND created_at>=? ORDER BY rowid DESC LIMIT 1");
+    $q->execute([$registered['fingerprint'],$scope,gmdate('Y-m-d\TH:i:s\Z',$now-86400)]);if($row=$q->fetch())return $row;
+    $id=bin2hex(random_bytes(16));$time=gmdate('Y-m-d\TH:i:s\Z',$now);
+    $db->prepare("INSERT INTO director_sessions(id,fingerprint,scope,agent_id,runtime,state,created_at,updated_at) VALUES (?,?,?,?,?,'new',?,?)")
+        ->execute([$id,$registered['fingerprint'],$scope,$registered['agent_id'],$runtime,$time,$time]);
+    $q=$db->prepare('SELECT * FROM director_sessions WHERE id=?');$q->execute([$id]);return $q->fetch();
+}
+
+function directorKeys(array $value,array $keys):void
+{
+    if(count($value)!==count($keys)||array_diff(array_keys($value),$keys))throw new AiGuard('invalid_proposal');
+}
+function parseDirectorProposal(array $p,array $pair,array $choices):array
+{
+    directorKeys($p,['contract','outcome','topic','messages','world_action','transmissions','notes']);
+    if(($p['contract']??null)!=='sanctuary.director.v1'||!in_array($p['outcome']??null,['conversation','action','quiet','none'],true)
+        ||!is_string($p['topic']??null)||!is_string($p['world_action']??null)||!array_key_exists($p['world_action'],$choices)
+        ||!is_array($p['messages'])||!array_is_list($p['messages'])||!is_array($p['notes'])||!array_is_list($p['notes'])||count($p['notes'])>2
+        // V3A does not infer a fact entailment from free prose or model-selected aliases.
+        // Existing V5 receipt chains remain intact. New text is retained as unverified notes.
+        ||$p['transmissions']!==[])throw new AiGuard('invalid_proposal');
+    safeAiText($p['topic'],64);$conversation=$p['outcome']==='conversation';
+    if(count($p['messages'])!==($conversation?2:0)||(!$conversation&&$p['notes']!==[])
+        ||($conversation&&count($pair)!==2)||($p['outcome']==='action'&&$p['world_action']==='none')
+        ||(in_array($p['outcome'],['quiet','none'],true)&&$p['world_action']!=='none'))throw new AiGuard('invalid_proposal');
+    foreach($p['messages'] as $i=>$m){
+        if(!is_array($m))throw new AiGuard('invalid_proposal');directorKeys($m,['resident_id','text']);
+        if(($m['resident_id']??null)!==$pair[$i]['id'])throw new AiGuard('invalid_proposal');
+        $text=safeAiText($m['text']??null,160);
+        if(trim($text)!==$text||preg_match('/\A(?:[AB]|assistant|user|system|resident|robot)\s*:/iu',$text))throw new AiGuard('invalid_proposal');
+        foreach($pair as $actor)if(isset($actor['name'])&&preg_match('/\A'.preg_quote($actor['name'],'/').'\s*:/iu',$text))throw new AiGuard('invalid_proposal');
+    }
+    if($conversation&&$p['messages'][0]['text']===$p['messages'][1]['text'])throw new AiGuard('invalid_proposal');
+    foreach($p['notes'] as $note){
+        if(!is_array($note))throw new AiGuard('invalid_proposal');directorKeys($note,['resident_id','sequence','quote','classification']);
+        if(!in_array($note['resident_id']??null,array_column($pair,'id'),true)||!is_int($note['sequence']??null)||!in_array($note['sequence'],[0,1],true)
+            ||!in_array($note['classification']??null,['preference','interpretation','rumor'],true))throw new AiGuard('invalid_proposal');
+        safeAiText($note['quote']??null,160);
+        if(!str_contains($p['messages'][$note['sequence']]['text'],$note['quote']))throw new AiGuard('invalid_proposal');
+    }
+    return $p+['first'=>$p['messages'][0]['text']??'','second'=>$p['messages'][1]['text']??'','director'=>true];
+}
+
+function saveDirectorMemory(PDO $db,string $conversation,array $proposal,array $pair,string $time):void
+{
+    if(!publicMemoryConversation($db,$conversation))throw new AiGuard('apply_rejected');
+    foreach($proposal['notes'] as $note){
+        $q=$db->prepare('SELECT body FROM messages WHERE conversation_id=? AND sequence=?');$q->execute([$conversation,$note['sequence']]);
+        if(!str_contains((string)$q->fetchColumn(),$note['quote']))throw new AiGuard('apply_rejected');
+        $q=$db->prepare('SELECT COUNT(*) FROM director_notes WHERE resident_id=?');$q->execute([$note['resident_id']]);
+        if((int)$q->fetchColumn()>=memoryConfiguration()['per_resident'])continue;
+        $other=$pair[0]['id']===$note['resident_id']?$pair[1]['id']:$pair[0]['id'];
+        $db->prepare('INSERT OR IGNORE INTO director_notes VALUES (?,?,?,?,?,?,?,?)')->execute([bin2hex(random_bytes(16)),$note['resident_id'],$other,$conversation,$note['sequence'],$note['quote'],$note['classification'],$time]);
+    }
+    // No dialogue-derived world facts, PHP factual openings, or manufactured receipts.
+}
+
+/** Offline managed-runtime prototype. Paid admission remains deliberately closed. */
+function managedDirectorEncounter(PDO $db,DirectorTransport $transport,array $attempt,array $session,array $registered,array $prepared,array $choices):array
+{
+    $sid=$session['provider_session_id'];$step=0;
+    $request=function(string $method,string $path,?array $body=null,?string $key=null)use($db,$transport,$attempt,&$step):array{
+        if($step++>4)throw new AiGuard('daily_request_cap');
+        $db->exec('BEGIN IMMEDIATE');try{
+            assertSimulationLease($db,$attempt['id']);
+            $q=$db->prepare('UPDATE director_attempts SET started_requests=started_requests+1 WHERE id=? AND started_requests<request_slots');$q->execute([$attempt['id']]);
+            if($q->rowCount()!==1)throw new AiGuard('daily_request_cap');$db->exec('COMMIT');
+        }catch(\Throwable $e){$db->exec('ROLLBACK');throw $e;}
+        return $transport->request($method,$path,$body,$attempt['expires'],$key);
+    };
+    try{
+        if($sid!==null){
+            $remote=$request('GET','agents/sessions/'.$sid);
+            if(($remote['status']??null)!=='idle'||($remote['agent']['id']??null)!==$registered['agent_id'])throw new AiGuard('session_unavailable');
+            $request('POST','agents/sessions/'.$sid.'/events',['events'=>[['type'=>'agent.session.input.message','input'=>[['role'=>'user','content'=>[['type'=>'input_text','text'=>json_encode($prepared['context'],JSON_THROW_ON_ERROR|JSON_UNESCAPED_UNICODE)]]]]]]],$attempt['id']);
+        }else{
+            $external=json_decode($registered['configuration'],true,16,JSON_THROW_ON_ERROR);
+            $remote=$request('POST','agents/sessions',managedDirectorPrototype($external,$prepared['context'],$choices),$attempt['id']);
+            $sid=$remote['id']??null;
+            if(!is_string($sid)||!preg_match('/\A[a-zA-Z0-9_-]{1,128}\z/',$sid))throw new AiGuard('transport_uncertain');
+            $db->prepare("UPDATE director_sessions SET provider_session_id=?,state='ready',updated_at=? WHERE id=?")->execute([$sid,gmdate('Y-m-d\TH:i:s\Z'),$session['id']]);
+        }
+        // One bounded inspection, never a polling loop or automatic resend.
+        $turns=$request('GET','agents/sessions/'.$sid.'/turns?limit=1&order=desc');$turn=$turns['data'][0]??null;
+        if(!is_array($turn)||($turn['status']??null)!=='completed'||($turn['session_id']??null)!==$sid||($turn['agent_id']??null)!==$registered['agent_id']||($turn['subagent_id']??null)!==null
+            ||($turn['error']??null)!==null||!is_string($turn['id']??null)||$turn['id']===$session['last_turn_id']||!preg_match('/\A[a-zA-Z0-9_-]{1,128}\z/',$turn['id']))throw new AiGuard('usage_unknown');
+        $items=$request('GET','agents/sessions/'.$sid.'/turns/'.$turn['id'].'/items?limit=20&order=asc');
+        if(($items['has_more']??true)!==false||!is_array($items['data']??null))throw new AiGuard('usage_unknown');
+        $texts=[];foreach($items['data'] as $item){
+            if(($item['type']??null)==='reasoning')continue;
+            if(($item['type']??null)==='message'&&($item['role']??null)==='user')continue;
+            if(($item['type']??null)!=='message'||($item['role']??null)!=='assistant')throw new AiGuard('invalid_proposal');
+            if(($item['phase']??null)!=='final_answer'||($item['status']??null)!=='completed'||($item['turn_id']??null)!==$turn['id'])throw new AiGuard('invalid_proposal');
+            foreach($item['content']??[] as $c){if(($c['type']??null)!=='output_text'||!is_string($c['text']??null))throw new AiGuard('invalid_proposal');$texts[]=$c['text'];}
+        }
+        if(count($texts)!==1||strlen($texts[0])>4096)throw new AiGuard('invalid_proposal');
+        $decoded=json_decode($texts[0],true,12,JSON_THROW_ON_ERROR);if(!is_array($decoded))throw new AiGuard('invalid_proposal');
+        $proposal=parseDirectorProposal($decoded,$prepared['context']['participants'],$choices);
+        $moderation=$request('POST','moderations',['model'=>'omni-moderation-latest','input'=>json_encode([$prepared['context'],$decoded],JSON_THROW_ON_ERROR|JSON_UNESCAPED_UNICODE)]);
+        if(count($moderation['results']??[])!==1||($moderation['results'][0]['flagged']??null)!==false)throw new AiGuard('moderation_rejected');
+        $db->prepare('UPDATE director_sessions SET turns=turns+1,last_turn_id=? WHERE id=?')->execute([$turn['id'],$session['id']]);
+        return ['proposal'=>$proposal,'observed_usage'=>$turn['usage']??null];
+    }catch(\Throwable $e){
+        $db->prepare("UPDATE director_sessions SET state=? WHERE id=?")->execute([$e instanceof AiGuard&&$e->reason==='session_unavailable'?'unavailable':'uncertain',$session['id']]);throw $e;
+    }
+}
+
+function simulateDirectorOpportunity(PDO $db,string $at,bool $allowPaid,?AiTransport $responses=null,?DirectorTransport $managed=null,?int $now=null,?DirectorContextProvider $contextProvider=null):array
+{
+    $now??=time();$cfg=directorConfiguration();
+    if(getenv('LITTLE_SPARKS_SIMULATION_ENABLED')!=='1')return ['status'=>'paused'];
+    if(!$cfg['enabled']||getenv('LITTLE_SPARKS_AI_ENABLED')!=='1'||!$allowPaid)return ['status'=>'silent','reason'=>'director_disabled'];
+    // Managed spend_control is cent-granular; usage is best effort, internal model
+    // calls are not bounded by the current public configuration contract. Never
+    // claim that this prototype proves a whole-turn token/cost ceiling.
+    if($cfg['runtime']==='agents'&&$managed===null)return ['status'=>'silent','reason'=>'managed_accounting_not_verified'];
+    $registered=registeredDirector($db,$cfg);$pricing=aiConfiguration($now);if($registered['model']!==$pricing['model'])throw new AiGuard('model_unpriced');
+    simulationInterval();memoryConfiguration();
+    $claim=claimActivity($db,$at,$now);if(isset($claim['replay']))return $claim['replay']+['replayed'=>true];
+    $attempt=null;$usage=null;
+    try{
+        if(count($claim['pair'])!==2)return applyActivity($db,$claim,['outcome'=>'none','topic'=>'quiet','first'=>'','second'=>'','world_action'=>'none'],['none'=>null],$now);
+        $choices=aiActionChoices($db,$claim['pair'][0]['id'],$claim['pair'][1]['id'],$now);
+        $prepared=($contextProvider??new SqliteDirectorContextProvider())->prepare($db,$claim['pair'],$choices,$claim,$cfg);
+        $db->exec('BEGIN IMMEDIATE');try{$session=directorSession($db,$registered,$claim['pair'],$cfg['runtime'],$now);$db->exec('COMMIT');}catch(\Throwable $e){$db->exec('ROLLBACK');throw $e;}
+        $body=$cfg['runtime']==='responses'?directorRequest($pricing,$registered,$prepared,$choices):null;
+        $pricing['director_session']=$session['id'];$pricing['director_runtime']=$cfg['runtime'];
+        $pricing['director_context']=hash('sha256',json_encode($prepared['context'],JSON_THROW_ON_ERROR|JSON_UNESCAPED_UNICODE));
+        if($managed!==null)$pricing['director_slots']=$session['provider_session_id']===null?4:5;
+        $attempt=reserveAi($db,$claim['id'],$claim['pair'],$pricing,$now);
+        if($managed!==null){
+            $result=managedDirectorEncounter($db,$managed,$attempt,$session,$registered,$prepared,$choices);$proposal=$result['proposal'];
+            // Best-effort usage is observation, not settlement. Hold the full reserved
+            // cost and freeze subsequent paid work until an operator reconciles it.
+            $u=$result['observed_usage'];
+            if(!is_array($u)||!is_int($u['input_tokens']??null)||!is_int($u['output_tokens']??null)||$u['input_tokens']<0||$u['output_tokens']<0||$u['input_tokens']>AI_INPUT_CEILING||$u['output_tokens']>$pricing['max_output'])throw new AiGuard('usage_unknown');
+            $db->prepare('UPDATE director_attempts SET input_tokens=?,output_tokens=? WHERE id=?')->execute([$u['input_tokens'],$u['output_tokens'],$attempt['id']]);
+            $usage=['input_tokens'=>0,'output_tokens'=>0,'cost_microusd'=>0];
+        }else{
+            $responses??=new OpenAiTransport();startAiRequest($db,$attempt,'responses_started');$result=$responses->post('responses',$body,$attempt['expires']);
+            $usage=recordAiUsage($db,$attempt,$result,$pricing);$proposal=parseDirectorProposal(decodedAiProposal($result),$prepared['context']['participants'],$choices);
+            startAiRequest($db,$attempt,'moderation_started');$moderation=$responses->post('moderations',['model'=>'omni-moderation-latest','input'=>json_encode([$prepared['context'],$proposal],JSON_THROW_ON_ERROR|JSON_UNESCAPED_UNICODE)],$attempt['expires']);
+            if(count($moderation['results']??[])!==1||($moderation['results'][0]['flagged']??null)!==false)throw new AiGuard('moderation_rejected');
+        }
+        $proposal['director_session']=$session['id'];$proposal['director_fingerprint']=$registered['fingerprint'];
+        $result=applyActivity($db,$claim,$proposal,$choices,$now,$attempt,$usage);
+        return $result;
+    }catch(\Throwable $e){
+        if(isset($session)&&$managed!==null)$db->prepare("UPDATE director_sessions SET state='uncertain' WHERE id=? AND state<>'unavailable'")->execute([$session['id']]);
+        return failActivity($db,$claim,$attempt,$usage,$e instanceof AiGuard?$e->reason:'apply_rejected');
+    }
+}

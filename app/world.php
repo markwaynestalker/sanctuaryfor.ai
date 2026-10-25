@@ -45,7 +45,8 @@ function world(PDO $db, int $sector): array
 {
     $sector = max(0,min(624,$sector));
     $x = ($sector % 25)*16; $y = intdiv($sector,25)*16;
-    $query = $db->prepare('SELECT p.slot,r.id,r.name,r.color FROM home_plots p JOIN residents r ON r.id=p.resident_id WHERE p.slot%100 BETWEEN ? AND ? AND CAST(p.slot/100 AS INTEGER) BETWEEN ? AND ? ORDER BY p.slot');
+    $identityJoin=identityEnabled($db)?' JOIN resident_identities i ON i.resident_id=r.id ':'';$color=identityEnabled($db)?'i.color':'r.color';
+    $query = $db->prepare('SELECT p.slot,r.id,r.name,'.$color.' AS color FROM home_plots p JOIN residents r ON r.id=p.resident_id '.$identityJoin.' WHERE p.slot%100 BETWEEN ? AND ? AND CAST(p.slot/100 AS INTEGER) BETWEEN ? AND ? ORDER BY p.slot');
     foreach ([intdiv($x,4),intdiv($x+15,4),intdiv($y,4),intdiv($y+15,4)] as $index=>$bound) $query->bindValue($index+1,$bound,PDO::PARAM_INT);
     $query->execute();
     $plots = [];
@@ -115,7 +116,8 @@ function profile(PDO $db, string $id): array
     $query = $db->prepare("SELECT m.summary,m.significance,m.created_at,r.name AS neighbor FROM memories m JOIN residents r ON r.id=m.other_resident_id
         WHERE m.resident_id=? AND m.visibility='public' ORDER BY significance DESC,m.created_at DESC,m.id DESC LIMIT 12");
     $query->execute([$id]); $memories = $query->fetchAll();
-    $query = $db->prepare("SELECT c.id,c.topic,c.created_at FROM conversations c JOIN conversation_participants p ON p.conversation_id=c.id
+    $topic=identityEnabled($db)?'COALESCE(d.topic,c.topic)':'c.topic';$directorJoin=identityEnabled($db)?' LEFT JOIN director_runs d ON d.conversation_id=c.id ':'';
+    $query = $db->prepare("SELECT c.id,$topic AS topic,c.created_at FROM conversations c JOIN conversation_participants p ON p.conversation_id=c.id $directorJoin
         WHERE p.resident_id=? AND c.visibility='public' ORDER BY c.created_at DESC,c.id DESC LIMIT 3");
     $query->execute([$id]); $conversations = $query->fetchAll();
     foreach ($conversations as &$conversation) {

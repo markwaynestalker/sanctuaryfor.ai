@@ -8,7 +8,7 @@ require __DIR__.'/../app/scheduler.php';require __DIR__.'/../app/monitoring.php'
 try{
     $options=getopt('',['database:']);$db=LittleSparks\connect((string)($options['database']??''));
     $version=(int)$db->query('PRAGMA user_version')->fetchColumn();
-    if(!in_array($version,[3,4,5],true))throw new RuntimeException('V3 or later required.');
+    if(!in_array($version,[3,4,5,6],true))throw new RuntimeException('V3 or later required.');
     $db->exec('PRAGMA query_only=ON');$db->beginTransaction();
     $day=gmdate('Y-m-d');$month=gmdate('Y-m');
     $query=$db->prepare('SELECT COALESCE(SUM(request_slots),0) AS reserved_requests,COALESCE(SUM(responses_started+moderation_started),0) AS started_requests FROM ai_attempts WHERE day=?');$query->execute([$day]);$daily=$query->fetch();
@@ -37,5 +37,12 @@ try{
     $q=$db->prepare('SELECT COALESCE(SUM(estimated_microusd),0) AS known_estimated_microusd,COALESCE(SUM(CASE WHEN estimated_microusd IS NULL THEN reserved_microusd ELSE 0 END),0) AS unknown_committed_microusd FROM ai_attempts WHERE month=?');$q->execute([$month]);
     $report['monthly_billing']=['values_are_application_estimates'=>true]+$q->fetch();
     $report['recent_provider_failures']=$db->query("SELECT state,error_code,created_at FROM ai_attempts WHERE error_code IS NOT NULL OR state IN ('rejected','uncertain') ORDER BY created_at DESC,id DESC LIMIT 10")->fetchAll();
+    if($version>=6){
+        $q=$db->prepare("SELECT COALESCE(SUM(request_slots-2),0) AS extra_slots,COALESCE(SUM(CASE WHEN runtime='agents' THEN started_requests ELSE 0 END),0) AS managed_started FROM director_attempts WHERE day=?");$q->execute([$day]);$extra=$q->fetch();
+        $report['daily']['reserved_requests']=(int)$report['daily']['reserved_requests']+(int)$extra['extra_slots'];
+        $report['daily']['started_requests']=(int)$report['daily']['started_requests']+(int)$extra['managed_started'];
+        $report['director']=['managed_live_admission'=>false,'reason'=>'managed_accounting_not_verified',
+            'recent'=>$db->query('SELECT id,period,session_id,runtime,contract_version,context_sha256,request_slots,started_requests,input_tokens,output_tokens,estimated_microusd,reserved_microusd,state FROM director_attempts ORDER BY created_at DESC,id DESC LIMIT 10')->fetchAll()];
+    }
     $db->commit();echo json_encode($report,JSON_THROW_ON_ERROR|JSON_PRETTY_PRINT)."\n";
 }catch(Throwable){fwrite(STDERR,"AI status unavailable. Check the approved private V3/V4 database path.\n");exit(1);}

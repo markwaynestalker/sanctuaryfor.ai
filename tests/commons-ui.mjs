@@ -34,6 +34,7 @@ class Element{
     set textContent(value){this._text=String(value);this.children=[];}get textContent(){return this._text+this.children.map(c=>c.textContent).join('');}
     set innerHTML(value){throw new Error('Untrusted HTML must never be rendered: '+value);}
     append(...children){this.children.push(...children);}replaceChildren(...children){this.children=[];this._text='';this.append(...children);}
+    remove(){this.isConnected=false;}
     setAttribute(name,value){this.attributes[name]=String(value);if(name==='href')this.href=String(value);}
     addEventListener(type,listener){(this.listeners[type]??=[]).push(listener);}
     focus(){this.doc.activeElement=this;}showModal(){this.open=true;}close(){this.open=false;for(const f of this.listeners.close??[])f({});}
