@@ -115,7 +115,7 @@ function stagingManagedEncounter(PDO $db,DirectorTransport $transport,array $att
         if($clock()>=$deadline||$calls>=8||(!$recovery&&$calls>=7))throw new AiGuard('daily_request_cap');$calls++;
         $n=startManagedHttp($db,$attempt,$method,$path,$kind);
         try{$r=$transport->request($method,$path,$body,$deadline,$key);finishManagedHttp($db,$attempt,$n,$r['_http']??[]);unset($r['_http']);return $r;}
-        catch(\Throwable $e){finishManagedHttp($db,$attempt,$n,$e instanceof ManagedHttpFailure?['status'=>$e->status,'request_id'=>$e->requestId,'succeeded'=>false]:null);throw $e;}
+        catch(\Throwable $e){finishManagedHttp($db,$attempt,$n,$e instanceof ManagedHttpFailure?['status'=>$e->status,'request_id'=>$e->requestId,'succeeded'=>false,'validation'=>$e->validation]:null);throw $e;}
     };
     try{
         if($session['provider_session_id']!==null)throw new AiGuard('configuration_invalid');

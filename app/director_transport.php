@@ -4,7 +4,20 @@ namespace LittleSparks;
 
 final class ManagedHttpFailure extends \RuntimeException
 {
-    public function __construct(public readonly ?int $status=null,public readonly ?string $requestId=null){parent::__construct('Managed request outcome requires reconciliation.');}
+    public function __construct(public readonly ?int $status=null,public readonly ?string $requestId=null,public readonly ?array $validation=null){parent::__construct('Managed request outcome requires reconciliation.');}
+}
+/** Retain structural validation only, never a provider message or echoed input. */
+function managedValidationError(int $status,string $response):?array
+{
+    if($status!==400||strlen($response)>262144)return null;
+    try{$error=json_decode($response,true,16,JSON_THROW_ON_ERROR)['error']??null;}catch(\Throwable){return null;}
+    if(!is_array($error))return null;
+    $codes=['unknown_parameter','invalid_value','invalid_type','invalid_json_schema','missing_required_parameter','unsupported_parameter','unsupported_value'];
+    $code=in_array($error['code']??null,$codes,true)?$error['code']:null;
+    $param=$error['param']??null;
+    $paths=['agent_id','environment','environment.type','agent','agent.model','agent.reasoning','agent.reasoning.effort','agent.tools','agent.multi_agent','agent.multi_agent.enabled','agent.service_tier','agent.text','agent.text.format','agent.text.format.type','agent.text.format.schema','spend_control','spend_control.limit','input','metadata','stream','vault_ids'];
+    if(!in_array($param,$paths,true))$param=null;
+    return $code===null&&$param===null?null:['code'=>$code,'param'=>$param];
 }
 function managedLiveAdmission():array
 {
@@ -58,7 +71,7 @@ final class OpenAiManagedTransport implements DirectorTransport
         if($encoded!==null)curl_setopt($curl,CURLOPT_POSTFIELDS,$encoded);
         try{
             $ok=curl_exec($curl);$status=(int)curl_getinfo($curl,CURLINFO_RESPONSE_CODE);
-            if($ok===false||$status<200||$status>299)throw new ManagedHttpFailure($status?:null,$requestId);
+            if($ok===false||$status<200||$status>299)throw new ManagedHttpFailure($status?:null,$requestId,$ok===false?null:managedValidationError($status,$response));
             $data=json_decode($response,true,32,JSON_THROW_ON_ERROR);if(!is_array($data)||array_is_list($data))throw new ManagedHttpFailure($status,$requestId);
             $data['_http']=['status'=>$status,'request_id'=>$requestId];return $data;
         }catch(ManagedHttpFailure $e){throw $e;}catch(\Throwable){throw new ManagedHttpFailure(null,$requestId);}

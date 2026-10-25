@@ -15,6 +15,7 @@ final class StagingMock implements LittleSparks\DirectorTransport
         $this->calls[]=[$method,$path,$body];check($deadline<=time()+60,'Deadline is bounded');
         if($path==='agents/sessions'){
             check(($body['agent']['service_tier']??null)==='default','Session override is explicitly default even if saved agent is auto/priority');
+            if($this->mode==='validation_400')throw new LittleSparks\ManagedHttpFailure(400,'req_validation_mock',LittleSparks\managedValidationError(400,json_encode(['error'=>['code'=>'unknown_parameter','param'=>'agent.text.format.schema','message'=>'PRIVATE_PROVIDER_CANARY sk-not-a-key']],JSON_THROW_ON_ERROR)));
             if($this->mode==='lost')throw new LittleSparks\ManagedHttpFailure();
             $this->context=json_decode($body['input'][0]['content'][0]['text'],true);
             return $this->remote();
@@ -136,11 +137,25 @@ try{
     $r=LittleSparks\simulateDirectorOpportunity($stage,gmdate('Y-m-d\TH:i:00\Z',time()-180),true,null,$mock,null,null,false,null,true);
     check(!$mock->calls&&$r['status']==='failed','Configured monthly allocation blocks next routine encounter');
     putenv('LITTLE_SPARKS_AI_MONTHLY_MICROUSD=1000000');
-    foreach(['unknown','flagged'] as $mode){
+    foreach(['unknown','flagged','validation_400'] as $mode){
         $stage=$stageFresh();$mock=new StagingMock($mode);$r=LittleSparks\simulateDirectorOpportunity($stage,$at,true,null,$mock,null,null,false,null,true);
         check($r['status']==='failed'&&(int)$stage->query('SELECT COUNT(*) FROM messages')->fetchColumn()===0,'Unknown/moderation failure persists no conversation');
+        if($mode==='validation_400'){
+            $stored=$stage->query("SELECT value FROM settings WHERE name LIKE 'director_validation_error:%'")->fetchColumn();
+            check(json_decode($stored,true)===['code'=>'unknown_parameter','param'=>'agent.text.format.schema'],'Private sanitized validation evidence is retained');
+            check(!str_contains($stored,'PRIVATE_PROVIDER')&&!str_contains($stored,'sk-'),'No raw message or credential retained');
+            $a=$stage->query('SELECT state,estimated_microusd,request_slots FROM ai_attempts LIMIT 1')->fetch();
+            check($a['state']==='uncertain'&&$a['estimated_microusd']===null&&count($mock->calls)===1,'HTTP 400 retains uncertain billing and dispatches once');
+            check((int)$stage->query('SELECT request_slots FROM director_attempts LIMIT 1')->fetchColumn()===8,'All eight reserved HTTP slots remain counted after HTTP 400');
+        }
         $next=new StagingMock('good');LittleSparks\simulateDirectorOpportunity($stage,gmdate('Y-m-d\TH:i:00\Z',time()-180),true,null,$next,null,null,false,null,true);
         check(!$next->calls,'Uncertain billing blocks new paid work; no automatic retry');
+        if($mode==='validation_400'){
+            $before=$stage->query('SELECT reserved_microusd FROM ai_attempts LIMIT 1')->fetchColumn();
+            $review=LittleSparks\reviewManagedBilling($stage,$r['id'],str_repeat('5',32),0,str_repeat('6',64));
+            check((int)$review['commitment_microusd']===(int)$before&&$stage->query('SELECT state FROM ai_attempts LIMIT 1')->fetchColumn()==='rejected','Independent rejected-create review retains full commitment without retry/reset');
+            check((int)$stage->query('SELECT request_slots FROM director_attempts LIMIT 1')->fetchColumn()===8,'Reviewed HTTP 400 still consumes all original request slots');
+        }
     }
     foreach(['LITTLE_SPARKS_AI_ENABLED','LITTLE_SPARKS_DIRECTOR_ENABLED','LITTLE_SPARKS_SIMULATION_ENABLED'] as $flag){putenv($flag.'=0');check(!LittleSparks\managedLiveAdmission()['allowed'],'Each activation flag controls admission');putenv($flag.'=1');}
     check(LittleSparks\managedLiveAdmission()['allowed'],'Explicit configured activation admits routine provider');

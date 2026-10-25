@@ -94,7 +94,7 @@ function managedDirectorEncounter(PDO $db,DirectorTransport $transport,array $at
         if($step++>4)throw new AiGuard('daily_request_cap');
         $sequence=startManagedHttp($db,$attempt,$method,$path);
         try{$result=$transport->request($method,$path,$body,$attempt['expires'],$key);finishManagedHttp($db,$attempt,$sequence,$result['_http']??[]);unset($result['_http']);return $result;}
-        catch(\Throwable $e){finishManagedHttp($db,$attempt,$sequence,$e instanceof ManagedHttpFailure?['status'=>$e->status,'request_id'=>$e->requestId,'succeeded'=>false]:null);throw $e;}
+        catch(\Throwable $e){finishManagedHttp($db,$attempt,$sequence,$e instanceof ManagedHttpFailure?['status'=>$e->status,'request_id'=>$e->requestId,'succeeded'=>false,'validation'=>$e->validation]:null);throw $e;}
     };
     try{
         if($sid!==null){

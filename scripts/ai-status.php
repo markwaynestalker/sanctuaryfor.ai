@@ -47,6 +47,7 @@ try{
         $report['director']=['managed_live_admission'=>$admission['allowed'],'reason'=>$admission['reason'],'admission'=>$admission,
             'http_audit'=>$db->query('SELECT attempt_id,sequence,kind,outcome,http_status,request_id,started_at,finished_at FROM director_http_calls ORDER BY rowid DESC LIMIT 20')->fetchAll(),
             'usage_is_final_billing'=>false,
+            'validation_errors'=>$db->query("SELECT name,value FROM settings WHERE name LIKE 'director_validation_error:%' ORDER BY rowid DESC LIMIT 20")->fetchAll(),
             'staging_permit'=>$db->query('SELECT permit_id,expires_at,allocation_microusd,http_slots,consumed_at FROM director_staging_permits LIMIT 1')->fetch()?:null,
             'managed_outcomes'=>$db->query('SELECT attempt_id,session_id,turn_id,status,created_at FROM director_managed_outcomes ORDER BY id DESC LIMIT 10')->fetchAll(),
             'observations'=>$db->query('SELECT attempt_id,turn_id,input_tokens,output_tokens,cached_tokens,reasoning_tokens,estimated_microusd,status,observed_at FROM director_usage_observations ORDER BY id DESC LIMIT 10')->fetchAll(),

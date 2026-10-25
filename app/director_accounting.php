@@ -84,6 +84,11 @@ function finishManagedHttp(PDO $db,array $attempt,int $sequence,?array $metadata
     $status=$metadata['status']??null;$request=$metadata['request_id']??null;
     if($status!==null&&(!is_int($status)||$status<100||$status>599))throw new AiGuard('transport_uncertain');
     if($request!==null&&(!is_string($request)||!preg_match('/\Areq_[a-zA-Z0-9_-]{1,120}\z/',$request)||str_contains($request,'sk-')))$request=null;
+    if($status===400&&isset($metadata['validation'])){
+        // Re-sanitize even injected transports; private evidence never clears a hold.
+        $safe=managedValidationError(400,json_encode(['error'=>$metadata['validation']],JSON_THROW_ON_ERROR));
+        if($safe!==null)$db->prepare('INSERT INTO settings(name,value) VALUES (?,?)')->execute(['director_validation_error:'.$attempt['id'].':'.$sequence,json_encode($safe,JSON_THROW_ON_ERROR)]);
+    }
     $db->prepare("UPDATE director_http_calls SET outcome=?,http_status=?,request_id=?,finished_at=? WHERE attempt_id=? AND sequence=? AND outcome='started'")
         ->execute([$metadata===null||($metadata['succeeded']??true)!==true?'uncertain':'succeeded',$status,$request,gmdate('Y-m-d\TH:i:s\Z'),$attempt['id'],$sequence]);
 }
@@ -115,7 +120,13 @@ function reviewManagedBilling(PDO $db,string $attemptId,string $reviewId,int $am
         $q=$db->prepare("SELECT a.*,r.status AS run_status,d.state AS director_state FROM ai_attempts a JOIN director_attempts d ON d.id=a.id AND d.runtime='agents' JOIN simulation_runs r ON r.id=a.id WHERE a.id=?");$q->execute([$attemptId]);$a=$q->fetch();
         if(!$a||!in_array($a['state'],['uncertain','applied','rejected'],true))throw new AiGuard('accounting_unresolved');
         $terminal=$db->prepare('SELECT status FROM director_managed_outcomes WHERE attempt_id=? ORDER BY id DESC LIMIT 1');$terminal->execute([$attemptId]);
-        if(!in_array($terminal->fetchColumn(),['completed','failed','cancelled'],true))throw new AiGuard('accounting_unresolved');
+        $outcome=$terminal->fetchColumn();
+        // A rejected create has no session/turn to retrieve. Independent owner
+        // evidence can reconcile it through this existing review, without refunds.
+        $q=$db->prepare("SELECT COUNT(*) AS calls,MAX(CASE WHEN kind='create' AND http_status=400 THEN 1 ELSE 0 END) AS rejected FROM director_http_calls WHERE attempt_id=?");$q->execute([$attemptId]);$http=$q->fetch();
+        $q=$db->prepare('SELECT provider_session_id FROM director_sessions WHERE id=(SELECT session_id FROM director_attempts WHERE id=?)');$q->execute([$attemptId]);
+        $rejectedCreate=$outcome==='session_lost'&&(int)$http['calls']===1&&(int)$http['rejected']===1&&$q->fetchColumn()===null;
+        if(!in_array($outcome,['completed','failed','cancelled'],true)&&!$rejectedCreate)throw new AiGuard('accounting_unresolved');
         // A late async bill may belong to a different month. Do not clear a
         // cross-period hold without a separately reviewed allocation procedure.
         if($a['month']!==gmdate('Y-m'))throw new AiGuard('accounting_unresolved');
