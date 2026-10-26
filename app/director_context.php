@@ -24,6 +24,8 @@ function descriptionExcerpt(string $text,int $max):array
 function prepareDirectorEncounter(PDO $db,array $pair,array $choices,array $claim,array $cfg):array
 {
     $memory=memoryConfiguration();$sources=[];$context=['contract'=>'sanctuary.director.v1','context_version'=>'sqlite-v6-1','opportunity_id'=>$claim['id'],'at'=>$claim['created_at'],
+        // Repeat contract guidance in fresh input so existing managed sessions receive it too.
+        'dialogue_guidance'=>directorSchema($choices)['properties']['messages']['items']['properties']['text']['description'],
         'participants'=>[],'allowed_actions'=>array_keys($choices),'world_action_actor_id'=>$pair[0]['id'],'director_continuity_is_not_participant_knowledge'=>true,'director_continuity'=>[]];
     foreach($pair as $index=>$actor){
         $id=$actor['id'];$other=$pair[1-$index]['id'];$p=profile($db,$id);$r=$p['resident'];$known=[];

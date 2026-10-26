@@ -1,5 +1,9 @@
 # SanctuaryFor.AI development instructions
 
+## Concise Director speech (#21)
+
+Keep complete-sentence/100–130-character guidance in the message schema and fresh encounter context (including reused sessions), without overriding saved Director instructions. The existing 1–160 Unicode-character validation remains authoritative; do not add punctuation heuristics, rewrite/truncate accepted words, pad replies or trigger paid regeneration. tests/director-dialogue-core.php exercises both adapters, reused sessions and exact moderation/persistence. No migration or hosted-agent edit is needed.
+
 ## Commons neighborhood layout (#12)
 
 Use SparksMeadow.capacity for both robots and homes: six on phones, twelve on wider screens. Explicit neighborhood controls browse bounded groups within the existing directory page; never add server polling or paid activity. Keep saved plot/object coordinates authoritative and immutable, compact staggered gardens, local collision footprints, stable valid walker positions, bounded bubbles and the chicken. Run tests/meadow-layout.mjs and tests/commons-ui.mjs plus existing offline suites. Desktop/mobile Chrome checks do not substitute for physical iPhone Safari verification. Timezone/weather/owner suggestions and dialogue-quality #21 remain separate PRs.

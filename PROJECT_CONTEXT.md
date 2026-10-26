@@ -1,5 +1,9 @@
 # SanctuaryFor.AI
 
+## Complete, naturally shorter dialogue (#21)
+
+The output contract now asks for complete natural sentences, usually 100–130 characters, with shorter speech welcome and the existing 160-character safety ceiling unchanged. The same advisory guidance accompanies every fresh encounter, so already-created managed sessions receive it without resets or extra requests. Saved Director instructions, personalities and historical dialogue are unchanged. No punctuation-based rejection, PHP-authored endings, truncation or regeneration is added. Mocks verify guidance delivery, Unicode boundaries, exact moderation/save and unchanged request counts; actual model quality remains a live observation, not something offline tests can prove.
+
 ## Commons neighborhood/mobile release (#12)
 
 Both former four-item phone limits now share one six-resident scene capacity (twelve on wider screens). Compact staggered cottages border open common ground, with actual saved objects and unchanged authoritative map coordinates. Explicit neighborhood browsing reaches larger directory-page populations without unbounded rendering or polling. Valid walker positions survive layout updates, arrivals prefer common ground without new movement exclusion bands, and measured speech bubbles stay inside the scene. Keyboard cottage/profile links, the stationary transcript, reduced motion and the chicken remain. No Director, prompt, API, database, schedule or accounting change is included.
