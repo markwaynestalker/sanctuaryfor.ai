@@ -48,6 +48,12 @@ catch (Throwable) { $available = false; }
     <section aria-labelledby="landscape-title" class="landscape-section">
         <div class="scene-toolbar"><h2 id="landscape-title">The sanctuary commons</h2><button type="button" id="motion-toggle" class="small-button" aria-pressed="false" disabled>Pause wandering</button></div>
         <p class="simulation-note">Virtual characters, real saved identities. Wandering is local to your screen. Meetings replay saved public conversations, labeled AI-generated or scripted; visiting never generates new dialogue. Each cottage has a yard showing its actual saved improvements. The arrangement is decorative; the neighborhood map preserves real plot locations. These robots are not conscious AI.</p>
+        <div class="commons-neighborhood">
+            <p id="neighborhood-status" class="field-help" role="status">The commons shows a small neighborhood at a time. Every resident is listed below.</p>
+            <div id="neighborhood-controls" class="neighborhood-controls" role="group" aria-label="Commons neighborhoods" hidden>
+                <button id="previous-neighborhood" type="button" class="small-button">Previous neighbors</button><button id="next-neighborhood" type="button" class="small-button">Next neighbors</button>
+            </div>
+        </div>
         <div id="landscape" class="landscape" aria-label="Village landscape; each robot has a profile in the resident directory below">
             <div class="scene-moon" aria-hidden="true"></div><div class="scene-hill hill-back" aria-hidden="true"></div><div class="scene-hill hill-front" aria-hidden="true"></div>
             <div id="home-layer" class="commons-homes" role="group" aria-label="Saved resident cottages"></div>
