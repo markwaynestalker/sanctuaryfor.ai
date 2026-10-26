@@ -78,6 +78,24 @@ function saveDirectorMemory(PDO $db,string $conversation,array $proposal,array $
     // No dialogue-derived world facts, PHP factual openings, or manufactured receipts.
 }
 
+/** Called inside the conversation transaction: compare, never repair, speech. */
+function verifyDirectorDialogue(PDO $db,string $run,string $conversation,array $proposal):void
+{
+    $q=$db->prepare('SELECT resident_id,body FROM messages WHERE conversation_id=? ORDER BY sequence');$q->execute([$conversation]);$saved=$q->fetchAll();
+    if(count($saved)!==2||count($proposal['messages']??[])!==2)throw new AiGuard('apply_rejected');
+    $lines=[];
+    foreach($saved as $i=>$line){
+        $original=$proposal['messages'][$i];
+        if($line['resident_id']!==$original['resident_id']||$line['body']!==$original['text'])throw new AiGuard('apply_rejected');
+        $count=preg_match_all('/./us',$original['text']);
+        $lines[]=['sequence'=>$i,'resident_id'=>$line['resident_id'],'characters'=>$count,'utf8_bytes'=>strlen($original['text']),
+            'at_ceiling'=>$count===160,'provider_text_sha256'=>hash('sha256',$original['text']),'saved_text_sha256'=>hash('sha256',$line['body'])];
+    }
+    // Private diagnostic only. No words, world facts, credentials or billing claims.
+    $db->prepare('INSERT INTO settings(name,value) VALUES (?,?)')->execute(['director_dialogue_integrity:'.$run,
+        json_encode(['conversation_id'=>$conversation,'maximum_characters'=>160,'unchanged'=>true,'messages'=>$lines],JSON_THROW_ON_ERROR)]);
+}
+
 /** Validate the provider's effective session settings independently of its dialogue. */
 function assertManagedSession(array $remote,array $registered,string $id,bool $reusing):void
 {

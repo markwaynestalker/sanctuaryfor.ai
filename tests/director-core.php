@@ -122,5 +122,6 @@ require __DIR__.'/director-autonomy-core.php';
 require __DIR__.'/director-items-core.php';
 require __DIR__.'/director-dialogue-core.php';
 require __DIR__.'/director-context-core.php';
+require __DIR__.'/director-truncation-core.php';
 require __DIR__.'/director-allowance-core.php';
 require __DIR__.'/director-lifecycle-core.php';
