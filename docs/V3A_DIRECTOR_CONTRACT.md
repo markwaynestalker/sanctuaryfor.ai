@@ -37,17 +37,19 @@ PHP-FPM environment variables are not inherited by a separately started CLI. Reu
 
 ## Exact input/output contract: sanctuary.director.v1
 
-Retrieval uses `DirectorContextProvider::prepare()` with a SQLite implementation and context version `sqlite-v6-1`. This seam keeps future authenticated MCP retrieval separate from model execution and atomic world commits. V3D read-only Memory MCP and V3E optional MQTT observations are future independent PRs; see V3_ROADMAP.md. No tools, listener or bridge is activated in V3A.
+Retrieval uses `DirectorContextProvider::prepare()` with a SQLite implementation and context version `sqlite-v6-2` (the original projection was `sqlite-v6-1`). This is an input projection version, not a database migration or output-contract change. The seam keeps future authenticated MCP retrieval separate from model execution and atomic world commits. V3D read-only Memory MCP and V3E optional MQTT observations are future independent PRs; see V3_ROADMAP.md. No tools, listener or bridge is activated in V3A.
 
 The application supplies structured JSON user data and `contracts/director-v1.schema.json`, not a competing system prompt. PHP selects two eligible residents fairly under existing transactional claims, cooldowns and capacity bounds. Every request retrieves fresh SQLite context by immutable resident ID:
 
 - owner-authored personality with revision and explicit excerpt flag (untrusted character data);
-- name, legacy category, saved preferences, real home objects, relationships, activity and proposed/active goals;
+- name, real home inventory (kind/variant/count), relationships, current activity and proposed/active goals; legacy category/preferences only without an owner description;
 - bounded legitimately held public memories, source status, origin/teller IDs, hops and timestamps;
-- each participant's own recent public encounters, exact attributed messages, and unverified quote notes;
+- exact attributed recent public encounters and topics, stored once in `shared_recent_conversations` for the two actual participants, otherwise under the legitimate participant's `recent_conversations`; unverified quote notes stay resident-specific;
 - separately labeled public Director continuity, which is not automatically participant knowledge.
 
 Private memories, tokens, owner hashes and credentials are excluded. Context is capped by MEMORY_CONTEXT_BYTES; lower-priority entries are dropped before dispatch, never silently treated as complete knowledge. Owner text is stored in full within its validated limit; only the supplied excerpt is shortened. No public endpoint accepts arbitrary prompts.
+
+Memory source confidence, origin/teller IDs, hops and timestamps remain in the compact projection; complete source IDs, receipt chains and object coordinates remain validated server-side. Described residents do not receive the legacy interest topic boost. Optional continuity/notes/relationship metadata and memories are trimmed before proposed goals, older recent exchanges, active goals and latest recent exchanges, in that order; comparable lists are balanced between residents. A core identity/world payload that cannot fit still fails closed. No saved words or owner text are rewritten by trimming. See [narrative review and measurements](DIRECTOR_NARRATIVE_REVIEW.md).
 
 Return exactly `contract`, `outcome`, `topic`, `messages`, `world_action`, `transmissions`, `notes`. Outcome is conversation/action/quiet/none. A conversation has one canonical two-message exchange, in participant order, each `{resident_id,text}`, 1–160 Unicode characters. Other outcomes contain no messages. Topic is free text up to 64 characters. PHP rejects unsafe text, speaker labels, incorrect IDs, duplicate turns, unknown keys and invalid actions; it does not edit accepted words. Moderation must accept the complete context/proposal before any public effects. Failed generation means silence.
 

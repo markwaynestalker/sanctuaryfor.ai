@@ -34,6 +34,7 @@ try{
             $submits=array_values(array_filter($mock->inner->calls,fn($c)=>str_ends_with($c[1],'/events')&&($c[2]['events'][0]['type']??null)==='agent.session.input.message'));
             check(count($submits)===1,'Reuse submits one encounter, with no regeneration');
             $context=json_decode($submits[0][2]['events'][0]['input'][0]['content'][0]['text'],true);
+            check($context['shared_recent_conversations'][0]['messages']===$proposal['messages'],'Reused sessions receive fresh canonical SQLite dialogue from the preceding encounter');
         }
         check($context['dialogue_guidance']===$guidance,'Every encounter gets current contract guidance, including reused sessions');
         check(strlen(json_encode($context,JSON_UNESCAPED_UNICODE))<=LittleSparks\memoryConfiguration()['context_bytes'],'Guidance stays inside the existing bounded context');

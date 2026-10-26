@@ -1,5 +1,9 @@
 # SanctuaryFor.AI
 
+## Narrative context review (#25)
+
+The Director receives a leaner sqlite-v6-2 projection with owner-written identity authority, canonical shared encounter history, actual home inventory instead of map coordinates, and compact source/knowledge metadata backed by the same validated SQLite chains. Recent valid dialogue and active goals outlast optional continuity, notes, relationship metadata and lower-priority memories when trimming. Legacy interest weighting remains for undescribed residents/V5 callers, but does not steer described residents. Full stored histories, coordinates, identities, credentials and accounting are untouched. Bounded pair session reuse stays at 24 hours/eight accepted turns; no repetition/session correlation has been established from production evidence. An additive hosted-agent narrative amendment and coordinated registration procedure are proposed for owner review, not applied by this change. No live provider-token/quality measurements or paid tests are claimed.
+
 ## Village atmosphere and extra-compact view (#13/#14/#24)
 
 A shared fictional New York clock supplies decorative dawn/day/dusk/night; visitors separately choose timestamp display zones (UTC default). Clear/rain/snow are local scene preferences, not real weather observations or world facts. Reduced motion is static; existing wandering pause, dialogs and hidden tabs also pause weather, with one minute clock timer only while visible. The <=360 CSS-pixel scene mode omits homes and their obstacles, leaving six Sparks and the protected chicken in an open meadow. Saved cottages, gardens and authoritative map coordinates persist and return on wider scenes; resident profiles/directory remain available. No migration, Director input/contract, scheduling, credentials, paid accounting or production configuration changes are part of this release. #15 owner suggestions remain separate.

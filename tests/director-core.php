@@ -104,7 +104,7 @@ try{
     $db=LittleSparks\connect($db->query('PRAGMA database_list')->fetch()['file']);$pair=array_map(fn($a)=>['id'=>$a['id'],'personality'=>'custom'],$actors);
     $session=LittleSparks\directorSession($db,$registered,$pair,'agents',time());$choices=LittleSparks\aiActionChoices($db,$pair[0]['id'],$pair[1]['id'],time());
     $claim=['id'=>'op:'.gmdate('Y-m-d\TH:i:00\Z',time()-300),'created_at'=>gmdate('Y-m-d\TH:i:s\Z')];$prepared=LittleSparks\prepareDirectorEncounter($db,$pair,$choices,$claim,LittleSparks\directorConfiguration());
-    check((bool)$prepared['context']['participants'][0]['recent_conversations'],'Restart retrieves accepted resident history from SQLite');
+    check((bool)($prepared['context']['shared_recent_conversations']||$prepared['context']['participants'][0]['recent_conversations']),'Restart retrieves accepted resident history from SQLite');
     $pricing=LittleSparks\aiConfiguration(time())+['director_slots'=>8,'director_session'=>$session['id'],'director_runtime'=>'agents','director_context'=>hash('sha256',json_encode($prepared['context'],JSON_THROW_ON_ERROR))];
     $attempt=LittleSparks\reserveAi($db,$claim['id'],$pair,$pricing,time());$beforeCalls=count($mock->calls);LittleSparks\managedDirectorEncounter($db,$mock,$attempt,$session,$registered,$prepared,$choices);
     check(count($mock->calls)-$beforeCalls===6&&$mock->turn===2&&$mock->context['opportunity_id']===$claim['id'],'Second canonical encounter reuses optional session with fresh SQLite context inside eight reserved slots');
@@ -121,4 +121,5 @@ require __DIR__.'/director-reconciliation-core.php';
 require __DIR__.'/director-autonomy-core.php';
 require __DIR__.'/director-items-core.php';
 require __DIR__.'/director-dialogue-core.php';
+require __DIR__.'/director-context-core.php';
 require __DIR__.'/director-lifecycle-core.php';
