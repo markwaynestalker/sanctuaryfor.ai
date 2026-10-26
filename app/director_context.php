@@ -105,5 +105,5 @@ function directorRequest(array $pricing,array $registered,array $prepared,array 
         'store'=>false,'service_tier'=>'default','max_output_tokens'=>$pricing['max_output'],'reasoning'=>['effort'=>$pricing['effort']],
         'tools'=>[],'truncation'=>'disabled','metadata'=>['director_agent_id'=>$registered['agent_id'],'director_config'=>$registered['fingerprint']],
         'text'=>['format'=>['type'=>'json_schema','name'=>'sanctuary_director_v1','strict'=>true,'schema'=>directorSchema($choices)]]];
-    if(strlen(json_encode($body,JSON_THROW_ON_ERROR|JSON_UNESCAPED_UNICODE))>AI_BODY_BYTES)throw new AiGuard('configuration_invalid');return $body;
+    if(strlen(json_encode($body,JSON_THROW_ON_ERROR|JSON_UNESCAPED_UNICODE))>aiRequestByteLimit())throw new AiGuard('configuration_invalid');return $body;
 }

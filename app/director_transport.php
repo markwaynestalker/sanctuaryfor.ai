@@ -36,7 +36,7 @@ function managedWireBody(string $method,string $path,?array $body,?string $key):
     if($body===null)throw new AiGuard('configuration_invalid');
     if($path==='agents/sessions'&&array_key_exists('spend_control',$body))throw new AiGuard('configuration_invalid');
     $encoded=json_encode($body,JSON_THROW_ON_ERROR|JSON_UNESCAPED_UNICODE);
-    if(strlen($encoded)>AI_BODY_BYTES)throw new AiGuard('configuration_invalid');return $encoded;
+    if(strlen($encoded)>aiRequestByteLimit())throw new AiGuard('configuration_invalid');return $encoded;
 }
 /** Fixed official HTTPS transport; explicit enable flags and reserved budgets govern egress. */
 final class OpenAiManagedTransport implements DirectorTransport
@@ -66,8 +66,9 @@ final class OpenAiManagedTransport implements DirectorTransport
         if(str_starts_with($path,'agents/'))$headers[]='OpenAI-Beta: agents=v1';
         if($idempotencyKey!==null)$headers[]='Idempotency-Key: '.$idempotencyKey;
         $response='';$requestId=null;$curl=curl_init('https://api.openai.com/v1/'.$path);
+        $http=aiHttpConfiguration();
         curl_setopt_array($curl,[CURLOPT_CUSTOMREQUEST=>$method,CURLOPT_HTTPHEADER=>$headers,
-            CURLOPT_CONNECTTIMEOUT=>5,CURLOPT_TIMEOUT=>max(1,min(15,$deadline-time())),
+            CURLOPT_CONNECTTIMEOUT=>$http['connect_seconds'],CURLOPT_TIMEOUT=>max(1,min($http['timeout_seconds'],$deadline-time())),
             CURLOPT_FOLLOWLOCATION=>false,CURLOPT_MAXREDIRS=>0,CURLOPT_PROTOCOLS=>CURLPROTO_HTTPS,
             CURLOPT_SSL_VERIFYPEER=>true,CURLOPT_SSL_VERIFYHOST=>2,CURLOPT_VERBOSE=>false,
             CURLOPT_HEADERFUNCTION=>static function($handle,string $header)use(&$requestId):int{

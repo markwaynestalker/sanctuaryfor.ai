@@ -40,7 +40,7 @@ function activityRequestBody(array $config,array $context): array
     $body=aiRequestBody($config,$context);
     $body['instructions'].=' You may choose conversation, action, quiet or none. Never force interaction. Use preferences, friendship and memories to decide. For conversation provide two short natural lines and an optional action. For action choose one available action with both lines empty. For quiet or none use world_action none and both lines empty. Quiet is solitary rest, not a conversation. Return the outcome field too.';
     $body['text']['format']['schema']=activityProposalSchema();
-    if(strlen(json_encode($body,JSON_THROW_ON_ERROR|JSON_UNESCAPED_UNICODE))>AI_BODY_BYTES)throw new AiGuard('configuration_invalid');
+    if(strlen(json_encode($body,JSON_THROW_ON_ERROR|JSON_UNESCAPED_UNICODE))>aiRequestByteLimit())throw new AiGuard('configuration_invalid');
     return $body;
 }
 
@@ -69,10 +69,10 @@ function selectActivityResidents(PDO $db,string $day,?array $cfg=null,?int $now=
         (SELECT MAX(created_at) FROM simulation_opportunities o WHERE o.resident_a=r.id OR o.resident_b=r.id) AS last_turn
         FROM residents r WHERE
         (SELECT COUNT(*) FROM simulation_opportunities o WHERE o.day=? AND (o.resident_a=r.id OR o.resident_b=r.id))<?
-        ORDER BY turns,COALESCE(last_turn,''),r.created_at,r.id LIMIT 64");
+        ORDER BY turns,COALESCE(last_turn,''),r.created_at,r.id LIMIT ?");
     // COUNT has no column affinity: bind the ceiling as an integer, not PDO's
     // default string, or SQLite's storage-class ordering would bypass this bound.
-    $query->bindValue(1,$day,PDO::PARAM_STR);$query->bindValue(2,$cfg['resident_daily'],PDO::PARAM_INT);$query->execute();$candidates=$query->fetchAll();
+    $query->bindValue(1,$day,PDO::PARAM_STR);$query->bindValue(2,$cfg['resident_daily'],PDO::PARAM_INT);$query->bindValue(3,$cfg['candidates'],PDO::PARAM_INT);$query->execute();$candidates=$query->fetchAll();
     if(!$candidates)return [];
     // The actor is always the least served. Prefer an equally underserved partner
     // not met recently; friendship bounds may leave a resident with solitary activity.
@@ -141,7 +141,7 @@ function claimActivity(PDO $db,string $at,int $now): array
         if((int)$q->fetchColumn()>=$cfg['daily_opportunities'])throw new Problem(429,'The village is resting at its configured daily ceiling.');
         $pair=selectActivityResidents($db,$day,$cfg,$now);$time=gmdate('Y-m-d\TH:i:s\Z',$now);
         $db->prepare("INSERT INTO simulation_opportunities(id,scheduled_at,day,resident_a,resident_b,outcome,expires_at,created_at) VALUES (?,?,?,?,?,'pending',?,?)")
-            ->execute([$id,$at,$day,$pair[0]['id']??null,$pair[1]['id']??null,$now+60,$time]);
+            ->execute([$id,$at,$day,$pair[0]['id']??null,$pair[1]['id']??null,$now+directorExecutionConfiguration()['lease_seconds'],$time]);
         $db->exec('COMMIT');return ['id'=>$id,'pair'=>$pair,'created_at'=>$time];
     }catch(\Throwable $e){$db->exec('ROLLBACK');throw $e;}
 }
@@ -236,7 +236,7 @@ function failActivity(PDO $db,array $claim,?array $attempt,?array $usage,string 
         $db->prepare("INSERT INTO simulation_runs(id,period,status,provider,started_at,finished_at,error_code,input_tokens,output_tokens,cost_microusd) VALUES (?,?,'failed',?,?,?,'simulation_failed',?,?,?)")
             ->execute([$run,$claim['id'],($attempt||directorEnabled($db))?'openai':'scripted',$claim['created_at'],$time,$usage['input_tokens']??0,$usage['output_tokens']??0,$usage['cost_microusd']??0]);
         $db->prepare("UPDATE simulation_opportunities SET outcome='failed',run_id=?,finished_at=? WHERE id=?")->execute([$run,$time,$claim['id']]);
-        $category=in_array($reason,['transport_uncertain','provider_api_error','usage_unknown','invalid_proposal','moderation_rejected','apply_rejected','credentials_unavailable','daily_request_cap','monthly_budget_cap','simulation_busy','day_boundary','period_recorded','configuration_invalid','model_unpriced','pricing_unverified','session_unavailable','ledger_capacity'],true)?$reason:'apply_rejected';
+        $category=in_array($reason,['transport_uncertain','provider_api_error','usage_unknown','invalid_proposal','moderation_rejected','apply_rejected','credentials_unavailable','daily_request_cap','encounter_request_cap','execution_deadline','monthly_budget_cap','simulation_busy','day_boundary','period_recorded','configuration_invalid','model_unpriced','pricing_unverified','session_unavailable','ledger_capacity'],true)?$reason:'apply_rejected';
         $db->prepare('INSERT OR IGNORE INTO settings(name,value) VALUES (?,?)')->execute(['activity_failure:'.$claim['id'],$category]);
         if($attempt){
             $code=$usage===null?($reason==='usage_unknown'?'usage_unknown':'transport_uncertain'):(in_array($reason,['invalid_proposal','moderation_rejected'],true)?$reason:'apply_rejected');

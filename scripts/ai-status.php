@@ -16,7 +16,7 @@ try{
     $query=$db->prepare('SELECT COALESCE(SUM(COALESCE(estimated_microusd,reserved_microusd)),0) FROM ai_attempts WHERE month=?');$query->execute([$month]);
     try{$configured=LittleSparks\aiMonthlyBudget();}catch(LittleSparks\AiGuard){$configured=null;}
     try{$dailyLimit=LittleSparks\aiDailyRequestLimit();}catch(LittleSparks\AiGuard){$dailyLimit=null;}
-    $report=['day_utc'=>$day,'month_utc'=>$month,'enabled'=>getenv('LITTLE_SPARKS_AI_ENABLED')==='1','manual_paid_invocation_required'=>true,'daily'=>$daily,'configured_daily_requests'=>$dailyLimit,'monthly_committed_microusd'=>(int)$query->fetchColumn(),'maximum_monthly_microusd'=>1000000,'configured_monthly_microusd'=>$configured,
+    $report=['day_utc'=>$day,'month_utc'=>$month,'enabled'=>getenv('LITTLE_SPARKS_AI_ENABLED')==='1','manual_paid_invocation_required'=>true,'daily'=>$daily,'configured_daily_requests'=>$dailyLimit,'monthly_committed_microusd'=>(int)$query->fetchColumn(),'maximum_monthly_microusd'=>$configured,'configured_monthly_microusd'=>$configured,
         'unresolved_attempts'=>(int)$db->query("SELECT COUNT(*) FROM ai_attempts WHERE state IN ('reserved','uncertain','settled')")->fetchColumn(),
         'lease'=>$db->query('SELECT owner IS NOT NULL AS held,expires_at FROM ai_lease WHERE singleton=1')->fetch(),
         'recent'=>$db->query('SELECT id,period,model,state,input_tokens,output_tokens,estimated_microusd,reserved_microusd,error_code FROM ai_attempts ORDER BY created_at DESC,id DESC LIMIT 10')->fetchAll()];
@@ -58,6 +58,18 @@ try{
             'billing_reviews'=>$db->query('SELECT review_id,attempt_id,amount_microusd,commitment_microusd,outcome,reviewed_at FROM director_billing_reviews ORDER BY rowid DESC LIMIT 10')->fetchAll(),
             'recent'=>$db->query('SELECT id,period,session_id,runtime,contract_version,context_sha256,request_slots,started_requests,input_tokens,output_tokens,estimated_microusd,reserved_microusd,state FROM director_attempts ORDER BY created_at DESC,id DESC LIMIT 10')->fetchAll()];
     }
+    $report['daily']['configured_slots']=$dailyLimit;
+    $report['daily']['remaining_slots']=$dailyLimit===null?null:max(0,$dailyLimit-(int)$report['daily']['reserved_requests']);
+    $report['daily']['recorded_http_starts']=(int)$report['daily']['started_requests'];
+    $report['daily']['external_reserved_slots']=LittleSparks\directorAccessReservedRequests($db,$day);
+    $report['daily']['external_http_start_count_known']=$report['daily']['external_reserved_slots']===0;
+    try{$report['execution_limits']=['max_input_tokens'=>LittleSparks\aiInputTokenLimit(),'max_output_tokens'=>LittleSparks\aiOutputTokenLimit(),
+        'max_request_bytes'=>LittleSparks\aiRequestByteLimit(),'minimum_managed_commitment_microusd'=>LittleSparks\aiManagedMinimumCommitment(),
+        'http'=>LittleSparks\aiHttpConfiguration(),'director'=>LittleSparks\directorExecutionConfiguration(),'managed_slots_per_encounter'=>8,
+        'day_boundary_guard_seconds'=>LittleSparks\aiDayBoundaryGuard(),'friendship_max'=>LittleSparks\residentFriendshipLimit(),
+        'per_attempt_schema_max_microusd'=>1000000,'managed_slots_source'=>'V6 ledger schema; not a daily allowance'];}
+    catch(Throwable){$report['execution_limits']=null;}
+    if($version>=6){$q=$db->prepare('SELECT COUNT(*) FROM director_http_calls h JOIN director_attempts d ON d.id=h.attempt_id WHERE d.day=?');$q->execute([$day]);$report['daily']['managed_http_audit_rows']=(int)$q->fetchColumn();}
     if($version>=4){$report['operational']=LittleSparks\operationalStatus($db,time());$report['manual_paid_invocation_required']=!($report['operational']['scheduler']['configured']??false);}
     $db->commit();echo json_encode($report,JSON_THROW_ON_ERROR|JSON_PRETTY_PRINT)."\n";
 }catch(Throwable){fwrite(STDERR,"AI status unavailable. Check the approved private V3/V4 database path.\n");exit(1);}

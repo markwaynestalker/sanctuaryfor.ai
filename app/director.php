@@ -20,8 +20,9 @@ function directorSession(PDO $db,array $registered,array $pair,string $runtime,i
     $ids=array_column($pair,'id');sort($ids);$revisions=[];
     foreach($ids as $id){$q=$db->prepare('SELECT revision FROM resident_identities WHERE resident_id=?');$q->execute([$id]);$revisions[$id]=(int)$q->fetchColumn();}
     $scope=hash('sha256',json_encode([$ids,$revisions,$runtime],JSON_THROW_ON_ERROR));
-    $q=$db->prepare("SELECT * FROM director_sessions WHERE fingerprint=? AND scope=? AND state IN ('new','ready') AND turns<8 AND created_at>=? ORDER BY rowid DESC LIMIT 1");
-    $q->execute([$registered['fingerprint'],$scope,gmdate('Y-m-d\TH:i:s\Z',$now-86400)]);if($row=$q->fetch())return $row;
+    $execution=directorExecutionConfiguration();
+    $q=$db->prepare("SELECT * FROM director_sessions WHERE fingerprint=? AND scope=? AND state IN ('new','ready') AND turns<? AND created_at>=? ORDER BY rowid DESC LIMIT 1");
+    $q->execute([$registered['fingerprint'],$scope,$execution['session_max_turns'],gmdate('Y-m-d\TH:i:s\Z',$now-$execution['session_ttl_seconds'])]);if($row=$q->fetch())return $row;
     $id=bin2hex(random_bytes(16));$time=gmdate('Y-m-d\TH:i:s\Z',$now);
     $db->prepare("INSERT INTO director_sessions(id,fingerprint,scope,agent_id,runtime,state,created_at,updated_at) VALUES (?,?,?,?,?,'new',?,?)")
         ->execute([$id,$registered['fingerprint'],$scope,$registered['agent_id'],$runtime,$time,$time]);

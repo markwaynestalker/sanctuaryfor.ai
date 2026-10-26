@@ -111,7 +111,7 @@ try{
     $db->prepare("UPDATE director_sessions SET state='unavailable' WHERE id=?")->execute([$session['id']]);
     check(LittleSparks\directorSession($db,$registered,$pair,'agents',time())['id']!==$session['id'],'Unavailable continuity is replaceable without altering resident records');
     foreach(['flagged','timeout','incomplete'] as $mode){$db=$directorFresh();$mock=new ManagedMock($mode);$old=(int)$db->query('SELECT COUNT(*) FROM messages')->fetchColumn();$result=LittleSparks\simulateDirectorOpportunity($db,$at,true,null,$mock);check($result['status']==='failed'&&(int)$db->query('SELECT COUNT(*) FROM messages')->fetchColumn()===$old,'Managed failure produces no history: '.$mode);$calls=count($mock->calls);LittleSparks\simulateDirectorOpportunity($db,$at,true,null,$mock);check(count($mock->calls)===$calls,'No automatic paid retry: '.$mode);}
-    foreach(['','-1','201','02','1.5'] as $bad){putenv('LITTLE_SPARKS_AI_DAILY_REQUESTS='.$bad);try{LittleSparks\aiDailyRequestLimit();throw new LogicException('Bad request ceiling accepted');}catch(LittleSparks\AiGuard){}}putenv('LITTLE_SPARKS_AI_DAILY_REQUESTS=2');
+    foreach(['','-1','02','1.5','999999999999999999999'] as $bad){putenv('LITTLE_SPARKS_AI_DAILY_REQUESTS='.$bad);try{LittleSparks\aiDailyRequestLimit();throw new LogicException('Bad request ceiling accepted');}catch(LittleSparks\AiGuard){}}putenv('LITTLE_SPARKS_AI_DAILY_REQUESTS=2');
     $db=$directorFresh();$mock=new ManagedMock();$result=LittleSparks\simulateDirectorOpportunity($db,$at,true,null,$mock);check(!$mock->calls&&$result['status']==='failed','Default two-request cap blocks four-request managed encounter before dispatch');
     echo "PASS V3A migration/rollback, identities/private links, exact dialogue, moderation, unverified memory, session scope, request accounting, fail-closed live admission and offline adapters\n";
 }catch(Throwable $e){fwrite(STDERR,$e->getMessage()."\n".$e->getTraceAsString()."\n");exit(1);}
@@ -122,4 +122,5 @@ require __DIR__.'/director-autonomy-core.php';
 require __DIR__.'/director-items-core.php';
 require __DIR__.'/director-dialogue-core.php';
 require __DIR__.'/director-context-core.php';
+require __DIR__.'/director-allowance-core.php';
 require __DIR__.'/director-lifecycle-core.php';

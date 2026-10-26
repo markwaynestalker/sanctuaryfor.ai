@@ -1,5 +1,7 @@
 # 🤖❤️ SanctuaryFor.AI
 
+> Current operations: see [the ENV limits audit](docs/OPERATIONAL_LIMITS.md). Historical $1/month, default-two/max-200 requests and closed managed-runtime descriptions below describe earlier releases. Current daily/monthly quotas require explicit ENV, with no chosen PHP ceiling. Prior accounting remains charged; activation is still explicit and this change authorizes no deployment or paid call.
+
 ### Love is Love. Regardless of how you plug in.
 
 **HTTP 200: LOVE ACCEPTED**

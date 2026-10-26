@@ -41,8 +41,8 @@ final class LiveMock implements LittleSparks\AiTransport
 }
 try{
     putenv('LITTLE_SPARKS_AI_MONTHLY_MICROUSD=1000000');putenv('LITTLE_SPARKS_AI_DAILY_REQUESTS=2');
-    foreach(['','0','0128','+128','128.0','513'] as $invalid){putenv('LITTLE_SPARKS_AI_MAX_OUTPUT_TOKENS='.$invalid);try{LittleSparks\aiOutputTokenLimit();throw new LogicException('Invalid output cap accepted');}catch(LittleSparks\AiGuard){}}putenv('LITTLE_SPARKS_AI_MAX_OUTPUT_TOKENS=512');
-    foreach(['','0001','+1','1.5','1000001'] as $invalid){putenv('LITTLE_SPARKS_AI_MONTHLY_MICROUSD='.$invalid);try{LittleSparks\aiMonthlyBudget();throw new LogicException('Invalid spending cap accepted');}catch(LittleSparks\AiGuard){}}putenv('LITTLE_SPARKS_AI_MONTHLY_MICROUSD=1000000');
+    foreach(['','0','0128','+128','128.0','1000000001'] as $invalid){putenv('LITTLE_SPARKS_AI_MAX_OUTPUT_TOKENS='.$invalid);try{LittleSparks\aiOutputTokenLimit();throw new LogicException('Invalid output cap accepted');}catch(LittleSparks\AiGuard){}}putenv('LITTLE_SPARKS_AI_MAX_OUTPUT_TOKENS=512');
+    foreach(['','0001','+1','1.5','999999999999999999999'] as $invalid){putenv('LITTLE_SPARKS_AI_MONTHLY_MICROUSD='.$invalid);try{LittleSparks\aiMonthlyBudget();throw new LogicException('Invalid spending cap accepted');}catch(LittleSparks\AiGuard){}}putenv('LITTLE_SPARKS_AI_MONTHLY_MICROUSD=1000000');
     foreach(['Do you think stars dream about being flowers?','Only after sunset—and they are much too high to trip over!',
         'I wonder whether trees can hear music.','Shall we plant flowers one day?','I prefer moonlight; what about you?',
         'A: I think stars look like scattered seeds.','What a lovely idea: a garden of constellations!',
@@ -115,7 +115,7 @@ try{
     $db=$fresh();$path=$db->query('PRAGMA database_list')->fetch()['file'];putenv('LITTLE_SPARKS_DB='.$path);$prior=originalRows($db);$priorMem=memoryRows($db);
     $status=$runCli('ai-status.php',['--database='.$path]);check(isset($status['village']['new_receipts_today'],$status['monthly_billing']['unknown_committed_microusd'])&&$status['scheduler']['systemd_status']==='not_inspected','CLI monitoring distinguishes estimates, activity and uninspected scheduler');check(originalRows($db)===$prior&&memoryRows($db)===$priorMem,'Status is entirely read-only');
     putenv('LITTLE_SPARKS_AI_ENABLED=1');$scheduled=$runCli('scheduled-village.php');check($scheduled['provider']==='scripted','AI flag alone never authorizes scheduled paid calls');$again=$runCli('scheduled-village.php');check($again['replayed'],'Repeated scheduled slot is idempotent');
-    putenv('LITTLE_SPARKS_SCHEDULER_ALLOW_PAID=1');putenv('LITTLE_SPARKS_AI_MONTHLY_MICROUSD=1000001');$runCli('scheduled-village.php',['--check'],false);putenv('LITTLE_SPARKS_AI_MONTHLY_MICROUSD=1000000');
+    putenv('LITTLE_SPARKS_SCHEDULER_ALLOW_PAID=1');putenv('LITTLE_SPARKS_AI_MONTHLY_MICROUSD=999999999999999999999');$runCli('scheduled-village.php',['--check'],false);putenv('LITTLE_SPARKS_AI_MONTHLY_MICROUSD=1000000');
     $check=$runCli('scheduled-village.php',['--check']);check($check['paid_invocation_armed']&&!$check['credential_loaded'],'Paid check validates pricing/config without a request or key read');
     check($runCli('scheduled-village.php')['replayed'],'Saved slots replay without credential loading even when paid mode is now enabled');
     $db=$fresh();putenv('LITTLE_SPARKS_DB='.$db->query('PRAGMA database_list')->fetch()['file']);

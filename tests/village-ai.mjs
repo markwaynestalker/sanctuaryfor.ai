@@ -8,7 +8,7 @@ import {join,resolve,dirname} from 'node:path';
 import {fileURLToPath} from 'node:url';
 const root=resolve(dirname(fileURLToPath(import.meta.url)),'..');const php=process.env.PHP_BINARY||'php';
 const directory=await mkdtemp(join(tmpdir(),'little-sparks-v2-test-'));await chmod(directory,0o700);
-const env={...process.env,OPENAI_API_KEY:'',LITTLE_SPARKS_AI_ENABLED:'0',LITTLE_SPARKS_AI_DAILY_REQUESTS:'2'};
+const env={...process.env,OPENAI_API_KEY:'',LITTLE_SPARKS_AI_ENABLED:'0',LITTLE_SPARKS_AI_DAILY_REQUESTS:'2',LITTLE_SPARKS_AI_MONTHLY_MICROUSD:'1000000'};
 let server;
 try{
     for(const file of ['v2-core.php','ai-core.php']){

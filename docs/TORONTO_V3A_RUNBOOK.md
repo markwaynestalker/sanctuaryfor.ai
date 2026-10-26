@@ -1,5 +1,7 @@
 # Toronto maintenance runbook — owner-run deployment only
 
+> Current operations: see [the ENV limits audit](OPERATIONAL_LIMITS.md). Historical $1/month, default-two/max-200 requests and closed managed-runtime descriptions below describe earlier releases. Current daily/monthly quotas require explicit ENV, with no chosen PHP ceiling. Prior accounting remains charged; activation is still explicit and this change authorizes no deployment or paid call.
+
 Current [autonomous continuity](AUTONOMOUS_VILLAGE.md) evaluates each distinct opportunity against ENV and retained commitments, without a historical-accounting veto. The [owner-run reconciliation procedure](DIRECTOR_RECONCILIATION.md) remains optional diagnostics; it preserves failed history and reservations without retrying generation or changing scheduler state.
 
 ## Current lifecycle fix and production hotfix (2026-10-25)

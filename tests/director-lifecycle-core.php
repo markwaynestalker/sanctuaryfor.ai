@@ -46,7 +46,7 @@ try{
     $settings=[];foreach(['LITTLE_SPARKS_AI_DAILY_REQUESTS','LITTLE_SPARKS_AI_MONTHLY_MICROUSD'] as $key)$settings[$key]=getenv($key);
     putenv('LITTLE_SPARKS_AI_DAILY_REQUESTS=200');putenv('LITTLE_SPARKS_AI_MONTHLY_MICROUSD=1000000');
     $cases=[
-        'immediate'=>[['completed'],true,false], 'queued'=>[['queued','completed'],true,false],
+        'immediate'=>[['completed'],true,false], 'env_execution'=>[['queued','completed'],true,false], 'queued'=>[['queued','completed'],true,false],
         'running'=>[['queued','in_progress','completed'],true,false], 'usage_missing'=>[['queued','in_progress','completed'],true,false], 'empty'=>[['empty','completed'],true,false], 'waiting'=>[['waiting','completed'],true,false],
         'reused'=>[['stale','in_progress','completed'],true,true], 'stale'=>[['stale'],false,true],
         'never'=>[['in_progress'],false,false], 'deadline'=>[['in_progress'],false,false],
@@ -57,7 +57,11 @@ try{
         'cancel_uncertain'=>[['in_progress'],false,false], 'missing_created'=>[['completed'],false,true],
         'action'=>[['in_progress','completed'],true,false], 'action_flagged'=>[['in_progress','completed'],false,false],
     ];
+    $overrideKeys=['LITTLE_SPARKS_DIRECTOR_RUN_SECONDS'=>'40','LITTLE_SPARKS_DIRECTOR_HTTP_TIMEOUT_SECONDS'=>'6','LITTLE_SPARKS_DIRECTOR_POLL_MAX_READS'=>'2','LITTLE_SPARKS_DIRECTOR_POLL_INTERVAL_SECONDS'=>'2','LITTLE_SPARKS_AI_LEASE_SECONDS'=>'70'];
+    $originalExecution=[];foreach($overrideKeys as $key=>$value)$originalExecution[$key]=getenv($key);
     foreach($cases as $mode=>[$states,$success,$reusing]){
+        foreach($originalExecution as $key=>$value)putenv($value===false?$key:$key.'='.$value);
+        if($mode==='env_execution')foreach($overrideKeys as $key=>$value)putenv($key.'='.$value);
         $db=$stageFresh();$clock=new LifecycleClock();$now=$clock->now;$claim=LittleSparks\claimActivity($db,$at,$now);$cfg=LittleSparks\directorConfiguration();$registered=LittleSparks\registeredDirector($db,$cfg);
         $db->exec('BEGIN IMMEDIATE');$session=LittleSparks\directorSession($db,$registered,$claim['pair'],'agents',$now);$db->exec('COMMIT');
         if($reusing){$db->prepare("UPDATE director_sessions SET provider_session_id='session_mock',last_turn_id='turn_1',turns=1,state='ready' WHERE id=?")->execute([$session['id']]);$session['provider_session_id']='session_mock';$session['last_turn_id']='turn_1';}
@@ -83,8 +87,13 @@ try{
         if(in_array($mode,['never','cancel_uncertain'],true))check($transport->inspections>=3&&$transport->cancelled,'Exhaust bounded read-only observations before one cancellation');
         if($mode==='cancel_uncertain')check($db->query('SELECT status FROM director_managed_outcomes ORDER BY id DESC LIMIT 1')->fetchColumn()==='cancel_uncertain','Cancellation acknowledgement/outcome never invented');
         if(in_array($mode,['running','usage_missing'],true))check(count($transport->calls)===8,'Delayed success fits full eight-request envelope');
+        if($mode==='env_execution'){
+            check($transport->calls[0][2]===$now+6&&$transport->inspections===3&&$clock->now===$now+2,'ENV controls actual HTTP deadline and polling interval/count, including final read');
+            check($attempt['expires']===$now+70&&(int)$db->query('SELECT expires_at FROM simulation_opportunities LIMIT 1')->fetchColumn()===$now+70,'ENV lease controls both opportunity and paid worker fencing');
+        }
         if($mode==='usage_missing')check($r['usage_uncertain']&&$db->query('SELECT state FROM ai_attempts LIMIT 1')->fetchColumn()==='uncertain','Three-poll completed turn saves without usage at any inspection');
     }
+    foreach($originalExecution as $key=>$value)putenv($value===false?$key:$key.'='.$value);
     // An exhausted scheduler process budget must refuse before any HTTP dispatch.
     define('LITTLE_SPARKS_SCHEDULED_DEADLINE',time()-1);
     $db=$stageFresh();$clock=new LifecycleClock();$now=$clock->now;$claim=LittleSparks\claimActivity($db,$at,$now);$cfg=LittleSparks\directorConfiguration();$registered=LittleSparks\registeredDirector($db,$cfg);

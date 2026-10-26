@@ -1,5 +1,7 @@
 # V3A: resident identities and the external Village Director
 
+> Current operations: see [the ENV limits audit](OPERATIONAL_LIMITS.md). Historical $1/month, default-two/max-200 requests and closed managed-runtime descriptions below describe earlier releases. Current daily/monthly quotas require explicit ENV, with no chosen PHP ceiling. Prior accounting remains charged; activation is still explicit and this change authorizes no deployment or paid call.
+
 SQLite gives each robot its identity and lifetime memories. The Village Director gives those memories a voice. Sessions are optional continuity helpers, not permanent brains.
 
 PR #10/#11 are merged/deployed. This reconciled PR isolates V3A from production V2E/SQLite V5 plus identity revision 1, adopts installed identities/audits unchanged, and prepares supervised synthetic staging. It does not install/enable a scheduler, migrate production, deploy, merge or authorize paid execution. V3B/V3C remain separate work.
