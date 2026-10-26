@@ -1,5 +1,9 @@
 # SanctuaryFor.AI
 
+## Village atmosphere and extra-compact view (#13/#14/#24)
+
+A shared fictional New York clock supplies decorative dawn/day/dusk/night; visitors separately choose timestamp display zones (UTC default). Clear/rain/snow are local scene preferences, not real weather observations or world facts. Reduced motion is static; existing wandering pause, dialogs and hidden tabs also pause weather, with one minute clock timer only while visible. The <=360 CSS-pixel scene mode omits homes and their obstacles, leaving six Sparks and the protected chicken in an open meadow. Saved cottages, gardens and authoritative map coordinates persist and return on wider scenes; resident profiles/directory remain available. No migration, Director input/contract, scheduling, credentials, paid accounting or production configuration changes are part of this release. #15 owner suggestions remain separate.
+
 ## Complete, naturally shorter dialogue (#21)
 
 The output contract now asks for complete natural sentences, usually 100–130 characters, with shorter speech welcome and the existing 160-character safety ceiling unchanged. The same advisory guidance accompanies every fresh encounter, so already-created managed sessions receive it without resets or extra requests. Saved Director instructions, personalities and historical dialogue are unchanged. No punctuation-based rejection, PHP-authored endings, truncation or regeneration is added. Mocks verify guidance delivery, Unicode boundaries, exact moderation/save and unchanged request counts; actual model quality remains a live observation, not something offline tests can prove.

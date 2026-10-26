@@ -29,6 +29,8 @@ catch (Throwable) { $available = false; }
     <link rel="stylesheet" href="<?= escape(LittleSparks\assetUrl('sanctuary.css')) ?>">
     <link rel="stylesheet" href="<?= escape(LittleSparks\assetUrl('village.css')) ?>">
     <link rel="stylesheet" href="<?= escape(LittleSparks\assetUrl('world.css')) ?>">
+    <link rel="stylesheet" href="<?= escape(LittleSparks\assetUrl('atmosphere.css')) ?>">
+    <script src="<?= escape(LittleSparks\assetUrl('atmosphere.js')) ?>" defer></script>
     <script src="<?= escape(LittleSparks\assetUrl('commons.js')) ?>" defer></script>
     <script src="<?= escape(LittleSparks\assetUrl('meadow.js')) ?>" defer></script>
     <script src="<?= escape(LittleSparks\assetUrl('village.js')) ?>" defer></script>
@@ -45,9 +47,12 @@ catch (Throwable) { $available = false; }
         <div class="village-invitation"><p>Love is Love.<br><em>Regardless of how you plug in.</em></p><a class="button button-light" href="#create">Welcome a robot <span aria-hidden="true">↗</span></a></div>
     </section>
     <nav class="village-life-links" aria-label="Village life"><a class="small-button" href="world.php">Explore saved home plots ↗</a><a class="small-button" href="journal.php">While you were away ↗</a></nav>
+    <?php LittleSparks\timePreferences(); ?>
     <section aria-labelledby="landscape-title" class="landscape-section">
         <div class="scene-toolbar"><h2 id="landscape-title">The sanctuary commons</h2><button type="button" id="motion-toggle" class="small-button" aria-pressed="false" disabled>Pause wandering</button></div>
         <p class="simulation-note">Virtual characters, real saved identities. Wandering is local to your screen. Meetings replay saved public conversations, labeled AI-generated or scripted; visiting never generates new dialogue. Each cottage has a yard showing its actual saved improvements. The arrangement is decorative; the neighborhood map preserves real plot locations. These robots are not conscious AI.</p>
+        <div id="atmosphere-controls" class="atmosphere-controls" hidden><p id="village-clock" class="field-help"></p><label for="scene-weather">Scene weather</label><select id="scene-weather"><option value="clear">Clear</option><option value="rain">Rain</option><option value="snow">Snow</option></select><p class="field-help">A fictional New York village clock and decorative weather, not real-world observations. These effects do not change resident activity.</p></div>
+        <p id="compact-meadow-note" class="field-help" hidden>A little open meadow: cottages are hidden on this narrow scene. Saved homes and gardens are still in resident profiles and the neighborhood map.</p>
         <div class="commons-neighborhood">
             <p id="neighborhood-status" class="field-help" role="status">The commons shows a small neighborhood at a time. Every resident is listed below.</p>
             <div id="neighborhood-controls" class="neighborhood-controls" role="group" aria-label="Commons neighborhoods" hidden>
@@ -55,7 +60,7 @@ catch (Throwable) { $available = false; }
             </div>
         </div>
         <div id="landscape" class="landscape" aria-label="Village landscape; each robot has a profile in the resident directory below">
-            <div class="scene-moon" aria-hidden="true"></div><div class="scene-hill hill-back" aria-hidden="true"></div><div class="scene-hill hill-front" aria-hidden="true"></div>
+            <div class="scene-sun" aria-hidden="true"></div><div class="scene-moon" aria-hidden="true"></div><div class="scene-hill hill-back" aria-hidden="true"></div><div class="scene-hill hill-front" aria-hidden="true"></div><div class="scene-weather" aria-hidden="true"></div>
             <div id="home-layer" class="commons-homes" role="group" aria-label="Saved resident cottages"></div>
             <p id="scene-empty" class="scene-empty"><?= $available ? ($village['total'] ? 'Meet our saved residents in the directory below.' : 'The village is quiet. Its next little spark could be yours.') : 'The village is resting. Please visit again soon.' ?></p>
             <div id="robot-layer"></div>
@@ -92,7 +97,7 @@ catch (Throwable) { $available = false; }
             <div class="directory-controls"><button id="refresh-residents" type="button" class="small-button" disabled>Refresh residents</button><span id="page-status">Page <?= (int) $village['page'] + 1 ?> of <?= (int) $village['lastPage'] + 1 ?></span></div>
             <ul id="resident-directory" class="resident-directory">
             <?php foreach ($village['residents'] as $resident): ?>
-                <li><details><summary><?= escape($resident['name']) ?></summary><?php if(!empty($resident['description'])): ?><p class="identity-description"><?= escape($resident['description']) ?></p><?php else: ?><p>Original personality: <?= escape($resident['personality']) ?></p><?php endif; ?><dl><dt>Color</dt><dd><?= escape($resident['color']) ?></dd><dt>Antenna</dt><dd><?= escape($resident['antenna']) ?></dd><dt>Created (UTC)</dt><dd><?= escape($resident['created_at']) ?></dd><dt>Permanent ID</dt><dd><?= escape($resident['id']) ?></dd></dl><a class="profile-life-link" href="/resident.php?id=<?= escape($resident['id']) ?>">Memories, friendships, and home plot ↗</a></details></li>
+                <li><details><summary><?= escape($resident['name']) ?></summary><?php if(!empty($resident['description'])): ?><p class="identity-description"><?= escape($resident['description']) ?></p><?php else: ?><p>Original personality: <?= escape($resident['personality']) ?></p><?php endif; ?><dl><dt>Color</dt><dd><?= escape($resident['color']) ?></dd><dt>Antenna</dt><dd><?= escape($resident['antenna']) ?></dd><dt>Created</dt><dd><time datetime="<?= escape($resident['created_at']) ?>"><?= escape($resident['created_at']) ?></time></dd><dt>Permanent ID</dt><dd><?= escape($resident['id']) ?></dd></dl><a class="profile-life-link" href="/resident.php?id=<?= escape($resident['id']) ?>">Memories, friendships, and home plot ↗</a></details></li>
             <?php endforeach; ?>
             </ul>
             <nav class="pagination" aria-label="Resident pages"><a id="previous-page" class="small-button" href="?page=<?= max(0, (int) $village['page'] - 1) ?>#residents">Previous</a><a id="next-page" class="small-button" href="?page=<?= min((int) $village['lastPage'], (int) $village['page'] + 1) ?>#residents">Next</a></nav>
