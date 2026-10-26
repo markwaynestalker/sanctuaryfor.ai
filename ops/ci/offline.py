@@ -8,6 +8,8 @@ import sys
 
 
 def main():
+    # Match the service's private-file policy, including copied SQLite fixtures.
+    os.umask(0o077)
     root = Path(__file__).resolve().parents[2]
     os.chdir(root)
     env = {k: v for k, v in os.environ.items()
