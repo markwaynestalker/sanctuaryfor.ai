@@ -3,7 +3,7 @@ import {spawn,spawnSync} from 'node:child_process';
 import {mkdtemp,mkdir,chmod,rm} from 'node:fs/promises';
 import {join,resolve,dirname} from 'node:path';import {tmpdir} from 'node:os';import {fileURLToPath} from 'node:url';import {createServer} from 'node:net';import {setTimeout as delay} from 'node:timers/promises';
 const root=resolve(dirname(fileURLToPath(import.meta.url)),'..'),php=process.env.PHP_BINARY||'php',dir=await mkdtemp(join(tmpdir(),'sparks-icon-colors-'));
-await chmod(dir,0o700);const env={...process.env,OPENAI_API_KEY:'',LITTLE_SPARKS_AI_ENABLED:'0',LITTLE_SPARKS_SIMULATION_ENABLED:'0',LITTLE_SPARKS_SCHEDULER_ENABLED:'0',LITTLE_SPARKS_SCHEDULER_ALLOW_PAID:'0'};let server;
+await chmod(dir,0o700);const env={...process.env,OPENAI_API_KEY:'',LITTLE_SPARKS_AI_DAILY_REQUESTS:'2',LITTLE_SPARKS_AI_MONTHLY_MICROUSD:'1000000',LITTLE_SPARKS_AI_ENABLED:'0',LITTLE_SPARKS_SIMULATION_ENABLED:'0',LITTLE_SPARKS_SCHEDULER_ENABLED:'0',LITTLE_SPARKS_SCHEDULER_ALLOW_PAID:'0'};let server;
 const run=(args,extra={})=>{const r=spawnSync(php,args,{cwd:root,env:{...env,...extra},encoding:'utf8'});assert.equal(r.status,0,r.stderr||r.error?.message);return r.stdout;};
 try{
  run(['tests/icon-colors-fixture.php',dir,'create']);const core=JSON.parse(run(['tests/identity-core.php',dir]));

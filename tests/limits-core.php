@@ -13,13 +13,18 @@ function applyClaim(PDO $db,array $claim,int $now,string $outcome='conversation'
 }
 try{
     $dir=$argv[1]??'';check(is_dir($dir)&&str_starts_with(basename($dir),'little-sparks-limits-test-'),'Disposable fixtures only');
+    putenv('LITTLE_SPARKS_ACTIVITY_CANDIDATES');putenv('LITTLE_SPARKS_RESIDENT_FRIENDSHIP_MAX');
     $keys=['LITTLE_SPARKS_ACTIVITY_DAILY_MAX','LITTLE_SPARKS_RESIDENT_DAILY_MAX','LITTLE_SPARKS_RESIDENT_CONVERSATION_COOLDOWN_SECONDS','LITTLE_SPARKS_PAIR_CONVERSATION_COOLDOWN_SECONDS','LITTLE_SPARKS_MEADOW_REPLAY_COOLDOWN_SECONDS'];foreach($keys as $key)putenv($key);
-    check(LittleSparks\activityConfiguration()===['daily_opportunities'=>100,'resident_daily'=>12,'resident_cooldown'=>0,'pair_cooldown'=>0]&&LittleSparks\replayCooldownSeconds()===60,'Existing defaults preserved');
-    $bounds=[1000,100,86400,604800,3600];
+    check(LittleSparks\activityConfiguration()===['daily_opportunities'=>100,'resident_daily'=>12,'candidates'=>64,'resident_cooldown'=>0,'pair_cooldown'=>0]&&LittleSparks\replayCooldownSeconds()===60,'Existing defaults preserved');
+    $bounds=[PHP_INT_MAX,PHP_INT_MAX,86400,604800,3600];
     foreach($keys as $i=>$key){
         foreach(['0',(string)$bounds[$i]] as $value){putenv($key.'='.$value);$cfg=$i===4?LittleSparks\replayCooldownSeconds():LittleSparks\activityConfiguration();check($cfg!==null,'Boundary accepted for '.$key);}
-        foreach(['','-1','+1','1.5','1e3',' 2','2 ','01','99999999999999999','unlimited',(string)($bounds[$i]+1)] as $value){putenv($key.'='.$value);try{$i===4?LittleSparks\replayCooldownSeconds():LittleSparks\activityConfiguration();throw new LogicException('Invalid limit accepted');}catch(LittleSparks\Problem $e){check($e->status===503,'Invalid configuration fails closed');}}
+        foreach(['','-1','+1','1.5','1e3',' 2','2 ','01','999999999999999999999','unlimited',($bounds[$i]===PHP_INT_MAX?(string)PHP_INT_MAX.'0':(string)($bounds[$i]+1))] as $value){putenv($key.'='.$value);try{$i===4?LittleSparks\replayCooldownSeconds():LittleSparks\activityConfiguration();throw new LogicException('Invalid limit accepted');}catch(LittleSparks\Problem $e){check($e->status===503,'Invalid configuration fails closed');}}
         putenv($key);
+    }
+    foreach(['LITTLE_SPARKS_ACTIVITY_CANDIDATES'=>[2,10000],'LITTLE_SPARKS_RESIDENT_FRIENDSHIP_MAX'=>[0,PHP_INT_MAX]] as $key=>[$min,$max]){
+        foreach([$min,$max] as $v){putenv($key.'='.$v);check(($key==='LITTLE_SPARKS_ACTIVITY_CANDIDATES'?LittleSparks\activityConfiguration()['candidates']:LittleSparks\residentFriendshipLimit())===$v,'Candidate/friendship ENV boundary accepted');}
+        putenv($key.'=-1');try{$key==='LITTLE_SPARKS_ACTIVITY_CANDIDATES'?LittleSparks\activityConfiguration():LittleSparks\residentFriendshipLimit();throw new LogicException('Invalid population bound accepted');}catch(LittleSparks\Problem){}putenv($key);
     }
     $m=LittleSparks\memoryConfiguration();check($m['candidates']===32&&$m['select']===4&&$m['recent_conversations']===2&&$m['shared_context']===4&&$m['legacy_context']===3,'Retrieval defaults preserved');
     foreach(['CANDIDATES'=>[1,64],'RECENT_CONVERSATIONS'=>[0,4],'SHARED_CONTEXT'=>[0,8],'LEGACY_CONTEXT'=>[0,4]] as $setting=>[$min,$max]){
@@ -37,6 +42,7 @@ try{
     putenv('LITTLE_SPARKS_RESIDENT_DAILY_MAX=1');$db=$fresh('two');$first=LittleSparks\claimActivity($db,$at(1),$now);applyClaim($db,$first,$now);$second=LittleSparks\claimActivity($db,$at(2),$now);check($second['pair']===[],'Resident ceiling excludes already-used residents');applyClaim($db,$second,$now);
     putenv('LITTLE_SPARKS_RESIDENT_DAILY_MAX=2');$third=LittleSparks\claimActivity($db,$at(3),$now);check(count($third['pair'])===2,'Changing resident limit takes effect without code changes');applyClaim($db,$third,$now);putenv('LITTLE_SPARKS_RESIDENT_DAILY_MAX');
     $db=$fresh();$first=LittleSparks\claimActivity($db,$at(1),$now);applyClaim($db,$first,$now);[$a,$b]=array_column($first['pair'],'id');
+    putenv('LITTLE_SPARKS_RESIDENT_FRIENDSHIP_MAX=0');check(LittleSparks\hasSocialRoom($db,$a,$b),'Lower friendship cap preserves existing pairs');$other=$db->query("SELECT id FROM residents WHERE id NOT IN ('$a','$b')")->fetchColumn();check(!LittleSparks\hasSocialRoom($db,$a,$other),'Zero configured friendship cap prevents a new pair');putenv('LITTLE_SPARKS_RESIDENT_FRIENDSHIP_MAX=20');check(LittleSparks\hasSocialRoom($db,$a,$other),'ENV change allows a new friendship without code changes');putenv('LITTLE_SPARKS_RESIDENT_FRIENDSHIP_MAX');
     putenv('LITTLE_SPARKS_RESIDENT_CONVERSATION_COOLDOWN_SECONDS=60');check(!LittleSparks\conversationCooldownAllows($db,$a,$b,LittleSparks\activityConfiguration(),$now+59),'Resident cooldown active before boundary');check(LittleSparks\conversationCooldownAllows($db,$a,$b,LittleSparks\activityConfiguration(),$now+60),'Resident cooldown expires exactly at boundary');
     $cooling=LittleSparks\claimActivity($db,$at(2),$now);check(count($cooling['pair'])===1,'Cooling neighbors allow solitary activity, not a new conversation');applyClaim($db,$cooling,$now);putenv('LITTLE_SPARKS_RESIDENT_CONVERSATION_COOLDOWN_SECONDS');
     putenv('LITTLE_SPARKS_PAIR_CONVERSATION_COOLDOWN_SECONDS=60');check(!LittleSparks\conversationCooldownAllows($db,$a,$b,LittleSparks\activityConfiguration(),$now+59)&&LittleSparks\conversationCooldownAllows($db,$b,$a,LittleSparks\activityConfiguration(),$now+60),'Pair cooldown is symmetric and boundary-safe');

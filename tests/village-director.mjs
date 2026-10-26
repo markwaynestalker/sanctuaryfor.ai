@@ -5,7 +5,7 @@ import {createServer} from 'node:net';
 import {setTimeout as delay} from 'node:timers/promises';
 import {tmpdir} from 'node:os';import {join,resolve,dirname} from 'node:path';import {fileURLToPath} from 'node:url';
 const root=resolve(dirname(fileURLToPath(import.meta.url)),'..'),dir=await mkdtemp(join(tmpdir(),'little-sparks-memory-test-director-')),php=process.env.PHP_BINARY||'php';
-const env={...process.env,OPENAI_API_KEY:'',LITTLE_SPARKS_AI_ENABLED:'0',LITTLE_SPARKS_SIMULATION_ENABLED:'0',LITTLE_SPARKS_DIRECTOR_ENABLED:'0'};let server;
+const env={...process.env,OPENAI_API_KEY:'',LITTLE_SPARKS_AI_DAILY_REQUESTS:'2',LITTLE_SPARKS_AI_MONTHLY_MICROUSD:'1000000',LITTLE_SPARKS_AI_ENABLED:'0',LITTLE_SPARKS_SIMULATION_ENABLED:'0',LITTLE_SPARKS_DIRECTOR_ENABLED:'0'};let server;
 await chmod(dir,0o700);
 try{
  const result=spawnSync(php,['tests/director-core.php',dir],{cwd:root,encoding:'utf8',env});

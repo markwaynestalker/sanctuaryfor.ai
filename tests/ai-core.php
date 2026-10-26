@@ -94,7 +94,8 @@ try{
     $today=gmdate('Y-m-d');$yesterday=gmdate('Y-m-d',time()-86400);
     putenv('LITTLE_SPARKS_AI_PRICING_CONFIRMED='.LittleSparks\AI_PRICING_VERSION);putenv('LITTLE_SPARKS_AI_MODEL=gpt-6-luna');putenv('LITTLE_SPARKS_AI_MONTHLY_MICROUSD=1000000');
     putenv('LITTLE_SPARKS_AI_DAILY_REQUESTS');
-    check(LittleSparks\aiConfiguration(time())['daily_requests']===2,'Unset daily ceiling defaults to two');
+    try{LittleSparks\aiConfiguration(time());throw new LogicException('Missing daily allowance accepted');}catch(LittleSparks\AiGuard $e){check($e->reason==='configuration_invalid','Unset daily allowance fails closed without a PHP default');}
+    putenv('LITTLE_SPARKS_AI_DAILY_REQUESTS=2');
     $db=$fresh();$mock=new MockOpenAi();$result=LittleSparks\simulateOptionalAiDay($db,$today,true,$mock);
     check(!$mock->calls&&$result['provider']==='scripted','Disabled provider falls back with zero calls');
     $historical=LittleSparks\simulateOptionalAiDay($db,'2000-01-01',true,$mock);check($historical['replayed']&&!$mock->calls,'Historical completed periods replay without spending');
@@ -126,7 +127,7 @@ try{
     check($actionResult['status']==='completed'&&$actionMock->selectedAction==='plant_flowers','Eligible proposed action completes');
     check((int)$actionDb->query("SELECT COUNT(*) FROM world_objects WHERE kind='flowers'")->fetchColumn()===1,'AI action saves exactly one new flower object');
     echo "PASS disabled/manual activation, Responses contract, bounded context, moderated dialogue, memory/action persistence, accounting, replay and daily cap\n";
-    foreach(['0','1','','-1','+2','2.5','1e2',' 2','2 ','201','999999999999999999999','unlimited','02'] as $value){
+    foreach(['0','1','','-1','+2','2.5','1e2',' 2','2 ','999999999999999999999','unlimited','02'] as $value){
         putenv('LITTLE_SPARKS_AI_DAILY_REQUESTS='.$value);
         $db=$fresh();$mock=new MockOpenAi();$result=LittleSparks\simulateOptionalAiDay($db,$today,true,$mock);
         $reason=in_array($value,['0','1'],true)?'daily_request_cap':'configuration_invalid';
@@ -135,7 +136,7 @@ try{
         $status=json_decode(cli('ai-status.php',['--database='.$directory.'/case-'.$counter.'.sqlite']),true,512,JSON_THROW_ON_ERROR);
         check($status['configured_daily_requests']===(in_array($value,['0','1'],true)?(int)$value:null),'Status reports validated daily limit without secrets');
     }
-    putenv('LITTLE_SPARKS_AI_DAILY_REQUESTS=200');check(LittleSparks\aiConfiguration(time())['daily_requests']===200,'Conservative maximum accepted');
+    putenv('LITTLE_SPARKS_AI_DAILY_REQUESTS='.(string)PHP_INT_MAX);check(LittleSparks\aiConfiguration(time())['daily_requests']===PHP_INT_MAX,'Largest representable explicit integer accepted without an operational ceiling');
     $db=$fresh();$pair=LittleSparks\selectAiPair($db,$today);
     $usage=['model'=>'gpt-6-luna','service_tier'=>'default','usage'=>['input_tokens'=>100,'output_tokens'=>10,'total_tokens'=>110]];
     putenv('LITTLE_SPARKS_AI_DAILY_REQUESTS=2');$config=LittleSparks\aiConfiguration(time());
@@ -153,7 +154,7 @@ try{
     putenv('LITTLE_SPARKS_AI_DAILY_REQUESTS=2');
     try{LittleSparks\reserveAi($db,gmdate('Y-m-d',time()-2*86400),$pair,LittleSparks\aiConfiguration(time()),time());throw new LogicException('Lowered ceiling ignored');}
     catch(LittleSparks\AiGuard $error){check($error->reason==='daily_request_cap','Lowering the ceiling preserves existing reservations');}
-    echo "PASS configurable daily ceiling: unset/default, zero, invalid/oversized input, odd limits, environment changes, reservation retention, status and same-period replay\n";
+    echo "PASS configurable daily ceiling: explicit/unset-invalid, zero, invalid/oversized input, odd limits, environment changes, reservation retention, status and same-period replay\n";
     foreach(['invalid_action','markup','extra','key_text','incomplete','refusal','flagged','moderation_missing','moderation_timeout','lease_expired','missing_usage','zero_usage','over_usage','missing_tier','wrong_model','timeout','collision','overlap'] as $mode){
         $db=$fresh($mode==='collision'?$directory.'/action-template.sqlite':null);$mock=new MockOpenAi($mode,$db);$snapshot=stateDigest($db);$result=LittleSparks\simulateOptionalAiDay($db,$today,true,$mock);
         if($mode==='overlap'){check($result['status']==='completed','Lease prevents overlap without blocking owning run');continue;}
@@ -169,7 +170,7 @@ try{
         }
     }
     echo "PASS invalid/tool-like/HTML/refused/flagged output, missing usage/tier/model, timeouts, expired lease, collisions, overlap and rollback (no paid calls)\n";
-    foreach([['LITTLE_SPARKS_AI_MONTHLY_MICROUSD','0','monthly_budget_cap'],['LITTLE_SPARKS_AI_MONTHLY_MICROUSD','1000001','configuration_invalid'],['LITTLE_SPARKS_AI_MODEL','unknown-model','model_unpriced'],['LITTLE_SPARKS_AI_PRICING_CONFIRMED','stale','pricing_unverified'],['LITTLE_SPARKS_AI_MAX_OUTPUT_TOKENS','513','configuration_invalid']] as [$setting,$value,$reason]){
+    foreach([['LITTLE_SPARKS_AI_MONTHLY_MICROUSD','0','monthly_budget_cap'],['LITTLE_SPARKS_AI_MONTHLY_MICROUSD','999999999999999999999','configuration_invalid'],['LITTLE_SPARKS_AI_MODEL','unknown-model','model_unpriced'],['LITTLE_SPARKS_AI_PRICING_CONFIRMED','stale','pricing_unverified'],['LITTLE_SPARKS_AI_MAX_OUTPUT_TOKENS','1000000001','configuration_invalid']] as [$setting,$value,$reason]){
         putenv('LITTLE_SPARKS_AI_MONTHLY_MICROUSD=1000000');putenv('LITTLE_SPARKS_AI_MODEL=gpt-6-luna');putenv('LITTLE_SPARKS_AI_PRICING_CONFIRMED='.LittleSparks\AI_PRICING_VERSION);putenv('LITTLE_SPARKS_AI_MAX_OUTPUT_TOKENS=512');putenv($setting.'='.$value);
         $db=$fresh();$mock=new MockOpenAi();$result=LittleSparks\simulateOptionalAiDay($db,$today,true,$mock);check(!$mock->calls&&$result['ai_blocked']===$reason,'Fail closed for '.$setting);
     }

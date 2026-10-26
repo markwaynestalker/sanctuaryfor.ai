@@ -124,12 +124,14 @@ function stagingItems(array $items,string $turn,?string &$failureStage=null):arr
 function stagingManagedEncounter(PDO $db,DirectorTransport $transport,array $attempt,array $session,array $registered,array $prepared,array $choices,?callable $clock=null,?callable $pause=null,bool $conversationOnly=true,bool $reuse=false):array
 {
     $clock??=static fn()=>time();$pause??=static fn(int $seconds)=>usleep($seconds*1000000);$sid=null;$turnId=null;$terminal=false;$calls=0;
-    $finishBy=min($attempt['expires']-15,$clock()+45,defined('LITTLE_SPARKS_SCHEDULED_DEADLINE')?constant('LITTLE_SPARKS_SCHEDULED_DEADLINE'):PHP_INT_MAX);
-    $pollBy=$finishBy-15; // Preserve retrieval, moderation, commit and cleanup time.
-    $request=function(string $method,string $path,?array $body=null,?string $key=null,?string $kind=null,bool $recovery=false)use($db,$transport,$attempt,$clock,$finishBy,$pollBy,&$calls):array{
+    $execution=directorExecutionConfiguration();
+    $finishBy=min($attempt['expires']-$execution['finish_reserve_seconds'],$clock()+$execution['run_seconds'],defined('LITTLE_SPARKS_SCHEDULED_DEADLINE')?constant('LITTLE_SPARKS_SCHEDULED_DEADLINE'):PHP_INT_MAX);
+    $pollBy=$finishBy-$execution['finish_reserve_seconds']; // Preserve retrieval, moderation, commit and cleanup time.
+    $request=function(string $method,string $path,?array $body=null,?string $key=null,?string $kind=null,bool $recovery=false)use($db,$transport,$attempt,$clock,$finishBy,$pollBy,$execution,&$calls):array{
         $progress=$method==='GET'&&str_contains($path,'/turns?')&&!$recovery;
-        $deadline=$recovery?min($clock()+3,$finishBy-1):($progress?min($clock()+4,$pollBy):min($clock()+8,str_contains($path,'/items?')||$path==='moderations'?$finishBy-3:$pollBy));
-        if($clock()>=$deadline||$calls>=8||(!$recovery&&$calls>=7))throw new AiGuard('daily_request_cap');$calls++;
+        $deadline=$recovery?min($clock()+$execution['cleanup_timeout_seconds'],$finishBy-1):($progress?min($clock()+$execution['poll_timeout_seconds'],$pollBy):min($clock()+$execution['http_timeout_seconds'],str_contains($path,'/items?')||$path==='moderations'?$finishBy-3:$pollBy));
+        if($clock()>=$deadline)throw new AiGuard('execution_deadline');
+        if($calls>=8||(!$recovery&&$calls>=7))throw new AiGuard('encounter_request_cap');$calls++;
         $n=startManagedHttp($db,$attempt,$method,$path,$kind);
         try{$r=$transport->request($method,$path,$body,$deadline,$key);finishManagedHttp($db,$attempt,$n,$r['_http']??[]);unset($r['_http']);return $r;}
         catch(\Throwable $e){finishManagedHttp($db,$attempt,$n,$e instanceof ManagedHttpFailure?['status'=>$e->status,'request_id'=>$e->requestId,'succeeded'=>false,'validation'=>$e->validation]:null);throw $e;}
@@ -149,8 +151,8 @@ function stagingManagedEncounter(PDO $db,DirectorTransport $transport,array $att
             $db->prepare("UPDATE director_sessions SET provider_session_id=?,state='uncertain' WHERE id=?")->execute([$sid,$session['id']]);assertManagedSession($remote,$registered,$sid,false);
             $remote=$request('GET','agents/sessions/'.$sid);assertManagedSession($remote,$registered,$sid,false);
         }
-        for($i=1;$i<=3;$i++){
-            if($i>1){if($clock()+4>=$pollBy)break;$pause(4);}
+        for($i=1;$i<=$execution['poll_max_reads'];$i++){
+            if($i>1){if($clock()+$execution['poll_interval_seconds']>=$pollBy)break;$pause($execution['poll_interval_seconds']);}
             if($clock()>=$pollBy)break;
             $page=$request('GET','agents/sessions/'.$sid.'/turns?limit=1&order=desc',null,null,'turns_'.$i);
             // Creation/submission may be visible before its first turn is published.

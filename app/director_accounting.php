@@ -70,7 +70,7 @@ function startManagedHttp(PDO $db,array $attempt,string $method,string $path,?st
     try{
         assertSimulationLease($db,$attempt['id']);if(gmdate('Y-m-d')!==$attempt['day']||time()>=$attempt['expires'])throw new AiGuard('day_boundary');
         $q=$db->prepare("SELECT request_slots,started_requests,state FROM director_attempts WHERE id=? AND runtime='agents'");$q->execute([$attempt['id']]);$row=$q->fetch();
-        if(!$row||$row['state']!=='reserved'||(int)$row['started_requests']>=(int)$row['request_slots'])throw new AiGuard('daily_request_cap');
+        if(!$row||$row['state']!=='reserved'||(int)$row['started_requests']>=(int)$row['request_slots'])throw new AiGuard('encounter_request_cap');
         $q=$db->prepare('SELECT 1 FROM director_http_calls WHERE attempt_id=? AND kind=?');$q->execute([$attempt['id'],$kind]);if($q->fetchColumn())throw new AiGuard('request_already_started');
         $sequence=(int)$row['started_requests']+1;
         $db->prepare("INSERT INTO director_http_calls(attempt_id,sequence,kind,method,path_sha256,outcome,started_at) VALUES (?,?,?,?,?,'started',?)")
@@ -100,7 +100,7 @@ function observeManagedUsage(PDO $db,array $attempt,string $turn,mixed $usage,ar
     $cached=is_array($usage)?($usage['input_tokens_details']['cached_tokens']??0):0;$reasoning=is_array($usage)?($usage['output_tokens_details']['reasoning_tokens']??0):0;
     $measurable=$measurable&&is_int($cached)&&is_int($reasoning)&&$cached>=0&&$cached<=$usage['input_tokens']&&$reasoning>=0&&$reasoning<=$usage['output_tokens'];
     $cost=$measurable?estimatedAiCost($usage['input_tokens'],$usage['output_tokens'],$pricing['input_rate'],$pricing['output_rate']):null;
-    $valid=$measurable&&$usage['input_tokens']>0&&$usage['input_tokens']<=AI_INPUT_CEILING&&$usage['output_tokens']>0&&$usage['output_tokens']<=$pricing['max_output'];
+    $valid=$measurable&&$usage['input_tokens']>0&&$usage['input_tokens']<=aiInputTokenLimit()&&$usage['output_tokens']>0&&$usage['output_tokens']<=$pricing['max_output'];
     if($cost!==null&&$cost>$attempt['reserved'])$valid=false;
     $db->prepare('INSERT INTO director_usage_observations(attempt_id,turn_id,input_tokens,output_tokens,cached_tokens,reasoning_tokens,estimated_microusd,status,observed_at) VALUES (?,?,?,?,?,?,?,?,?)')
         ->execute([$attempt['id'],$turn,$measurable?$usage['input_tokens']:null,$measurable?$usage['output_tokens']:null,$measurable?$cached:null,$measurable?$reasoning:null,$cost,$valid?'observed':'unknown',gmdate('Y-m-d\TH:i:s\Z')]);

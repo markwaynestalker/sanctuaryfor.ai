@@ -1,5 +1,7 @@
 # Little Sparks V2C: a living village
 
+> Current operations: see [the ENV limits audit](OPERATIONAL_LIMITS.md). Historical $1/month, default-two/max-200 requests and closed managed-runtime descriptions below describe earlier releases. Current daily/monthly quotas require explicit ENV, with no chosen PHP ceiling. Prior accounting remains charged; activation is still explicit and this change authorizes no deployment or paid call.
+
 V2C adds persistent opportunities throughout a day. Robots remain delightful virtual characters; their dialogue and activities are simulated, not evidence of consciousness. Love is Love. Regardless of how you plug in. And the chickens are protected. Always.
 
 This is a review-only code release. No production migration, secret provisioning, service installation, paid activation, live API call or deployment is included. V2/V3 browsing, resident creation, private links and legacy daily simulation remain functional before an explicitly approved V4 migration.

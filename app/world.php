@@ -149,7 +149,8 @@ function hasSocialRoom(PDO $db, string $a, string $b): bool
 {
     if (pair($db,$a,$b)) return true;
     $query=$db->prepare('SELECT COUNT(*) FROM relationships WHERE resident_a=? OR resident_b=?');
-    foreach ([$a,$b] as $id) { $query->execute([$id,$id]); if ((int)$query->fetchColumn()>=8) return false; }
+    $maximum=residentFriendshipLimit();
+    foreach ([$a,$b] as $id) { $query->execute([$id,$id]); if ((int)$query->fetchColumn()>=$maximum) return false; }
     return true;
 }
 

@@ -1,5 +1,7 @@
 # V3A supervised staging experiment — implementation and approval boundary
 
+> Current operations: see [the ENV limits audit](OPERATIONAL_LIMITS.md). Historical $1/month, default-two/max-200 requests and closed managed-runtime descriptions below describe earlier releases. Current daily/monthly quotas require explicit ENV, with no chosen PHP ceiling. Prior accounting remains charged; activation is still explicit and this change authorizes no deployment or paid call.
+
 **Current operational review:** [STAGING_ENCOUNTER_APPROVAL.md](STAGING_ENCOUNTER_APPROVAL.md) supersedes the pending-access status and old paid-command example below. Owner-run agent retrieval passed; both October 25 UTC request reservations are retained (2/2 used). The updated paid CLI requires hash-pinned receipt reconciliation and a later UTC day. The proposed eight-slot/$0.10 synthetic experiment still needs Linux offline results, exact permit review and explicit research-risk approval; no paid execution is authorized. The current saved-agent tier is not literal default; session-local default override and rejection/cancellation tests preserve the restriction without editing the shared Director.
 
 PR #10/#11 are merged/deployed, as confirmed by the owner: Toronto runs PHP 8.3.6, SQLite V5 plus identity revision 1, six preserved residents, working owner-written personalities/colors and an inactive village timer. PR #9 is reconciled onto main. Production was not accessed while preparing this work.

@@ -1,5 +1,7 @@
 # Little Sparks V2B: optional OpenAI simulation provider
 
+> Current operations: see [the ENV limits audit](OPERATIONAL_LIMITS.md). Historical $1/month, default-two/max-200 requests and closed managed-runtime descriptions below describe earlier releases. Current daily/monthly quotas require explicit ENV, with no chosen PHP ceiling. Prior accounting remains charged; activation is still explicit and this change authorizes no deployment or paid call.
+
 This guide describes V3 daily runs. After an explicitly approved V4 migration, use the [V2C opportunity runner and operations guide](LITTLE_SPARKS_V2C.md) for new activity; V3 dates remain replayable. V2B's model/pricing, budget and secure CLI-key guidance still applies.
 
 This release adds an optional AI dialogue provider, persistent individual preferences, bounded public context, moderated original exchanges, and one validated world-action proposal per generated encounter. It does **not** add visitor chat, arbitrary public prompts, accounts, recurring jobs, deployment, or automatic paid activation. The robots remain virtual characters, not conscious beings. The V2A scripted provider remains available on V2 and V3 databases.

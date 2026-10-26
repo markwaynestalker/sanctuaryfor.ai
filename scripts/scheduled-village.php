@@ -1,11 +1,12 @@
 <?php
 declare(strict_types=1);
 if(PHP_SAPI!=='cli'){http_response_code(404);exit;}
-// Leave five seconds beneath the deployed TimeoutStartSec=50s for process cleanup.
-define('LITTLE_SPARKS_SCHEDULED_DEADLINE',time()+45);
+$processStarted=time();
 require __DIR__.'/../app/village.php';require __DIR__.'/../app/activity.php';require __DIR__.'/../app/scheduler.php';
 $previousKey=getenv('OPENAI_API_KEY');
 try{
+    // Configuration must fit the installed 50-second unit; retain cleanup fencing.
+    define('LITTLE_SPARKS_SCHEDULED_DEADLINE',$processStarted+LittleSparks\directorExecutionConfiguration()['run_seconds']);
     $options=getopt('',['check']);$cfg=LittleSparks\schedulerConfiguration();
     // Reject invalid bounds before any credential access, claim or HTTP dispatch.
     $interval=LittleSparks\simulationInterval();LittleSparks\activityConfiguration();LittleSparks\memoryConfiguration();LittleSparks\aiDailyRequestLimit();LittleSparks\aiMonthlyBudget();LittleSparks\aiOutputTokenLimit();LittleSparks\replayCooldownSeconds();

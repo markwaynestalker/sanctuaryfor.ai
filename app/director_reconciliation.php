@@ -56,7 +56,7 @@ function inspectDirectorProvider(PDO $db,string $id,string $inspection,?Director
         if((int)$q->fetchColumn()!==1)throw new AiGuard('session_ambiguous');
         $day=gmdate('Y-m-d');$q=$db->prepare('SELECT COALESCE(SUM(request_slots),0) FROM ai_attempts WHERE day=?');$q->execute([$day]);$used=(int)$q->fetchColumn();
         $q=$db->prepare('SELECT COALESCE(SUM(request_slots-2),0) FROM director_attempts WHERE day=?');$q->execute([$day]);$used+=(int)$q->fetchColumn()+directorAccessReservedRequests($db,$day);
-        if($used+3>aiDailyRequestLimit())throw new AiGuard('daily_request_cap');
+        if($used>aiDailyRequestLimit()-3)throw new AiGuard('daily_request_cap');
         for($n=1;$n<=3;$n++){$key=substr(hash('sha256',$inspection.':'.$n),0,32);appendReconciliation($db,'director_access_request:'.$key,
             ['check_id'=>$key,'day'=>$day,'http_requests_reserved'=>1,'purpose'=>'director_reconciliation','method'=>'GET','attempt_id'=>$id,'inspection_id'=>$inspection]);}
         appendReconciliation($db,$prefix.':started',['attempt_id'=>$id,'session_id'=>$sid,'snapshot_sha256'=>$local['snapshot_sha256'],'day'=>$day,'http_requests_reserved'=>3,'generation_requests'=>0,'at'=>time()]);
@@ -121,7 +121,9 @@ function resolveDirectorInspection(PDO $db,string $id,string $inspection,string 
         $commitment=max((int)$a['reserved_microusd'],(int)($a['estimated_microusd']??0),$amount,(int)$report['observed_estimate_microusd']);
         foreach($local['records']['director_usage_observations'] as $o)$commitment=max($commitment,(int)($o['estimated_microusd']??0));
         foreach($local['records']['director_billing_reviews'] as $r)$commitment=max($commitment,(int)$r['commitment_microusd']);
-        $total=aiCommittedTotal($db,$a['month'],$id)+$commitment;$within=$total<=min(AI_MONTHLY_CAP,aiMonthlyBudget());$state=$within?'rejected':'uncertain';
+        $other=aiCommittedTotal($db,$a['month'],$id);
+        if($other>PHP_INT_MAX-$commitment)throw new AiGuard('configuration_invalid');
+        $total=$other+$commitment;$within=$total<=aiMonthlyBudget();$state=$within?'rejected':'uncertain';
         recordManagedOutcome($db,['id'=>$id],$report['session_id'],$report['turn_id'],$report['turn_status']);
         $u=$report['session_usage'];$db->prepare("INSERT INTO director_usage_observations(attempt_id,turn_id,input_tokens,output_tokens,cached_tokens,reasoning_tokens,estimated_microusd,status,observed_at) VALUES (?,?,?,?,?,?,?,'observed',?)")
             ->execute([$id,$report['turn_id'],$u['input_tokens'],$u['output_tokens'],$u['cached_tokens'],$u['reasoning_tokens'],$report['observed_estimate_microusd'],gmdate('Y-m-d\TH:i:s\Z')]);

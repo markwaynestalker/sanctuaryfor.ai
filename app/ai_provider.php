@@ -16,11 +16,12 @@ final class OpenAiTransport implements AiTransport
         $key=getenv('OPENAI_API_KEY');
         if(!is_string($key)||$key===''||strlen($key)>512||preg_match('/[\r\n]/',$key))throw new AiGuard('transport_uncertain');
         $encoded=json_encode($body,JSON_THROW_ON_ERROR|JSON_UNESCAPED_UNICODE);
-        if(strlen($encoded)>AI_BODY_BYTES)throw new AiGuard('transport_uncertain');
+        if(strlen($encoded)>aiRequestByteLimit())throw new AiGuard('transport_uncertain');
         $curl=curl_init('https://api.openai.com/v1/'.$endpoint);$response='';
+        $http=aiHttpConfiguration();
         curl_setopt_array($curl,[CURLOPT_POST=>true,CURLOPT_POSTFIELDS=>$encoded,
             CURLOPT_HTTPHEADER=>['Content-Type: application/json','Authorization: Bearer '.$key],
-            CURLOPT_CONNECTTIMEOUT=>5,CURLOPT_TIMEOUT=>max(1,min(15,$deadline-time())),
+            CURLOPT_CONNECTTIMEOUT=>$http['connect_seconds'],CURLOPT_TIMEOUT=>max(1,min($http['timeout_seconds'],$deadline-time())),
             CURLOPT_FOLLOWLOCATION=>false,CURLOPT_PROTOCOLS=>CURLPROTO_HTTPS,
             CURLOPT_SSL_VERIFYPEER=>true,CURLOPT_SSL_VERIFYHOST=>2,CURLOPT_VERBOSE=>false,
             CURLOPT_WRITEFUNCTION=>static function($handle,string $chunk)use(&$response):int{
@@ -149,7 +150,7 @@ function aiRequestBody(array $config,array $context): array
         'input'=>json_encode($context,JSON_THROW_ON_ERROR|JSON_UNESCAPED_UNICODE),
         'text'=>['format'=>['type'=>'json_schema','name'=>'little_sparks_encounter','strict'=>true,'schema'=>aiProposalSchema()]]];
     $body['instructions'].=' Dialogue must contain only natural speech: no speaker labels, names, role prefixes, A: or B:. The application identifies each speaker.';
-    if(strlen(json_encode($body,JSON_THROW_ON_ERROR|JSON_UNESCAPED_UNICODE))>AI_BODY_BYTES)throw new AiGuard('configuration_invalid');
+    if(strlen(json_encode($body,JSON_THROW_ON_ERROR|JSON_UNESCAPED_UNICODE))>aiRequestByteLimit())throw new AiGuard('configuration_invalid');
     return $body;
 }
 

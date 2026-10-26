@@ -125,7 +125,7 @@ try{
         foreach(['relationships','conversations','messages','world_objects','memories','events'] as $t)check(originalRows($db)[$t]===$oldData[$t],'No partial effects for '.$mode);
     }
     foreach(['','-1','999999','1.5'] as $invalid){putenv('LITTLE_SPARKS_MEMORY_SELECT='.$invalid);$db=$fresh();$mock=new MemoryMock();try{LittleSparks\simulateOpportunity($db,$at,true,$mock);throw new LogicException('Invalid memory setting accepted');}catch(LittleSparks\Problem){}check(!$mock->calls,'Invalid settings block before dispatch');}putenv('LITTLE_SPARKS_MEMORY_SELECT');
-    foreach([['LITTLE_SPARKS_AI_DAILY_REQUESTS','0','daily_request_cap'],['LITTLE_SPARKS_AI_MONTHLY_MICROUSD','0','monthly_budget_cap'],['LITTLE_SPARKS_AI_MONTHLY_MICROUSD','1000001','configuration_invalid']] as [$key,$value,$reason]){
+    foreach([['LITTLE_SPARKS_AI_DAILY_REQUESTS','0','daily_request_cap'],['LITTLE_SPARKS_AI_MONTHLY_MICROUSD','0','monthly_budget_cap'],['LITTLE_SPARKS_AI_MONTHLY_MICROUSD','999999999999999999999','configuration_invalid']] as [$key,$value,$reason]){
         putenv('LITTLE_SPARKS_AI_DAILY_REQUESTS=200');putenv('LITTLE_SPARKS_AI_MONTHLY_MICROUSD=1000000');putenv($key.'='.$value);$db=$fresh();$mock=new MemoryMock();$result=LittleSparks\simulateOpportunity($db,$at,true,$mock);check(!$mock->calls&&$result['ai_blocked']===$reason,'Existing spending protection remains '.$reason);
     }
     echo "PASS V5 mocked provider, safe factual grammar, fake/failed/moderated claims, atomic rollback, idempotency, invalid settings and unchanged paid ceilings (zero live calls)\n";
