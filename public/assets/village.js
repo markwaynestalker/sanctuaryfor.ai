@@ -67,15 +67,19 @@
         setProfileLink(resident);
         const details = $('profile-details');
         details.replaceChildren();
-        const date = new Date(resident.created_at);
-        for (const [label, value] of Object.entries({Personality: resident.description || resident.personality, Color: resident.color, Antenna: resident.antenna, 'Created (UTC)': Number.isNaN(date.valueOf()) ? resident.created_at : date.toLocaleString(undefined, {timeZone: 'UTC'}), 'Permanent ID': resident.id})) {
+        for (const [label, value] of Object.entries({Personality: resident.description || resident.personality, Color: resident.color, Antenna: resident.antenna, Created: resident.created_at, 'Permanent ID': resident.id})) {
             const term = document.createElement('dt'), description = document.createElement('dd');
-            term.textContent = label; description.textContent = value; details.append(term, description);
+            term.textContent = label;
+            if(label==='Created'){
+                const time=document.createElement('time');time.setAttribute('datetime',value);time.textContent=globalThis.SparksAtmosphere?.format(value)??value;description.append(time);
+            }else description.textContent = value;
+            details.append(term, description);
         }
         $('resident-profile').showModal();
+        syncSceneMotion();
     }
     $('close-profile').addEventListener('click', () => $('resident-profile').close());
-    $('resident-profile').addEventListener('close', () => { if (!$('resident-profile').open) { ownerEditor?.remove(); ownerEditor = null; } if (selectedButton?.isConnected) selectedButton.focus(); schedule(); });
+    $('resident-profile').addEventListener('close', () => { if (!$('resident-profile').open) { ownerEditor?.remove(); ownerEditor = null; } if (selectedButton?.isConnected) selectedButton.focus(); syncSceneMotion(); schedule(); });
     function editProfile(resident, token) {
         const template = $('identity-editor-template');
         if (!template || !Number.isInteger(resident.identity_version)) return;
@@ -166,6 +170,9 @@
         $('home-layer').replaceChildren();
         const visible = new Map(walkers.map(w => [w.resident.id, w.resident]));
         sceneGeometry=meadow.layout(sceneWidth,homes.filter(home=>visible.has(home.resident_id)&&home.plot),narrow.matches,walkers.length);
+        $('home-layer').hidden=sceneGeometry.compact;
+        $('landscape').dataset.layout=sceneGeometry.compact?'compact':'neighborhood';
+        if($('compact-meadow-note'))$('compact-meadow-note').hidden=!sceneGeometry.compact;
         for (const placement of sceneGeometry.plots) {
             const home=placement.home;
             const resident = visible.get(home.resident_id);
@@ -210,6 +217,17 @@
         }
         if (!recent.length) { const p = document.createElement('p'); p.className = 'field-help'; p.textContent = 'No recent saved exchange for these neighbors is available. They can enjoy a little quiet; more history is in the village journal.'; panel.append(p); }
     }
+    let checkedAt=null;
+    function renderFreshness(){
+        if(checkedAt)$('commons-freshness').textContent=`Saved life checked ${globalThis.SparksAtmosphere?.format(checkedAt)??checkedAt}. Refresh residents for updates. Each exchange plays once per tab session; quiet wandering is welcome.`;
+    }
+    document.addEventListener('sparks:timezone',()=>{
+        renderRecordings();renderFreshness();
+        if(activeMeeting)for(const walker of walkers){
+            const source=walker.bubble.children[0];
+            if(source){source.textContent=commons.sourceLabel(activeMeeting.exchange);walker.bubbleSize=null;place(walker);}
+        }
+    });
     async function refreshCommons() {
         const version = ++commonsVersion, ids = walkers.map(w => w.resident.id);
         homes = []; exchanges = new Map(); renderHomes(); renderRecordings();
@@ -222,7 +240,7 @@
             homes = Array.isArray(data.homes) ? data.homes.slice(0, 24) : [];
             exchanges = commons.latestExchanges(Array.isArray(data.conversations) ? data.conversations : [], ids);
             renderHomes(); renderRecordings();
-            $('commons-freshness').textContent = `Saved life checked ${new Date().toISOString().replace('T',' ').replace(/\.\d+Z$/, ' UTC')}. Refresh residents for updates. Each exchange plays once per tab session; quiet wandering is welcome.`;
+            checkedAt=new Date().toISOString();renderFreshness();
         } catch {
             if (version === commonsVersion) $('saved-dialogue').textContent = 'Saved conversations are resting. You can still browse resident profiles and the village journal.';
         }
@@ -292,12 +310,18 @@
         $('motion-toggle').textContent = paused ? 'Resume wandering' : 'Pause wandering';
         $('motion-toggle').setAttribute('aria-pressed', String(paused));
         if (paused) stopPlayback();
+        syncSceneMotion();
         schedule();
     }
+    function syncSceneMotion(){globalThis.SparksAtmosphere?.setPaused(paused||document.hidden||$('resident-profile').open);}
     $('motion-toggle').addEventListener('click', () => { paused = !paused; motionLabel(); });
     reduced.addEventListener('change', () => { paused = reduced.matches; motionLabel(); });
-    document.addEventListener('visibilitychange', () => { if (document.hidden) stopPlayback(); lastTick = 0; schedule(); });
-    narrow.addEventListener('change', () => { render(); refreshCommons(); });
+    document.addEventListener('visibilitychange', () => { if (document.hidden) stopPlayback(); syncSceneMotion(); lastTick = 0; schedule(); });
+    narrow.addEventListener('change', () => {
+        const before=walkers.map(w=>w.resident.id).join(',');render();
+        // A width-only change does not refetch saved data for unchanged neighbors.
+        if(before!==walkers.map(w=>w.resident.id).join(','))refreshCommons();
+    });
     for(const [id,direction] of [['previous-neighborhood',-1],['next-neighborhood',1]]){
         $(id).addEventListener('click',()=>{
             const groups=Math.max(1,Math.ceil(population.length/meadow.capacity(narrow.matches)));

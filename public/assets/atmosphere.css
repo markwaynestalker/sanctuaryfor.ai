@@ -1,0 +1,25 @@
+/* Decorative atmosphere composes with the existing scene; no saved world changes. */
+.time-preferences,.atmosphere-controls { display:flex; flex-wrap:wrap; align-items:center; gap:10px; margin-block:16px; min-width:0; }
+.time-preferences label,.atmosphere-controls label { font-size:12px; color:var(--text); margin:0; }
+.time-preferences select,.atmosphere-controls select { width:auto; max-width:100%; min-height:44px; background:#14221f; color:var(--text); border:1px solid #526961; border-radius:5px; padding:8px; }
+.time-preferences .field-help,.atmosphere-controls .field-help { flex-basis:100%; margin:0; }
+.landscape { --sky:#132327; --back-hill:#263e37; --front-hill:#304a3b; --stars:.5; background:radial-gradient(ellipse at 65% 0,#94c3d122,transparent 65%),var(--sky); transition:background-color 3s; }
+.landscape[data-phase="day"] { --sky:#436477; --back-hill:#3b5743; --front-hill:#3c5742; }
+.landscape[data-phase="dawn"] { --sky:#65536a; --back-hill:#3d4846; --front-hill:#394b40; }
+.landscape[data-phase="dusk"] { --sky:#684b61; --back-hill:#3a4144; --front-hill:#35473d; }
+.landscape::before { opacity:var(--stars); transition:opacity 3s; }
+.landscape .hill-back { background:var(--back-hill); transition:background-color 3s; }
+.landscape .hill-front { background:var(--front-hill); transition:background-color 3s; }
+.scene-sun { position:absolute; width:36px; height:36px; left:var(--sun-x,50%); top:var(--sun-y,30px); opacity:var(--sun-opacity,0); border-radius:50%; background:#ffe0a0; box-shadow:0 0 40px #ffdd8c55; transition:left 55s linear,top 55s linear,opacity 3s; }
+.landscape .scene-moon { right:auto; left:var(--moon-x,75%); top:var(--moon-y,36px); opacity:var(--stars); transition:left 55s linear,top 55s linear,opacity 3s; }
+.scene-weather { position:absolute; inset:0; pointer-events:none; z-index:1; }
+.scene-weather::before,.scene-weather::after { content:''; position:absolute; inset:0; pointer-events:none; opacity:0; }
+.landscape[data-weather="rain"] .scene-weather::before { opacity:.32; background-image:repeating-linear-gradient(105deg,transparent 0 30px,#e4f5ff 31px 32px,transparent 33px 66px); background-size:73px 90px; mask-image:repeating-linear-gradient(transparent 0 16px,#000 18px 30px,transparent 32px 90px); animation:scene-rain 1.2s linear infinite; }
+.landscape[data-weather="snow"] .scene-weather::before,.landscape[data-weather="snow"] .scene-weather::after { opacity:.65; background-image:radial-gradient(circle at 15px 15px,#f4fbff 1.5px,transparent 2.5px),radial-gradient(circle at 57px 73px,#f4fbff 1px,transparent 2px); background-size:100px 120px; animation:scene-snow 10s linear infinite; }
+.landscape[data-weather="snow"] .scene-weather::after { opacity:.3; background-size:137px 157px; animation-duration:16s; }
+.landscape[data-motion="paused"] .scene-weather::before,.landscape[data-motion="paused"] .scene-weather::after { animation-play-state:paused; }
+.landscape[data-motion="paused"],.landscape[data-motion="paused"]::before,.landscape[data-motion="paused"] .scene-hill,.landscape[data-motion="paused"] .scene-sun,.landscape[data-motion="paused"] .scene-moon { transition:none; }
+@keyframes scene-rain { to { background-position:-73px 90px; } }
+@keyframes scene-snow { to { background-position:20px 120px; } }
+@media(prefers-reduced-motion:reduce) { .landscape,.landscape::before,.landscape .scene-hill,.landscape .scene-sun,.landscape .scene-moon { transition:none; } .scene-weather::before,.scene-weather::after { animation:none !important; } }
+@media(forced-colors:active) { .scene-weather,.scene-sun,.scene-moon { display:none; } }

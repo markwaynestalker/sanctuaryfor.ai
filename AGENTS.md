@@ -1,5 +1,9 @@
 # SanctuaryFor.AI development instructions
 
+## Village atmosphere and extra-compact commons (#13/#14/#24)
+
+At scene widths <=360 CSS pixels, SparksMeadow omits cottage visuals/obstacles and seeds the open meadow; keep six phone residents, saved data, accessible directory/profiles, replay and the chicken. Wider scenes restore the same saved gardens. Width-only changes reuse loaded homes/conversations unless visible membership changes. atmosphere.js owns a fictional America/New_York presentation clock and separate visitor timestamp preference; all persistence, simulation opportunities and budget windows remain UTC. Weather presets are decorative and never enter Director context/memories. Share village pause/modal/visibility/reduced-motion rules; no network or extra frame loop. Run tests/atmosphere.mjs, meadow-layout.mjs, commons-ui.mjs and all offline suites. See docs/VILLAGE_ATMOSPHERE.md; physical folded-phone verification remains an owner check.
+
 ## Concise Director speech (#21)
 
 Keep complete-sentence/100–130-character guidance in the message schema and fresh encounter context (including reused sessions), without overriding saved Director instructions. The existing 1–160 Unicode-character validation remains authoritative; do not add punctuation heuristics, rewrite/truncate accepted words, pad replies or trigger paid regeneration. tests/director-dialogue-core.php exercises both adapters, reused sessions and exact moderation/persistence. No migration or hosted-agent edit is needed.

@@ -23,7 +23,7 @@ globalThis.SparksCommons = (() => {
         }
         return result;
     }
-    const sourceLabel = c => `${c.created_at.slice(0,10) === new Date().toISOString().slice(0,10) ? 'Saved today' : 'From the village journal'} · ${c.provider === 'openai' ? 'Saved AI-generated dialogue' : 'Saved scripted dialogue'} · ${c.created_at.replace('T', ' ').replace('Z', ' UTC')}`;
+    const sourceLabel = c => globalThis.SparksAtmosphere?.savedLabel(c) ?? `${c.created_at.slice(0,10) === new Date().toISOString().slice(0,10) ? 'Saved today' : 'From the village journal'} · ${c.provider === 'openai' ? 'Saved AI-generated dialogue' : 'Saved scripted dialogue'} · ${c.created_at.replace('T', ' ').replace('Z', ' UTC')}`;
     const turnDuration = message => Math.max(4500, Math.min(12000, Array.from(message.text).length * 70));
     function replayCooldown(settings) {
         if (settings === undefined) return 60; // Older read-only endpoint compatibility.

@@ -7,14 +7,16 @@ globalThis.SparksMeadow = (() => {
     const capacity = mobile => mobile ? 6 : 12;
     function layout(width, homes, mobile, population) {
         width=Math.max(120,width);
-        const shown=homes.slice(0,capacity(mobile)), yardWidth=mobile?Math.min(68,Math.max(44,(width-38)/2)):90, yardHeight=86, gap=14;
+        const compact=width<=360;
+        const shown=compact?[]:homes.slice(0,capacity(mobile)), yardWidth=mobile?Math.min(68,Math.max(44,(width-38)/2)):90, yardHeight=86, gap=14;
         const columns=Math.max(1,Math.min(mobile?3:6,Math.floor((width-24+gap)/(yardWidth+gap))));
         const plots=shown.map((home,i) => {
             const row=Math.floor(i/columns), count=Math.min(columns,shown.length-row*columns), column=i%columns;
             const left=12+(column+.5)*(width-24)/count-yardWidth/2+(row%2?5:-2);
             return {home,left:clamp(left,12,width-yardWidth-12),top:90+row*100+[0,22,7,28,12,24][column]+(row%2)*12,width:yardWidth,height:yardHeight};
         });
-        const height=Math.max(520,...plots.map(p=>p.top+p.height+(width<240?300:240)),300+Math.ceil(population/(mobile?3:6))*110);
+        const compactColumns=Math.max(1,Math.floor((width-68)/72)+1);
+        const height=Math.max(520,...plots.map(p=>p.top+p.height+(width<240?300:240)),compact?188+Math.ceil(population/compactColumns)*80:300+Math.ceil(population/(mobile?3:6))*110);
         const obstacles=plots.map(p => {
             const house=p.home.objects?.find(o=>o.kind==='house'), plot=p.home.plot;
             const x=house&&plot?clamp(house.x-plot.x,0,3):1, y=house&&plot?clamp(house.y-plot.y,0,3):1;
@@ -23,7 +25,7 @@ globalThis.SparksMeadow = (() => {
         });
         // The chicken gets a small local refuge; no full-width exclusion band.
         obstacles.push({left:width*.93-54,right:width*.93+8,top:height-70,bottom:height-8});
-        return {width,height,plots,obstacles,bounds:{left:34,right:Math.max(34,width-34),top:132,bottom:height-78}};
+        return {width,height,compact,plots,obstacles,bounds:{left:34,right:Math.max(34,width-34),top:compact?110:132,bottom:height-78}};
     }
     function free(point,scene) {
         const b=scene.bounds;
@@ -46,7 +48,7 @@ globalThis.SparksMeadow = (() => {
         const points=candidates(scene),used=[];
         // Arrivals start in the shared meadow, without restricting where they
         // may wander afterward or turning the gardens into a collision band.
-        const gardenEdge=Math.max(scene.height*.62,scene.bounds.top,...scene.plots.map(p=>p.top+p.height+36));
+        const gardenEdge=scene.compact?scene.bounds.top:Math.max(scene.height*.62,scene.bounds.top,...scene.plots.map(p=>p.top+p.height+36));
         const common=points.filter(p=>p.y>=gardenEdge),arrivals=common.length>=walkers.length?common:points;
         walkers.forEach((w,i) => {
             if(preserve&&Number.isFinite(w.x)&&Number.isFinite(w.y)&&free(w,scene)&&used.every(p=>distance(w,p)>=60)){
