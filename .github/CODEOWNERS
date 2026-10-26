@@ -1,0 +1,9 @@
+# Require code-owner review in the main branch ruleset. This file alone does not
+# activate protection; see docs/TORONTO_DEPLOYMENT.md.
+/.github/ @markwaynestalker
+/ops/ @markwaynestalker
+/public/health.php @markwaynestalker
+/scripts/migrate-* @markwaynestalker
+/scripts/register-director.php @markwaynestalker
+/app/*schema.php @markwaynestalker
+/.env.example @markwaynestalker
