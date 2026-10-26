@@ -32,7 +32,9 @@ try{
     $boundaryBase=$dir.'/boundary-history.sqlite';copy($itemsBase,$boundaryBase);$d=LittleSparks\connect($boundaryBase);
     $baseline=$boundaryProposal;$baseline['messages'][0]['text']='Shall we leave a little room for the flowers?';
     $baseAt=gmdate('Y-m-d\TH:i:00\Z',time()-180);$nextAt=gmdate('Y-m-d\TH:i:00\Z',time()-120);
-    $r=LittleSparks\simulateDirectorOpportunity($d,$baseAt,true,null,new RecordedItemTransport($baseline,'mixed'),null,null,false,null,true);
+    // Opportunity timestamps are IDs, not saved creation times. Give the baseline
+    // an explicitly earlier clock so fast Linux saves cannot tie within a second.
+    $r=LittleSparks\simulateDirectorOpportunity($d,$baseAt,true,null,new RecordedItemTransport($baseline,'mixed'),time()-10,null,false,null,true);
     check($r['status']==='completed','Historical fixture saves once');$history=$d->query('SELECT * FROM messages ORDER BY rowid')->fetchAll();
     $d=null;
     foreach(array_merge(array_diff(array_keys($cases),['invalid_utf8']),['flagged','envelope','storage_mutation']) as $mode){
