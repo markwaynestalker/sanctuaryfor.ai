@@ -30,23 +30,35 @@ jobs:
       name: production
       url: https://sanctuaryfor.ai
     steps:
+      # Environment protection is evaluated before this job gets any secrets.
+      - name: Connect deployment runner to Tailscale
+        uses: tailscale/github-action@99a8333667fff04fdd6cffb46dfd409f8329a7bf # v4.3.0
+        with:
+          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+          oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
+          tags: tag:sanctuarytorontodeploy
+          version: '1.104.2'
+          sha256sum: 512f613ed7d04fc7282f7dc5bd76aa105aae28168fbb9357eb749ebcbc29f0ae
+          use-cache: 'false'
+          args: --accept-routes=false --accept-dns=false
+          timeout: 60s
+          retry: '1'
       # No checkout, third-party SSH action, or repository program runs with this key.
       - name: Deploy the exact tested main commit
         shell: bash
         env:
           TARGET_SHA: ${{ github.sha }}
-          TORONTO_HOST: ${{ vars.TORONTO_DEPLOY_HOST }}
+          TORONTO_HOST: '100.75.63.110'
           TORONTO_USER: ${{ vars.TORONTO_DEPLOY_USER }}
-          TORONTO_PORT: ${{ vars.TORONTO_DEPLOY_PORT }}
+          TORONTO_PORT: '22'
           KNOWN_HOSTS: ${{ vars.TORONTO_DEPLOY_KNOWN_HOSTS }}
           PRIVATE_KEY: ${{ secrets.TORONTO_DEPLOY_SSH_KEY }}
         run: |
           set -euo pipefail
           [[ "$TARGET_SHA" =~ ^[a-f0-9]{40}$ ]]
-          [[ "$TORONTO_HOST" =~ ^[a-zA-Z0-9][a-zA-Z0-9.-]*$ ]]
+          [[ "$TORONTO_HOST" == '100.75.63.110' ]]
           [[ "$TORONTO_USER" == 'sanctuarydeploy' ]]
-          [[ "$TORONTO_PORT" =~ ^[1-9][0-9]{0,4}$ ]]
-          (( TORONTO_PORT <= 65535 ))
+          [[ "$TORONTO_PORT" == '22' ]]
           [[ -n "$PRIVATE_KEY" && -n "$KNOWN_HOSTS" ]]
           umask 077
           directory="$(mktemp -d)"
