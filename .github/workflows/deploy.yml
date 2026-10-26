@@ -1,0 +1,63 @@
+name: Toronto deployment
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Do not cancel a deployment in progress. The server also takes an exclusive lock.
+concurrency:
+  group: toronto-production
+  cancel-in-progress: false
+
+jobs:
+  checks:
+    uses: ./.github/workflows/ci.yml
+    permissions:
+      contents: read
+
+  deploy:
+    name: Approved Toronto release
+    needs: checks
+    if: github.ref == 'refs/heads/main' && vars.TORONTO_DEPLOY_ENABLED == '1'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    permissions: {}
+    environment:
+      name: production
+      url: https://sanctuaryfor.ai
+    steps:
+      # No checkout, third-party SSH action, or repository program runs with this key.
+      - name: Deploy the exact tested main commit
+        shell: bash
+        env:
+          TARGET_SHA: ${{ github.sha }}
+          TORONTO_HOST: ${{ vars.TORONTO_DEPLOY_HOST }}
+          TORONTO_USER: ${{ vars.TORONTO_DEPLOY_USER }}
+          TORONTO_PORT: ${{ vars.TORONTO_DEPLOY_PORT }}
+          KNOWN_HOSTS: ${{ vars.TORONTO_DEPLOY_KNOWN_HOSTS }}
+          PRIVATE_KEY: ${{ secrets.TORONTO_DEPLOY_SSH_KEY }}
+        run: |
+          set -euo pipefail
+          [[ "$TARGET_SHA" =~ ^[a-f0-9]{40}$ ]]
+          [[ "$TORONTO_HOST" =~ ^[a-zA-Z0-9][a-zA-Z0-9.-]*$ ]]
+          [[ "$TORONTO_USER" == 'sanctuarydeploy' ]]
+          [[ "$TORONTO_PORT" =~ ^[1-9][0-9]{0,4}$ ]]
+          (( TORONTO_PORT <= 65535 ))
+          [[ -n "$PRIVATE_KEY" && -n "$KNOWN_HOSTS" ]]
+          umask 077
+          directory="$(mktemp -d)"
+          trap 'rm -f -- "$directory/key" "$directory/known_hosts"; rmdir -- "$directory"' EXIT
+          printf '%s\n' "$PRIVATE_KEY" > "$directory/key"
+          printf '%s\n' "$KNOWN_HOSTS" > "$directory/known_hosts"
+          unset PRIVATE_KEY KNOWN_HOSTS
+          ssh -F /dev/null -i "$directory/key" \
+            -o IdentitiesOnly=yes -o BatchMode=yes -o PasswordAuthentication=no \
+            -o StrictHostKeyChecking=yes -o HostKeyAlias=sanctuary-toronto-deploy \
+            -o UserKnownHostsFile="$directory/known_hosts" -o GlobalKnownHostsFile=/dev/null \
+            -o ConnectTimeout=15 -o ServerAliveInterval=15 -o ServerAliveCountMax=4 \
+            -p "$TORONTO_PORT" -- "$TORONTO_USER@$TORONTO_HOST" "deploy $TARGET_SHA"
+          printf 'Verified Toronto release: `%s`\n' "$TARGET_SHA" >> "$GITHUB_STEP_SUMMARY"

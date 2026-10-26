@@ -1,0 +1,37 @@
+name: Offline checks
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  offline:
+    name: PHP 8.3 and JavaScript
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # v2
+        with:
+          php-version: '8.3'
+          extensions: pdo_sqlite, curl
+          coverage: none
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '22'
+      - name: Syntax and all offline suites (loopback only)
+        shell: bash
+        run: |
+          # Dependencies are provisioned above. Tests run without an external route,
+          # production credentials, or root privileges. Local HTTP fixtures still work.
+          sudo unshare --net -- sh -c '
+            ip link set lo up
+            exec setpriv --reuid="$1" --regid="$2" --init-groups \
+              env PATH="$3" PHP_BINARY="$4" "$5" ops/ci/offline.py
+          ' sh "$(id -u)" "$(id -g)" "$PATH" "$(command -v php)" "$(command -v python3)"

@@ -109,3 +109,7 @@ Activity/resident ceilings, resident/pair conversation cooldowns, retrieval boun
 ## Little Sparks V2E: Sanctuary Live
 
 V2E restores original two-turn AI dialogue while retaining independently grounded memory narration, without a V6 migration. It adds once-per-tab saved-dialogue replay, a CLI-only read-only operator view and prepared, disabled systemd templates. [The V2E guide](docs/LITTLE_SPARKS_V2E.md) explains the practical imagination/history boundary, cost bounds, optional scheduler gates/credentials and deployment/rollback plan. Run tests/village-live.mjs plus all eight previous suites. No production access, timer activation or paid evaluation is included.
+
+## Deployment preparation
+
+[The Toronto deployment guide](docs/TORONTO_DEPLOYMENT.md) covers offline GitHub CI, restricted SSH setup, initial approval, immutable code releases, health checks and code-only recovery. Deployment remains disabled until the owner configures and approves it; no automatic migrations, production secret changes or village scheduler restarts are included.
