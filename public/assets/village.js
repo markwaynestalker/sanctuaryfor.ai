@@ -21,6 +21,7 @@
     }).observe($('landscape'));
     let csrf = '', page = Number(new URL(location.href).searchParams.get('page')) || 0;
     let lastPage = 0, population = [], walkers = [], paused = reduced.matches;
+    let neighborhood = 0;
     let frame = 0, lastTick = 0, pending = null, busy = false, loading = false;
     let selectedButton = null, ownerEditor = null;
     // Read bearer credentials only from the fragment; remove before any network request.
@@ -120,12 +121,18 @@
     });
     function render() {
         stopPlayback();
+        const previousWalkers = new Map(walkers.map(w=>[w.resident.id,w]));
         sceneWidth = $('landscape').clientWidth || (narrow.matches ? 320 : 1000);
         sceneHeight = $('landscape').clientHeight || (narrow.matches ? 430 : 460);
         cancelAnimationFrame(frame);
         $('resident-directory').replaceChildren();
         $('robot-layer').replaceChildren();
         walkers = [];
+        const limit=meadow.capacity(narrow.matches), groups=Math.max(1,Math.ceil(population.length/limit));
+        neighborhood=Math.min(neighborhood,groups-1);
+        const first=neighborhood*limit,last=Math.min(first+limit,population.length);
+        $('neighborhood-controls').hidden=groups===1;
+        $('neighborhood-status').textContent=!population.length?'The commons is waiting for its first neighbor.':groups===1?`All ${population.length} neighbors on this page are in the commons.`:`Neighbors ${first+1}–${last} of ${population.length} on this directory page · Neighborhood ${neighborhood+1} of ${groups}`;
         $('scene-empty').hidden = population.length > 0;
         population.forEach((resident, index) => {
             const item = document.createElement('li'), button = document.createElement('button');
@@ -137,7 +144,7 @@
             button.addEventListener('click', () => showProfile(resident, button));
             item.append(button); $('resident-directory').append(item);
             // The directory keeps the full page. The landscape stays calm on small screens.
-            if (index >= (narrow.matches ? 4 : 12)) return;
+            if (index < first || index >= last) return;
             const actor = document.createElement('button');
             actor.type = 'button'; actor.className = 'village-resident'; actor.tabIndex = -1;
             actor.setAttribute('aria-label', `Meet ${resident.name}`);
@@ -146,7 +153,8 @@
             const bubble = document.createElement('span'); bubble.className = 'robot-bubble'; bubble.setAttribute('aria-hidden', 'true');
             actor.append(label, bubble); actor.addEventListener('click', () => showProfile(resident, button));
             $('robot-layer').append(actor);
-            const walker = {resident, element: actor, bubble, x: 0, y: 0, stop: performance.now() + Math.random() * 2500, ambientUntil: 0, hover: false};
+            const old=previousWalkers.get(resident.id);
+            const walker = {resident, element: actor, bubble, x: old?.x??0, y: old?.y??0, target:old?.target, nextDecision:old?.nextDecision, stop: old?.stop??performance.now()+Math.random()*2500, ambientUntil: 0, hover: false};
             actor.addEventListener('pointerenter', () => { walker.hover = true; });
             actor.addEventListener('pointerleave', () => { walker.hover = false; });
             walkers.push(walker); place(walker);
@@ -166,6 +174,7 @@
             link.className = `commons-home color-${colors.has(resident.color) ? resident.color : 'mint'}`;
             link.style.left=`${placement.left}px`;link.style.top=`${placement.top}px`;link.style.width=`${placement.width}px`;
             link.href = commons.profileUrl(resident.id); link.setAttribute('aria-label', `Visit ${resident.name}’s saved home and profile`);
+            link.title=`${resident.name}’s saved home`;
             yard.className = 'saved-yard'; yard.setAttribute('aria-hidden', 'true');
             const glyphs = {tree:'🌳',flowers:'🌼',bush:'🌿',path:'·',decoration:'✧',pet:'🐈',house:''};
             const objects = Array.isArray(home.objects) ? home.objects.slice(0, 12) : [{kind:'house',x:home.plot.x+1,y:home.plot.y+1}];
@@ -184,7 +193,8 @@
         }
         sceneHeight = sceneGeometry.height;
         $('landscape').style.height = `${sceneHeight}px`;
-        meadow.seed(walkers,sceneGeometry,performance.now(),Math.random);walkers.forEach(place);
+        $('landscape').style.setProperty('--commons-width',`${sceneWidth}px`);
+        meadow.seed(walkers,sceneGeometry,performance.now(),Math.random,true);walkers.forEach(w=>{w.bubbleSize=null;place(w);});
     }
     function renderRecordings() {
         const panel = $('saved-dialogue'); panel.replaceChildren();
@@ -226,6 +236,7 @@
         const {a, b, exchange, started} = activeMeeting, message = commons.playbackTurn(exchange, now - started);
         if (message && activeMeeting.message === message) return;
         a.bubble.textContent = ''; b.bubble.textContent = '';
+        a.bubbleSize=null; b.bubbleSize=null;
         if (!message) { activeMeeting = null; return; }
         activeMeeting.message = message;
         const speaker = message.resident_id === a.resident.id ? a : b;
@@ -235,7 +246,13 @@
     }
     function place(walker) {
         walker.element.style.left = `${walker.x}px`; walker.element.style.top = `${walker.y}px`;
-        walker.bubble.style.transform = walker.x < sceneWidth*.25 ? 'translateX(-10%)' : walker.x > sceneWidth*.75 ? 'translateX(-90%)' : 'translateX(-50%)';
+        walker.element.style.zIndex=walker.bubble.textContent?'6':'';
+        if(walker.bubble.textContent&&sceneGeometry){
+            walker.bubbleSize??={width:walker.bubble.offsetWidth||(narrow.matches?180:210),height:walker.bubble.offsetHeight||160};
+            const box=meadow.bubblePosition(walker,sceneGeometry,walker.bubbleSize.width,walker.bubbleSize.height);
+            walker.bubble.style.left=`${box.left-walker.x+(walker.element.offsetWidth||64)/2}px`;
+            walker.bubble.style.top=`${box.top-walker.y+(walker.element.offsetHeight||67)/2}px`;
+        }
     }
     function schedule() {
         if (!frame && !document.hidden && !paused && !$('resident-profile').open && walkers.length) frame = requestAnimationFrame(tick);
@@ -281,6 +298,13 @@
     reduced.addEventListener('change', () => { paused = reduced.matches; motionLabel(); });
     document.addEventListener('visibilitychange', () => { if (document.hidden) stopPlayback(); lastTick = 0; schedule(); });
     narrow.addEventListener('change', () => { render(); refreshCommons(); });
+    for(const [id,direction] of [['previous-neighborhood',-1],['next-neighborhood',1]]){
+        $(id).addEventListener('click',()=>{
+            const groups=Math.max(1,Math.ceil(population.length/meadow.capacity(narrow.matches)));
+            neighborhood=(neighborhood+direction+groups)%groups;
+            render();refreshCommons();
+        });
+    }
     $('chicken').addEventListener('click', () => { $('chicken-message').textContent = 'Protection protocol active. The chicken is safe, mildly suspicious, and expecting snacks. 🐓'; });
     function previewRobot() {
         $('robot-preview').replaceChildren(robot({color: $('robot-color').value, antenna: $('robot-antenna').value}));
@@ -305,6 +329,7 @@
             const response = await fetch(`api/residents.php?page=${requestedPage}`, {credentials:'same-origin', cache:'no-store'});
             const data = await response.json();
             if (!response.ok) throw new Error(data.error || 'The village is resting.');
+            if(page!==data.page)neighborhood=0;
             csrf = data.csrf; population = data.residents; page = data.page; lastPage = data.lastPage;
             $('population').textContent = `${data.total} residents call this village home. Showing ${population.length} at a time.`;
             $('page-status').textContent = `Page ${page + 1} of ${lastPage + 1}`;
@@ -340,6 +365,7 @@
             status(`${data.resident.name} has a permanent home here. Save the private revisit link below.`);
             // Put the newcomer in view, even when the current public page is full.
             population = [data.resident, ...population.filter(r => r.id !== data.resident.id)].slice(0, 40);
+            neighborhood=0;
             render();
             await refreshCommons();
             const actor = walkers.find(w => w.resident.id === data.resident.id);

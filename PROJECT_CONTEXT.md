@@ -1,5 +1,11 @@
 # SanctuaryFor.AI
 
+## Commons neighborhood/mobile release (#12)
+
+Both former four-item phone limits now share one six-resident scene capacity (twelve on wider screens). Compact staggered cottages border open common ground, with actual saved objects and unchanged authoritative map coordinates. Explicit neighborhood browsing reaches larger directory-page populations without unbounded rendering or polling. Valid walker positions survive layout updates, arrivals prefer common ground without new movement exclusion bands, and measured speech bubbles stay inside the scene. Keyboard cottage/profile links, the stationary transcript, reduced motion and the chicken remain. No Director, prompt, API, database, schedule or accounting change is included.
+
+Accepted future direction from owner issue feedback: #13 uses a shared fictional America/New_York atmosphere clock, separate visitor timestamp preferences and unchanged UTC scheduling; #15 offers optional possibilities rather than commands. #21 (complete, naturally shorter Director-authored sentences under the existing limit, with no rewriting/regeneration) is the next PR priority after #12. These features are not implemented in the layout release.
+
 ## Missing usage is independent of completed dialogue
 
 The 23:30 owner evidence identifies a pre-items usage_unknown gate despite a completed managed turn. Both pre-items and final best-effort usage absence/null now permit validated, moderated output to reach SQLite. The caller retains accounting uncertainty rather than marking the application hold settled: unknown observations/token estimates stay null, all eight reserved slots and full cost commitment remain. Missing usage never implies zero; trace token counts are not imported as billing evidence. Supplied invalid usage, identity, completion, moderation, deadlines, exact-once commit and autonomous scheduling protections remain. Tests cover initial/final/both missing metadata, moderation/identity rejection and a three-poll eight-request lifecycle. No migration or production replay/deployment/paid test is included.

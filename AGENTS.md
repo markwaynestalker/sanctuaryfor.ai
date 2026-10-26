@@ -1,5 +1,9 @@
 # SanctuaryFor.AI development instructions
 
+## Commons neighborhood layout (#12)
+
+Use SparksMeadow.capacity for both robots and homes: six on phones, twelve on wider screens. Explicit neighborhood controls browse bounded groups within the existing directory page; never add server polling or paid activity. Keep saved plot/object coordinates authoritative and immutable, compact staggered gardens, local collision footprints, stable valid walker positions, bounded bubbles and the chicken. Run tests/meadow-layout.mjs and tests/commons-ui.mjs plus existing offline suites. Desktop/mobile Chrome checks do not substitute for physical iPhone Safari verification. Timezone/weather/owner suggestions and dialogue-quality #21 remain separate PRs.
+
 ## Completed managed turns with missing usage
 
 Absent/null best-effort usage must not block retrieval, original dialogue validation, moderation or atomic conversation save for an otherwise verified completed turn. Keep missing observations/token estimates null and the full reserved cost/HTTP slots charged; a saved conversation can have uncertain accounting. A later missing usage observation is also nonblocking. Keep malformed supplied usage, turn identity/status/error, lease/deadline, idempotency and moderation checks intact. Use offline tests only; never replay production encounters or import trace usage as verified billing.
