@@ -213,9 +213,10 @@ function conversationMemory(PDO $db,string $conversation,?string $sharedReceipt=
     $db->prepare('INSERT INTO friendship_themes(friendship_id,topic,encounters,last_at) VALUES (?,?,1,?) ON CONFLICT(friendship_id,topic) DO UPDATE SET encounters=MIN(100000,encounters+1),last_at=MAX(last_at,excluded.last_at)')->execute([$friendship,$c['topic'],$c['created_at']]);
 }
 
-function recallMemories(PDO $db,string $resident,string $other):array
+// V5 callers retain their legacy interest boost; owner-described Director residents can opt out.
+function recallMemories(PDO $db,string $resident,string $other,bool $useLegacyPreferences=true):array
 {
-    $cfg=memoryConfiguration();$interest=preferences($db,$resident)['interest']??'';$topic=$interest==='stargazing'?'stars':'garden';
+    $cfg=memoryConfiguration();$interest=$useLegacyPreferences?(preferences($db,$resident)['interest']??''):null;$topic=$interest===null?'':($interest==='stargazing'?'stars':'garden');
     $q=$db->prepare('SELECT k.* FROM memory_receipts k JOIN memory_stories s ON s.id=k.story_id WHERE k.resident_id=?
         ORDER BY (CASE WHEN s.origin_id=? OR s.subject_id=? THEN 8 ELSE 0 END+CASE WHEN k.heard_from_id=? THEN 4 ELSE 0 END+CASE WHEN s.kind=\'world_fact\' THEN 2 ELSE 0 END+CASE WHEN s.topic=? THEN 1 ELSE 0 END) DESC,s.significance DESC,k.learned_at DESC,k.id LIMIT ?');
     foreach([$resident,$other,$other,$other,$topic] as $i=>$value)$q->bindValue($i+1,$value,PDO::PARAM_STR);$q->bindValue(6,$cfg['candidates'],PDO::PARAM_INT);$q->execute();$out=[];

@@ -1,0 +1,53 @@
+{
+    "base_commit": "e0275db",
+    "fixture": "synthetic-two-resident-narrative-v1",
+    "note": "Serialized context bytes only; not provider tokens or billed usage.",
+    "10000": {
+        "bytes": 8717,
+        "shared": 0,
+        "participant_recent": [
+            1,
+            1
+        ],
+        "goals": [
+            2,
+            2
+        ],
+        "memories": [
+            4,
+            4
+        ]
+    },
+    "8192": {
+        "bytes": 8167,
+        "shared": 0,
+        "participant_recent": [
+            1,
+            1
+        ],
+        "goals": [
+            2,
+            2
+        ],
+        "memories": [
+            4,
+            4
+        ]
+    },
+    "4096": {
+        "bytes": 4047,
+        "shared": 0,
+        "participant_recent": [
+            0,
+            0
+        ],
+        "goals": [
+            2,
+            2
+        ],
+        "memories": [
+            2,
+            0
+        ]
+    }
+}
