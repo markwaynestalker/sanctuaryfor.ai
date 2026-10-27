@@ -66,10 +66,31 @@ jobs:
           printf '%s\n' "$PRIVATE_KEY" > "$directory/key"
           printf '%s\n' "$KNOWN_HOSTS" > "$directory/known_hosts"
           unset PRIVATE_KEY KNOWN_HOSTS
+          deployment_status=0
           ssh -F /dev/null -i "$directory/key" \
             -o IdentitiesOnly=yes -o BatchMode=yes -o PasswordAuthentication=no \
             -o StrictHostKeyChecking=yes -o HostKeyAlias=sanctuary-toronto-deploy \
             -o UserKnownHostsFile="$directory/known_hosts" -o GlobalKnownHostsFile=/dev/null \
             -o ConnectTimeout=15 -o ServerAliveInterval=15 -o ServerAliveCountMax=4 \
-            -p "$TORONTO_PORT" -- "$TORONTO_USER@$TORONTO_HOST" "deploy $TARGET_SHA"
+            -p "$TORONTO_PORT" -- "$TORONTO_USER@$TORONTO_HOST" "deploy $TARGET_SHA" || deployment_status=$?
+          if [[ "$deployment_status" -eq 21 ]]; then
+            printf '::error title=Owner operational activation required::Toronto refused this release before activation. CI approval does not replace the separate owner review. See the job summary for the exact SHA and next step.\n'
+            {
+              printf '## Owner operational activation required\n\n'
+              printf 'Requested release: `%s`\n\n' "$TARGET_SHA"
+              printf '**Not deployed by this run.** The server refused protected operational changes (exit 21), rather than a failing application test.\n\n'
+              printf 'Protected scope includes schema/migration files, `.env.example`, Director registration, systemd templates and deployment-helper source. Review the full diff from the installed release.\n\n'
+              printf 'After separate explicit owner approval, the owner can activate reviewed current main locally on Toronto:\n\n```bash\n'
+              printf 'sudo -u sanctuarydeploy /usr/bin/python3 -I /usr/local/lib/sanctuaryfor-ai-deploy/toronto.py activate-reviewed %s\n```\n\n' "$TARGET_SHA"
+              printf 'The helper still requires current main, unchanged releases, locking and health checks. If main has advanced, review the new SHA instead. The restricted workflow key cannot invoke this owner command.\n\n'
+              printf 'Migrations, ENV edits, feature activation and timer changes need their own explicit approval. Rerunning this workflow does not supply operational approval.\n\n'
+              printf 'See [Toronto operational releases](https://github.com/markwaynestalker/sanctuaryfor.ai/blob/%s/docs/TORONTO_DEPLOYMENT.md#recovery-and-separate-operational-releases).\n' "$TARGET_SHA"
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 21
+          fi
+          if [[ "$deployment_status" -ne 0 ]]; then
+            printf '::error title=Toronto release failed::SSH/server exit %s. No success is claimed; inspect the server diagnostic and health/rollback evidence.\n' "$deployment_status"
+            printf '## Toronto release failed\n\nRequested release: `%s`\n\nSSH/server exit: `%s`. No verified deployment is claimed. Inspect the diagnostic before retrying.\n' "$TARGET_SHA" "$deployment_status" >> "$GITHUB_STEP_SUMMARY"
+            exit "$deployment_status"
+          fi
           printf 'Verified Toronto release: `%s`\n' "$TARGET_SHA" >> "$GITHUB_STEP_SUMMARY"
