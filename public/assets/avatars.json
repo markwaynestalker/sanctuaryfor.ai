@@ -356,6 +356,84 @@
       "name": "Platypus",
       "category": "Unusual Mammals",
       "features": []
+    },
+    {
+      "id": "otter",
+      "name": "Otter",
+      "category": "Aquatic Creatures",
+      "features": []
+    },
+    {
+      "id": "seal",
+      "name": "Seal",
+      "category": "Aquatic Creatures",
+      "features": []
+    },
+    {
+      "id": "dolphin",
+      "name": "Dolphin",
+      "category": "Aquatic Creatures",
+      "features": []
+    },
+    {
+      "id": "shark",
+      "name": "Shark",
+      "category": "Aquatic Creatures",
+      "features": []
+    },
+    {
+      "id": "whale",
+      "name": "Whale",
+      "category": "Aquatic Creatures",
+      "features": []
+    },
+    {
+      "id": "jellyfish",
+      "name": "Jellyfish",
+      "category": "Aquatic Creatures",
+      "features": []
+    },
+    {
+      "id": "crab",
+      "name": "Crab",
+      "category": "Aquatic Creatures",
+      "features": []
+    },
+    {
+      "id": "lobster",
+      "name": "Lobster",
+      "category": "Aquatic Creatures",
+      "features": []
+    },
+    {
+      "id": "pufferfish",
+      "name": "Pufferfish",
+      "category": "Aquatic Creatures",
+      "features": []
+    },
+    {
+      "id": "fish",
+      "name": "Fish",
+      "category": "Aquatic Creatures",
+      "features": []
+    },
+    {
+      "id": "axolotl",
+      "name": "Axolotl",
+      "category": "Aquatic Creatures",
+      "features": []
+    },
+    {
+      "id": "starfish",
+      "name": "Starfish",
+      "category": "Aquatic Creatures",
+      "features": []
+    },
+    {
+      "id": "octopus",
+      "name": "Octopus",
+      "category": "Aquatic Creatures",
+      "features": []
     }
   ]
 }

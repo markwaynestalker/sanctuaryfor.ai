@@ -1,14 +1,14 @@
 # Spark appearance roadmap (#51)
 
-All 135 requested forms remain in scope. This collection brings completed forms to **54/135**, with **81 remaining**. `avatar-catalog.json` is the complete checklist, separate from the public registry: planned designs are never exposed as completed forms or rendered as generic/emoji placeholders.
+All 135 requested forms remain in scope. This collection brings completed forms to **67/135**, with **68 remaining**. `avatar-catalog.json` is the complete checklist, separate from the public registry: planned designs are never exposed as completed forms or rendered as generic/emoji placeholders.
 
 | PR batch | Scope | Count |
 |---|---|---:|
 | Foundation (PR #52, shipped) | Shared SVG art/registry, RGB/hex, previews, safe independent editing and integration; Classic, Round and Box Robot | 3 |
 | Farm and household (PR #54, shipped) | All listed farm and household animals | 14 |
 | Woodland and wild (PR #55, shipped) | All listed woodland and wild animals | 21 |
-| Unusual mammals (this PR) | All listed unusual mammals | 16 |
-| Aquatic | All listed aquatic creatures | 13 |
+| Unusual mammals (PR #56, shipped) | All listed unusual mammals | 16 |
+| Aquatic (this PR) | All listed aquatic creatures | 13 |
 | Birds | All listed birds | 14 |
 | Reptiles and small creatures | All listed reptiles, amphibians, insects and small creatures | 17 |
 | Mythical | All listed mythical/fantasy creatures | 13 |
@@ -39,3 +39,11 @@ Sixteen forms: Beaver, Llama, Alpaca, Kangaroo, Koala, Sloth, Skunk, Badger, Bat
 The shared picker/renderer already supplies category/search, real thumbnails, RGB/24 presets, animal feature restrictions, remembered robot antennas and safe private edits. No runtime PHP/JavaScript, scene geometry, database migration, ENV, Director/session, scheduler or accounting changes are needed. Appearance never assigns a personality or occupation; the protected commons chicken remains separate.
 
 Check every new form at large/meadow sizes in black, white and saturated colors, SVG bounds, desktop/390px/320px keyboard/category/search/color/antenna behavior, private saves and public profiles. Run all offline suites: coverage now includes all 51 animals across presets/RGB, the unusual collection's picker events and unchanged history during transformations. The exhaustive disposable fixture uses its own explicit edit allowance and still verifies exhaustion; application defaults stay unchanged. Physical iPhone/Safari verification remains an owner check. Code-only release after normal review; no automatic production action. Keep #51 open for the remaining 81 designs.
+
+## Aquatic collection
+
+Thirteen forms: Otter, Seal, Dolphin, Shark, Whale, Jellyfish, Crab, Lobster, Pufferfish, Fish, Axolotl, Starfish and Octopus. Distinct authored SVGs use whiskers/paws, flippers, beaks/dorsal fins/flukes, a broad whale belly/spout, tentacles, pincers/legs, segmented tails, spines, fins/scales, feathery gills, five arms and eight curling arms with suckers. Dark tentacles and gills have contrasting outlines; the existing 54 forms and antenna art remain unchanged.
+
+These are cosmetic Spark appearances, not new water areas or swimming physics. All share the existing 48x70 footprint, empty animal feature sets, 24 presets/RGB, category/search, native keyboard controls and private edits. No personality inference, runtime PHP/JavaScript, geometry, migration, ENV, Director/session, scheduler or accounting changes are needed. The protected commons chicken remains separate.
+
+Check every form at large/meadow sizes in black, white and saturated colors, SVG bounds, desktop/390px/320px controls, reduced motion, private saves and public profiles. Offline coverage now includes all 64 animal forms and aquatic picker events/search/thumbnails. The exhaustive disposable fixture sets both its daily and hourly edit allowances explicitly, tests daily exhaustion, idempotency and hourly exhaustion, then verifies the unchanged 24/60 application defaults. Run all offline suites. Physical iPhone/Safari verification remains an owner check. Code-only release after normal review; no automatic production action. The #51 roadmap retains 68 unbuilt forms even if the umbrella issue has been closed.
