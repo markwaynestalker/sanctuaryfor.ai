@@ -14,7 +14,7 @@ final class FarmWeatherTransport implements WeatherTransport
             if(strlen($token)>512||preg_match('/[\x00-\x20\x7f]/',$token))throw new \RuntimeException('weather_credentials_invalid');
             $headers[]='Authorization: Bearer '.$token;
         }
-        $timeout=min($configuration['timeout'],$deadline-time());if($timeout<1)throw new \RuntimeException('weather_deadline');
+        $timeout=min($expected['timeout'],$deadline-time());if($timeout<1)throw new \RuntimeException('weather_deadline');
         $body='';$curl=curl_init($configuration['url']);
         if($curl===false)throw new \RuntimeException('weather_unavailable');
         try{
@@ -72,6 +72,6 @@ function sanitizeFarmWeather(array $payload,array $cfg,int $now):array
     $clean=farmCondition($data['currentWeather']??null)+['version'=>1,'classification'=>'reported_farm_weather','temperature_f'=>(float)$temp,
         'observed_at'=>$observed->getTimestamp(),'valid_until'=>$observed->getTimestamp()+$cfg['max_age'],
         'sunrise_at'=>$sunrise->getTimestamp(),'sunset_at'=>$sunset->getTimestamp()];
-    $clean['id']=hash('sha256',json_encode([$cfg['source_id'],$clean],JSON_THROW_ON_ERROR));
+    $clean['id']=hash('sha256',json_encode($clean,JSON_THROW_ON_ERROR));
     return $clean;
 }

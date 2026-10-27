@@ -70,7 +70,7 @@ function refreshVillageWeather(PDO $db,int $now,?WeatherTransport $transport=nul
             $published=cachedVillageWeather($db);if($published)$tick['weather']=$published;else unset($tick['weather']);
             $db->prepare("INSERT INTO settings VALUES ('scheduler:last_tick',?) ON CONFLICT(name) DO UPDATE SET value=excluded.value")->execute([json_encode($tick,JSON_THROW_ON_ERROR)]);
         }
-        $db->prepare('INSERT OR IGNORE INTO settings VALUES (?,?)')->execute(['village_weather:result:'.$id,json_encode(['at'=>$finished,'outcome'=>$outcome],JSON_THROW_ON_ERROR)]);
+        $db->prepare('INSERT OR IGNORE INTO settings VALUES (?,?)')->execute(['village_weather:result:'.$id,json_encode(['at'=>$finished,'outcome'=>$outcome,'observation_id'=>$outcome==='recorded'?$clean['id']:null],JSON_THROW_ON_ERROR)]);
         if(($lease['owner']??null)===$id)$db->prepare("UPDATE settings SET value=? WHERE name='village_weather:lease'")->execute([json_encode(['owner'=>$id,'expires'=>0],JSON_THROW_ON_ERROR)]);
         $db->exec('COMMIT');
     }catch(\Throwable $e){$db->exec('ROLLBACK');throw $e;}

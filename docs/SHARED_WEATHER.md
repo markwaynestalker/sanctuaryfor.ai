@@ -10,7 +10,7 @@ Requests are GET-only to the exact protected source URL, restricted to a literal
 
 ## Normalized observation
 
-The shared object contains a stable observation ID, version, `kind`, fixed safe `description`, numeric `temperature_f`, UTC epoch `observed_at`, policy expiry `valid_until`, sunrise/sunset UTC epochs, and `classification=reported_farm_weather`. Public projection adds ISO `observed_at_utc`, `server_time`, `current`, `stale`, `available` and `is_daytime` derived from the validated sunrise/sunset. The Director receives that same bounded observation, frozen at its encounter claim, with explicit optional/untrusted/environmental classification and no memory/action authority.
+The shared object contains a stable observation ID derived only from the sanitized public observation (never private connection details), version, `kind`, fixed safe `description`, numeric `temperature_f`, UTC epoch `observed_at`, policy expiry `valid_until`, sunrise/sunset UTC epochs, and `classification=reported_farm_weather`. Public projection adds ISO `observed_at_utc`, `server_time`, `current`, `stale`, `available` and `is_daytime` derived from the validated sunrise/sunset. The Director receives that same bounded observation, frozen at its encounter claim, with explicit optional/untrusted/environmental classification and no memory/action authority.
 
 | Report | Village category |
 | --- | --- |
