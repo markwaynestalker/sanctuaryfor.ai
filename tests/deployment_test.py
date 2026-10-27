@@ -138,13 +138,15 @@ class PolicyTests(unittest.TestCase):
         with tempfile.TemporaryDirectory(prefix='sanctuary-tailnet-test-') as directory:
             root = Path(directory)
             binary = root / 'ssh'
-            binary.write_text('''#!/usr/bin/env python3
+            binary.write_text(r'''#!/usr/bin/env python3
 import json,os,stat,sys
 from pathlib import Path
 args=sys.argv[1:]
 key=Path(args[args.index('-i')+1])
 pin=Path(next(x.split('=',1)[1] for x in args if x.startswith('UserKnownHostsFile=')))
 Path(os.environ['SSH_CAPTURE']).write_text(json.dumps({'args':args,'key_mode':stat.S_IMODE(key.stat().st_mode),'pin_mode':stat.S_IMODE(pin.stat().st_mode),'key':str(key),'pin':str(pin)}))
+with Path(os.environ['SSH_CAPTURE']+'.calls').open('a') as trace: trace.write('one SSH invocation\n')
+raise SystemExit(int(os.environ.get('MOCK_SSH_STATUS','0')))
 ''')
             binary.chmod(0o700)
             capture = root / 'captured.json'
@@ -163,6 +165,29 @@ Path(os.environ['SSH_CAPTURE']).write_text(json.dumps({'args':args,'key_mode':st
             self.assertNotIn('DUMMY_OFFLINE_KEY', json.dumps(saved)+result.stdout+result.stderr)
             for name in ['key', 'pin']:
                 self.assertFalse(Path(saved[name]).exists(), 'Ephemeral SSH material removed by trap')
+            self.assertIn('Verified Toronto release: `' + A + '`', (root / 'summary').read_text())
+            for status in [21, 20, 40, 255]:
+                with self.subTest(server_exit=status):
+                    (root / 'summary').unlink()
+                    before_calls = len(Path(str(capture)+'.calls').read_text().splitlines())
+                    refused = subprocess.run(['bash', '-c', command], env=env|{'MOCK_SSH_STATUS':str(status)}, capture_output=True, text=True)
+                    self.assertEqual(refused.returncode, status, refused.stderr)
+                    summary = (root / 'summary').read_text()
+                    self.assertIn(A, summary)
+                    self.assertNotIn('Verified Toronto release:', summary)
+                    self.assertNotIn('DUMMY_OFFLINE_KEY', summary+refused.stdout+refused.stderr)
+                    self.assertEqual(len(Path(str(capture)+'.calls').read_text().splitlines()), before_calls+1, 'Never retry SSH or invoke owner activation')
+                    if status == 21:
+                        self.assertIn('::error title=Owner operational activation required::', refused.stdout)
+                        self.assertIn('Not deployed by this run.', summary)
+                        self.assertIn('activate-reviewed '+A, summary)
+                        self.assertIn('Rerunning this workflow does not supply operational approval', summary)
+                    else:
+                        self.assertIn('::error title=Toronto release failed::', refused.stdout)
+                        self.assertNotIn('activate-reviewed', summary)
+                    failed_saved = json.loads(capture.read_text())
+                    for name in ['key', 'pin']:
+                        self.assertFalse(Path(failed_saved[name]).exists(), 'SSH material removed on every failure path')
             capture.unlink()
             for override in [{'TORONTO_HOST':'172.105.101.62'}, {'TORONTO_PORT':'2222'}, {'TORONTO_USER':'root'}, {'TARGET_SHA':'main'}]:
                 result = subprocess.run(['bash', '-c', command], env=env|override, capture_output=True, text=True)

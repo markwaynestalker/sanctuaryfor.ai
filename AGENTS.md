@@ -1,5 +1,10 @@
 # SanctuaryFor.AI development instructions
 
+## Clear operational deployment status
+
+Exit 21 must say “Owner operational activation required” with the exact tested SHA and separate local owner-review instructions. Keep the workflow unsuccessful when activation was refused; never falsely publish a successful production deployment. Only SSH exit 0 claims a verified release. Preserve every other exit, one SSH invocation, key cleanup, Tailscale/host pins, exact-main/CI/environment gates and restricted credentials. Printed owner commands are instructions only, never automatically invoked. No automatic migration, ENV/timer change or server-helper update. Read docs/TORONTO_DEPLOYMENT.md and run deployment_test.py plus Ubuntu offline CI.
+
+
 ## Spark appearance foundation (#51)
 
 Read docs/SPARK_APPEARANCE.md and docs/APPEARANCE_ROADMAP.md. All 135 designs remain tracked in docs/avatar-catalog.json; this foundation implements only Classic, Round and Box Robot. Trusted local SVG symbols and one public registry supply PHP/DOM rendering; never accept SVG/HTML/URLs or expose planned forms as placeholders. Named colors and antennas fall back unchanged; canonical #RRGGBB is separate public appearance data. Explicit V6 add-on migration does not rewrite old tables or user_version. Appearance-only edits reuse private-token/CSRF protection, atomic idempotency/revision/audit and ENV quotas, never personality/identity revision or Director state; they may complete safely during an AI lease. Old combined identity-color intent remains atomically audited. Batch public projections avoid per-avatar database queries. Preserve no-JS reading, contrast, native keyboard controls, reduced motion, bounded commons and all dialogue/memory/accounting. Run avatar-renderer, village-appearance, commons-ui and all offline suites. No production deployment/migration, timer/ENV change or paid call without separate approval. Keep #51 open for remaining artwork batches.

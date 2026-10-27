@@ -180,6 +180,11 @@ Only after a successful approved rollout and explicit owner decision, remove the
 
 ## Recovery and separate operational releases
 
+When the server returns exit 21, Actions now raises **Owner operational activation required** and writes a job summary with the exact tested SHA, protected-path categories, an owner-only activation command, and the separate migration/ENV/timer approval requirements. This is a blocked release, not an application-test failure. The workflow deliberately remains unsuccessful: making it green would falsely report a successful GitHub production deployment when no release was activated. Only SSH exit 0 prints “Verified Toronto release.” Other SSH/server failures retain their original exit status and a separate failure summary. No SSH retry, owner command, migration or service action is executed automatically.
+
+The shown owner command remains restricted to reviewed current main and all existing helper checks. If main advances, review the new SHA; do not blindly copy an old summary. Rerunning the workflow does not create the missing server-side authorization. GitHub production approval remains distinct from this owner review. No helper installation/update, credential, ACL or production permission change is introduced by the message improvement.
+
+
 Local owner commands (the workflow key cannot invoke these), substituting an actual previously installed SHA:
 
 ```bash
