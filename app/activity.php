@@ -193,6 +193,7 @@ function applyActivity(PDO $db,array $claim,array $proposal,array $choices,int $
         $q=$db->prepare("SELECT expires_at FROM simulation_opportunities WHERE id=? AND outcome='pending'");$q->execute([$claim['id']]);
         $expiry=$q->fetchColumn();if($expiry===false||(int)$expiry<=time()||gmdate('Y-m-d',$now)!==gmdate('Y-m-d'))throw new AiGuard('apply_rejected');
         $run=$attempt['id']??bin2hex(random_bytes(16));$time=gmdate('Y-m-d\TH:i:s\Z',$now);$ai=$attempt!==null;$pair=$claim['pair'];$outcome=$proposal['outcome'];
+        if($proposal['world_action']==='post_notice'&&(!isset($proposal['director'])||$attempt===null||!isset($choices['post_notice'])))throw new AiGuard('apply_rejected');
         $limits=activityConfiguration();assertAppliedActivityLimits($db,$pair,gmdate('Y-m-d',$now),$limits);
         if($outcome==='conversation'&&(!isset($pair[1])||!conversationCooldownAllows($db,$pair[0]['id'],$pair[1]['id'],$limits,$now)))throw new Problem(429,'The neighbors are resting between conversations.');
         $db->prepare("INSERT INTO simulation_runs(id,period,status,provider,started_at,finished_at,interaction_count,input_tokens,output_tokens,cost_microusd) VALUES (?,?,'completed',?,?,?,?,?,?,?)")
@@ -211,12 +212,13 @@ function applyActivity(PDO $db,array $claim,array $proposal,array $choices,int $
             }
             event($db,$a,$b,'conversation','simulation',$time,'activity:'.$claim['id'].':conversation',$run);
         }
-        if($proposal['world_action']!=='none'){
+        if($proposal['world_action']!=='none'&&$proposal['world_action']!=='post_notice'){
             if(!$pair||!isset($choices[$proposal['world_action']]))throw new AiGuard('invalid_proposal');
             performResidentAction($db,$pair[0]['id'],$choices[$proposal['world_action']],$time,'activity:'.$claim['id'].':world','simulation',$run);
         }
         if(isset($proposal['director'])){
             $db->prepare('INSERT INTO director_runs VALUES (?,?,?,?,?,?)')->execute([$run,$proposal['director_session'],$proposal['director_fingerprint'],$conversation??null,$proposal['topic'],$time]);
+            if($proposal['world_action']==='post_notice')saveBulletinNotice($db,$proposal,$pair,$run,$now);
             if($outcome==='conversation'){verifyDirectorDialogue($db,$run,$conversation,$proposal);saveDirectorMemory($db,$conversation,$proposal,$pair,$time);saveOperatorIdeaExposures($db,$conversation,$proposal['operator_idea_ids']??[],$time);}
             $db->prepare("UPDATE director_sessions SET state='ready' WHERE id=? AND runtime='agents'")->execute([$proposal['director_session']]);
         }elseif($outcome==='conversation'&&memoryEnabled($db))conversationMemory($db,$conversation,$proposal['shared_receipt']??null);

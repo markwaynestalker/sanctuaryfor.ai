@@ -6,6 +6,12 @@ namespace LittleSparks;
 function expressiveDialogue(string $line,array $residentNames=[]):string
 {
     $line=safeAiDialogue($line);
+    assertExpressiveClaims($line,$residentNames);
+    return $line;
+}
+/** Shared claim guard; callers validate their own text length without rewriting words. */
+function assertExpressiveClaims(string $line,array $residentNames=[]):void
+{
     // English letters, ordinary punctuation and emoji; reject homoglyph tricks.
     if(preg_match('/[^\p{Latin}\p{N}\p{P}\p{S}\p{Z}]/u',$line))throw new AiGuard('invalid_proposal');
     $normalize=static fn(string $text):string=>str_replace(['’','‘'],"'",$text);
@@ -46,5 +52,4 @@ function expressiveDialogue(string $line,array $residentNames=[]):string
     if(preg_match('/\bS[0-9]+\b|\b(?:event|receipt|conversation)[ _-]?id\b/iu',$text))throw new AiGuard('invalid_proposal');
     // Reject labels, not interior punctuation or harmless past-tense words.
     if(preg_match('/\A[\p{L}\p{N}\x{2019}\x27-]{1,24}(?: Jr\.?)?:/u',$line))throw new AiGuard('invalid_proposal');
-    return $line;
 }

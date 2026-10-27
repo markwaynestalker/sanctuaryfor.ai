@@ -7,7 +7,7 @@ assert.equal(m.capacity(true),6);assert.equal(m.capacity(false),12);
 for(const [width,count,mobile] of [[272,3,true],[320,3,true],[320,4,true],[278,6,true],[333,6,true],[348,6,true],[388,6,true],[600,3,false],[1000,6,false],[600,12,false],[1000,12,false]]){
     const saved=homes(count),before=JSON.stringify(saved),scene=m.layout(width,saved,mobile,count);assert.equal(JSON.stringify(saved),before,'Saved coordinates remain immutable');
     assert.equal(scene.plots.length,width<=360?0:count,'Extra-compact scenes omit homes without changing saved data');
-    if(width<=360){assert.equal(scene.obstacles.length,1,'Only the protected chicken remains an obstacle');assert.equal(scene.bounds.top,110,'Hidden houses do not reserve roaming space');}
+    if(width<=360){assert.equal(scene.obstacles.length,2,'Only the chicken and compact edge noticeboard remain obstacles');assert.equal(scene.bounds.top,110,'Hidden houses do not reserve roaming space');}
     assert.equal(JSON.stringify(m.layout(width,saved,mobile,count)),JSON.stringify(scene),'Cottage placement is stable, not rerolled');
     if(count>=6&&width>360)assert.ok(new Set(scene.plots.map(p=>p.top)).size>=3,'Neighborhood staggers naturally rather than a straight house row');
     for(const yard of scene.plots){assert.ok(yard.width<=90&&yard.height<=86,'Compact fixed-size yards never stretch across grid tracks');assert.ok(yard.left>=0&&yard.left+yard.width<=width,'Homes fit the viewport');assert.ok(yard.top>=85,'Cottages sit on the hillside');}
@@ -26,7 +26,7 @@ for(const [width,count,mobile] of [[272,3,true],[320,3,true],[320,4,true],[278,6
     assert.ok(ranges.filter(r=>r.right-r.left>70&&r.bottom-r.top>90&&r.length>500).length>=Math.ceil(count*.75),'Broad exploration at '+width+'/'+count+': '+JSON.stringify(ranges.map(r=>({x:r.right-r.left,y:r.bottom-r.top,length:r.length}))));
 }
 for(const width of [120,158,210]){
-    const scene=m.layout(width,homes(6),true,6);assert.equal(scene.plots.length,0,'Zoomed/narrow scenes prioritize the six robots over cottages');assert.equal(scene.obstacles.length,1);
+    const scene=m.layout(width,homes(6),true,6);assert.equal(scene.plots.length,0,'Zoomed/narrow scenes prioritize the six robots over cottages');assert.equal(scene.obstacles.length,2,'Only compact edge board and chicken reserve local space');
     const walkers=Array.from({length:6},()=>({resident:{personality:'curious'},stop:0}));m.seed(walkers,scene,0,rng(width));
     for(let i=0;i<6;i++){assert.ok(m.free(walkers[i],scene));for(let j=0;j<i;j++)assert.ok(m.distance(walkers[i],walkers[j])>=60,'Even zoomed scenes can place all six without overlap');}
 }

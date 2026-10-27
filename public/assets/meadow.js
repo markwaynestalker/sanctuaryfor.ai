@@ -25,6 +25,8 @@ globalThis.SparksMeadow = (() => {
         });
         // The chicken gets a small local refuge; no full-width exclusion band.
         obstacles.push({left:width*.93-54,right:width*.93+8,top:height-70,bottom:height-8});
+        // The noticeboard stands at the edge, with a small local footprint.
+        obstacles.push({left:8,right:Math.min(112,width*.42),top:height-80,bottom:height-8});
         return {width,height,compact,plots,obstacles,bounds:{left:34,right:Math.max(34,width-34),top:compact?110:132,bottom:height-78}};
     }
     function free(point,scene) {

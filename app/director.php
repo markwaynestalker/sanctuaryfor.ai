@@ -15,11 +15,12 @@ require_once __DIR__.'/director_transport.php';
 require_once __DIR__.'/director_staging.php';
 require_once __DIR__.'/director_access.php';
 
-function directorSession(PDO $db,array $registered,array $pair,string $runtime,int $now):array
+function directorSession(PDO $db,array $registered,array $pair,string $runtime,int $now,string $contract='sanctuary.director.v1'):array
 {
     $ids=array_column($pair,'id');sort($ids);$revisions=[];
     foreach($ids as $id){$q=$db->prepare('SELECT revision FROM resident_identities WHERE resident_id=?');$q->execute([$id]);$revisions[$id]=(int)$q->fetchColumn();}
-    $scope=hash('sha256',json_encode([$ids,$revisions,$runtime],JSON_THROW_ON_ERROR));
+    $scopeParts=[$ids,$revisions,$runtime];if($contract!=='sanctuary.director.v1')$scopeParts[]=$contract;
+    $scope=hash('sha256',json_encode($scopeParts,JSON_THROW_ON_ERROR));
     $execution=directorExecutionConfiguration();
     $q=$db->prepare("SELECT * FROM director_sessions WHERE fingerprint=? AND scope=? AND state IN ('new','ready') AND turns<? AND created_at>=? ORDER BY rowid DESC LIMIT 1");
     $q->execute([$registered['fingerprint'],$scope,$execution['session_max_turns'],gmdate('Y-m-d\TH:i:s\Z',$now-$execution['session_ttl_seconds'])]);if($row=$q->fetch())return $row;
@@ -35,8 +36,8 @@ function directorKeys(array $value,array $keys):void
 }
 function parseDirectorProposal(array $p,array $pair,array $choices):array
 {
-    directorKeys($p,['contract','outcome','topic','messages','world_action','transmissions','notes']);
-    if(($p['contract']??null)!=='sanctuary.director.v1'||!in_array($p['outcome']??null,['conversation','action','quiet','none'],true)
+    $bulletin=($p['contract']??null)==='sanctuary.director.bulletin.v1';$keys=['contract','outcome','topic','messages','world_action','transmissions','notes'];if($bulletin)$keys[]='notice';directorKeys($p,$keys);
+    if(($bulletin&&!array_key_exists('post_notice',$choices))||(!$bulletin&&($p['contract']??null)!=='sanctuary.director.v1')||!in_array($p['outcome']??null,['conversation','action','quiet','none'],true)
         ||!is_string($p['topic']??null)||!is_string($p['world_action']??null)||!array_key_exists($p['world_action'],$choices)
         ||!is_array($p['messages'])||!array_is_list($p['messages'])||!is_array($p['notes'])||!array_is_list($p['notes'])||count($p['notes'])>2
         // V3A does not infer a fact entailment from free prose or model-selected aliases.
@@ -61,6 +62,8 @@ function parseDirectorProposal(array $p,array $pair,array $choices):array
         safeAiText($note['quote']??null,160);
         if(!str_contains($p['messages'][$note['sequence']]['text'],$note['quote']))throw new AiGuard('invalid_proposal');
     }
+    if(($p['world_action']==='post_notice')!==($bulletin&&$p['notice']!==null))throw new AiGuard('invalid_proposal');
+    if($p['world_action']==='post_notice')validateBulletinNotice($p['notice'],$pair);
     return $p+['first'=>$p['messages'][0]['text']??'','second'=>$p['messages'][1]['text']??'','director'=>true];
 }
 
@@ -149,9 +152,10 @@ function simulateDirectorOpportunity(PDO $db,string $at,bool $allowPaid,?AiTrans
     try{
         if(count($claim['pair'])!==2)return applyActivity($db,$claim,['outcome'=>'none','topic'=>'quiet','first'=>'','second'=>'','world_action'=>'none'],['none'=>null],$now);
         $choices=aiActionChoices($db,$claim['pair'][0]['id'],$claim['pair'][1]['id'],$now);
+        if(bulletinCanPost($db,$claim['pair'][0]['id'],$now))$choices['post_notice']=['kind'=>'post_notice'];
         if($conversationOnly)$choices=['none'=>null];
         $prepared=($contextProvider??new SqliteDirectorContextProvider())->prepare($db,$claim['pair'],$choices,$claim,$cfg);
-        $db->exec('BEGIN IMMEDIATE');try{$session=directorSession($db,$registered,$claim['pair'],$cfg['runtime'],$now);$db->exec('COMMIT');}catch(\Throwable $e){$db->exec('ROLLBACK');throw $e;}
+        $db->exec('BEGIN IMMEDIATE');try{$session=directorSession($db,$registered,$claim['pair'],$cfg['runtime'],$now,$prepared['context']['contract']);$db->exec('COMMIT');}catch(\Throwable $e){$db->exec('ROLLBACK');throw $e;}
         $body=$cfg['runtime']==='responses'?directorRequest($pricing,$registered,$prepared,$choices):null;
         $pricing['director_session']=$session['id'];$pricing['director_runtime']=$cfg['runtime'];
         $pricing['director_once']=$staging!==null;
@@ -172,6 +176,7 @@ function simulateDirectorOpportunity(PDO $db,string $at,bool $allowPaid,?AiTrans
             $usage=recordAiUsage($db,$attempt,$result,$pricing);$proposal=parseDirectorProposal(decodedAiProposal($result),$prepared['context']['participants'],$choices);
             startAiRequest($db,$attempt,'moderation_started');$moderation=$responses->post('moderations',['model'=>'omni-moderation-latest','input'=>json_encode([$prepared['context'],$proposal],JSON_THROW_ON_ERROR|JSON_UNESCAPED_UNICODE)],$attempt['expires']);
             if(count($moderation['results']??[])!==1||($moderation['results'][0]['flagged']??null)!==false)throw new AiGuard('moderation_rejected');
+            if(($proposal['world_action']??null)==='post_notice')$proposal['bulletin_approved']=true;
         }
         $proposal['operator_idea_ids']=$prepared['operator_idea_ids']??[];
         $proposal['director_session']=$session['id'];$proposal['director_fingerprint']=$registered['fingerprint'];

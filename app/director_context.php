@@ -3,6 +3,7 @@ declare(strict_types=1);
 namespace LittleSparks;
 use PDO;
 require_once __DIR__.'/operator_ideas.php';
+require_once __DIR__.'/bulletin.php';
 
 /** Structured, bounded encounter context; future authorized MCP retrieval can
  * implement this seam without changing generation, validation or persistence. */
@@ -33,6 +34,7 @@ function trimDirectorContext(array $context,int $maximum):array
             $tails[]=['owner'=>$owner,'field'=>$field,'rank'=>[$priority,-count($list),$last['at']??$last['created_at']??$last['knowledge']['learned_at']??'']];
         };
         $offer(-1,'operator_suggestions',$context['operator_suggestions']??[],-1);
+        $offer(-1,'public_notices',$context['public_notices']??[],-2);
         if(isset($context['village_weather']))$tails[]=['owner'=>-1,'field'=>'village_weather','rank'=>[1,0,'']];
         $offer(-1,'director_continuity',$context['director_continuity'],0);
         $offer(-1,'shared_recent_conversations',$context['shared_recent_conversations'],count($context['shared_recent_conversations'])>1?5:7);
@@ -51,11 +53,12 @@ function trimDirectorContext(array $context,int $maximum):array
 }
 function prepareDirectorEncounter(PDO $db,array $pair,array $choices,array $claim,array $cfg):array
 {
-    $memory=memoryConfiguration();$sources=[];$shared=[];$pairIds=array_column($pair,'id');$context=['contract'=>'sanctuary.director.v1','context_version'=>'sqlite-v6-2','opportunity_id'=>$claim['id'],'at'=>$claim['created_at'],
+    $memory=memoryConfiguration();$sources=[];$shared=[];$pairIds=array_column($pair,'id');$context=['contract'=>directorSchema($choices)['properties']['contract']['enum'][0],'context_version'=>'sqlite-v6-2','opportunity_id'=>$claim['id'],'at'=>$claim['created_at'],
         // Repeat contract guidance in fresh input so existing managed sessions receive it too.
         'dialogue_guidance'=>directorSchema($choices)['properties']['messages']['items']['properties']['text']['description'],
         'participants'=>[],'shared_recent_conversations'=>[],'allowed_actions'=>array_keys($choices),'world_action_actor_id'=>$pair[0]['id'],'director_continuity_is_not_participant_knowledge'=>true,'director_continuity'=>[]];
     if($weather=encounterVillageWeather($db,$claim))$context['village_weather']=$weather;
+    if($notices=bulletinContext($db,strtotime($claim['created_at'])))$context['public_notices']=$notices;
     foreach($pair as $index=>$actor){
         $id=$actor['id'];$other=$pair[1-$index]['id'];$known=[];
         // Retrieve only generation context, not an entire UI profile and its duplicate history/trails.
