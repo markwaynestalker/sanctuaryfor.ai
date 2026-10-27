@@ -54,6 +54,7 @@ function validateBulletinNotice(mixed $notice,array $pair):array
         ||!in_array($notice['kind']??null,['invitation','offer','question','availability','plan','whimsy'],true))throw new AiGuard('invalid_proposal');
     $text=safeAiText($notice['text']??null,bulletinConfiguration()['length']);
     if(trim($text)!==$text||preg_match('/\b(?:M[0-9]+|verified|confirmed world fact|source_alias)\b/iu',$text))throw new AiGuard('invalid_proposal');
+    foreach($pair as $actor)if(isset($actor['name'])&&preg_match('/\A'.preg_quote($actor['name'],'/').'\s*:/iu',$text))throw new AiGuard('invalid_proposal');
     assertExpressiveClaims($text,array_column($pair,'name'));
     return $notice;
 }
