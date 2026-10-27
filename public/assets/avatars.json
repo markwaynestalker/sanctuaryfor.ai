@@ -260,6 +260,102 @@
       "name": "Panther",
       "category": "Wild Animals",
       "features": []
+    },
+    {
+      "id": "beaver",
+      "name": "Beaver",
+      "category": "Unusual Mammals",
+      "features": []
+    },
+    {
+      "id": "llama",
+      "name": "Llama",
+      "category": "Unusual Mammals",
+      "features": []
+    },
+    {
+      "id": "alpaca",
+      "name": "Alpaca",
+      "category": "Unusual Mammals",
+      "features": []
+    },
+    {
+      "id": "kangaroo",
+      "name": "Kangaroo",
+      "category": "Unusual Mammals",
+      "features": []
+    },
+    {
+      "id": "koala",
+      "name": "Koala",
+      "category": "Unusual Mammals",
+      "features": []
+    },
+    {
+      "id": "sloth",
+      "name": "Sloth",
+      "category": "Unusual Mammals",
+      "features": []
+    },
+    {
+      "id": "skunk",
+      "name": "Skunk",
+      "category": "Unusual Mammals",
+      "features": []
+    },
+    {
+      "id": "badger",
+      "name": "Badger",
+      "category": "Unusual Mammals",
+      "features": []
+    },
+    {
+      "id": "bat",
+      "name": "Bat",
+      "category": "Unusual Mammals",
+      "features": []
+    },
+    {
+      "id": "elephant",
+      "name": "Elephant",
+      "category": "Unusual Mammals",
+      "features": []
+    },
+    {
+      "id": "giraffe",
+      "name": "Giraffe",
+      "category": "Unusual Mammals",
+      "features": []
+    },
+    {
+      "id": "zebra",
+      "name": "Zebra",
+      "category": "Unusual Mammals",
+      "features": []
+    },
+    {
+      "id": "rhinoceros",
+      "name": "Rhinoceros",
+      "category": "Unusual Mammals",
+      "features": []
+    },
+    {
+      "id": "hippopotamus",
+      "name": "Hippopotamus",
+      "category": "Unusual Mammals",
+      "features": []
+    },
+    {
+      "id": "capybara",
+      "name": "Capybara",
+      "category": "Unusual Mammals",
+      "features": []
+    },
+    {
+      "id": "platypus",
+      "name": "Platypus",
+      "category": "Unusual Mammals",
+      "features": []
     }
   ]
 }

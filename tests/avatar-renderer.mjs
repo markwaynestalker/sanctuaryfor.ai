@@ -9,7 +9,9 @@ const php=spawnSync(process.env.PHP_BINARY||'php',['-r','require "app/village.ph
 inputs.forEach((appearance,i)=>assert.deepEqual(JSON.parse(JSON.stringify(a.palette(appearance))),palettes[i],'PHP/DOM derived color parity'));
 const catalog=JSON.parse(await readFile(new URL('../docs/avatar-catalog.json',import.meta.url),'utf8'));assert.equal(catalog.length,135);assert.equal(new Set(catalog.map(f=>f.id)).size,135);assert.deepEqual(catalog.filter(f=>f.status==='implemented').map(f=>f.id).sort(),registry.forms.map(f=>f.id).sort());
 const woodland=['rabbit','fox','raccoon','squirrel','deer','bear','hedgehog','owl'],wild=['panda','red-panda','wolf','leopard','tiger','lion','monkey','gorilla','orangutan','wild-boar','moose','bison','panther'];
-const animals=['goat','donkey','pig','sheep','cow','horse','chicken','duck','goose','dog','cat','hamster','mouse','parrot',...woodland,...wild];
+const mammals=["beaver","llama","alpaca","kangaroo","koala","sloth","skunk","badger","bat","elephant","giraffe","zebra","rhinoceros","hippopotamus","capybara","platypus"];
+assert.deepEqual(registry.forms.filter(f=>f.category==='Unusual Mammals').map(f=>f.id),mammals);
+const animals=['goat','donkey','pig','sheep','cow','horse','chicken','duck','goose','dog','cat','hamster','mouse','parrot',...woodland,...wild,...mammals];
 assert.deepEqual(registry.forms.filter(f=>f.category==='Woodland Animals').map(f=>f.id),woodland);assert.deepEqual(registry.forms.filter(f=>f.category==='Wild Animals').map(f=>f.id),wild);
 assert.deepEqual(registry.forms.filter(f=>f.category!=='Robots').map(f=>f.id).sort(),[...animals].sort());
 const spriteSource=await readFile(new URL('../public/assets/spark-forms.svg',import.meta.url),'utf8');
@@ -41,11 +43,12 @@ function descendants(root){return root.children.flatMap(n=>[n,...descendants(n)]
 context.document.createElement=tag=>new Control(tag);context.structuredClone=structuredClone;
 const picker=a.editor({color:'mint',antenna:'orb'}),nodes=descendants(picker.element),label=text=>nodes.find(n=>n.tag==='label'&&n.textContent===text).children[0],grid=nodes.find(n=>n.className==='avatar-grid');
 const collection=label('Collection'),search=label('Find a form'),antenna=label('Antenna');antenna.value='sprout';antenna.emit('change');picker.setColor('#1234AB');
-for(const [category,ids] of [['Woodland Animals',woodland],['Wild Animals',wild]]){
+for(const [category,ids] of [['Woodland Animals',woodland],['Wild Animals',wild],['Unusual Mammals',mammals]]){
  collection.value=category;collection.emit('change');assert.equal(grid.children.length,ids.length);
  assert.deepEqual(grid.children.map(n=>[n.children[0].value,n.children[1].children[0].attrs.href]),ids.map(id=>[id,registry.sprite+'#'+id]),'Unselected thumbnails never inherit incompatible robot features');
  for(const id of ids){const radio=descendants(grid).find(n=>n.tag==='input'&&n.value===id);radio.checked=true;radio.emit('change');assert.equal(picker.value().form,id);assert.equal(picker.value().primary_color,'#1234AB');assert.equal(antenna.parentElement.hidden,true);assert.deepEqual(Object.keys(picker.value().features),[]);}
 }
-search.value=' red PANDA ';search.emit('input');assert.equal(grid.children.length,1);assert.equal(grid.children[0].children[0].value,'red-panda');
+collection.value='Wild Animals';collection.emit('change');search.value=' red PANDA ';search.emit('input');assert.equal(grid.children.length,1);assert.equal(grid.children[0].children[0].value,'red-panda');
+search.value='';collection.value='Unusual Mammals';collection.emit('change');search.value=' plATYpus ';search.emit('input');assert.equal(grid.children.length,1);assert.equal(grid.children[0].children[0].value,'platypus');
 search.value='';collection.value='Robots';collection.emit('change');const robot=descendants(grid).find(n=>n.tag==='input'&&n.value==='classic-robot');robot.checked=true;robot.emit('change');assert.equal(antenna.parentElement.hidden,false);assert.equal(picker.value().features.antenna,'sprout');assert.equal(picker.value().primary_color,'#1234AB');
-console.log('PASS 38 distinct shared SVG forms, 35 antenna-free animals across presets/RGB, category/search/thumbnails/picker events, legacy robot compatibility, PHP/DOM palette parity, invalid feature fallback, no HTML/network and complete 135-form roadmap');
+console.log('PASS 54 distinct shared SVG forms, 51 antenna-free animals across presets/RGB, category/search/thumbnails/picker events, legacy robot compatibility, PHP/DOM palette parity, invalid feature fallback, no HTML/network and complete 135-form roadmap');
