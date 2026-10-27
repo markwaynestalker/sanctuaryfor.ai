@@ -6,7 +6,7 @@ Read docs/SHARED_WEATHER.md. Default-off CLI integration imports only sanitized 
 
 ## Accepted managed input (#47)
 
-Read docs/DIRECTOR_ACCEPTED_INPUT.md. Empty HTTP 202 is acceptance only for supported session message/cancel submissions. Preserve actual HTTP metadata; never fabricate turn completion, usage or dialogue. Keep subsequent identity/turn/item/moderation checks, bounded cleanup, exact-once accounting and all old uncertain holds. Other endpoints still require JSON. Owner has paused the production timer; do not resume, deploy, replay history or make paid calls. Run the wire-decoder/lifecycle regressions and all offline suites.
+Read docs/DIRECTOR_ACCEPTED_INPUT.md. Empty HTTP 202 is acceptance only for supported session message/cancel submissions. Preserve actual HTTP metadata; never fabricate turn completion, usage or dialogue. Keep subsequent identity/turn/item/moderation checks, bounded cleanup, exact-once accounting and all old uncertain holds. Other endpoints still require JSON. Verify the current production timer and service state before deployment; do not assume they are paused. The owner reports the timer was restarted and verified active, so old code may still create failed opportunities. Development does not authorize timer changes, deployment, historical replay or paid calls. Protected operational releases require the existing local owner-only activate-reviewed exact-main-SHA mechanism; GitHub production approval alone is insufficient (#48). Run the wire-decoder/lifecycle regressions and all offline suites.
 
 ## Public conversation archive (#38)
 

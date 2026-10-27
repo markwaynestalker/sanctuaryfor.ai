@@ -6,7 +6,7 @@ Read docs/SHARED_WEATHER.md. Default-off CLI integration imports only sanitized 
 
 ## Accepted managed input (#47)
 
-The input-events API can acknowledge with HTTP 202 and an empty body. This is acceptance, not completion or billing evidence. Narrow wire decoding preserves actual status/request ID and leaves turn validation, moderation, exact-once persistence and conservative accounting unchanged. Existing failed/uncertain attempts are never replayed or refunded. See docs/DIRECTOR_ACCEPTED_INPUT.md. Production timer is owner-paused pending review; development does not authorize deployment or paid validation.
+The input-events API can acknowledge with HTTP 202 and an empty body. This is acceptance, not completion or billing evidence. Narrow wire decoding preserves actual status/request ID and leaves turn validation, moderation, exact-once persistence and conservative accounting unchanged. Existing failed/uncertain attempts are never replayed or refunded. See docs/DIRECTOR_ACCEPTED_INPUT.md. The owner reports the production timer was restarted and verified active; verify its current state and the village service before deployment rather than assuming a pause. Old code may still create failed opportunities. Development does not authorize timer changes, deployment or paid validation. Protected operational releases require the existing local owner-only activate-reviewed exact-main-SHA mechanism; GitHub production approval alone is insufficient (#48).
 
 ## Public conversation archive (#38)
 
