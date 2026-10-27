@@ -1,0 +1,43 @@
+<?php
+declare(strict_types=1);
+require __DIR__.'/../app/village.php';require __DIR__.'/../app/view.php';require __DIR__.'/../app/conversation_archive.php';
+use function LittleSparks\e;
+$archive=null;$error='';$open=$_GET['open']??'';$input=$_GET;unset($input['open']);$filters=['q'=>'','resident'=>'','source'=>'all','from'=>'','until'=>'','order'=>'newest','size'=>25,'page'=>1];
+ini_set('display_errors','0');
+try{
+    if(($_SERVER['REQUEST_METHOD']??'')!=='GET'){header('Allow: GET');throw new LittleSparks\Problem(405,'Use GET to read the archive.');}
+    if(!is_string($open)||strlen($open)>64||($open!==''&&!preg_match('/\A[a-zA-Z0-9_-]+\z/',$open)))throw new LittleSparks\Problem(422,'Choose a valid exchange.');
+    $filters=LittleSparks\archiveParameters($input);$db=LittleSparks\connect((string)getenv('LITTLE_SPARKS_DB'));$db->exec('PRAGMA query_only=ON');
+    $archive=LittleSparks\conversationArchive($db,$input);$filters=$archive['filters'];
+}catch(LittleSparks\Problem $e){http_response_code($e->status);$error=$e->getMessage();}catch(Throwable){http_response_code(503);$error='The archive could not be loaded. Please try again later.';}
+function archiveLink(array $filters,array $changes=[]):string{return 'conversations.php?'.http_build_query(array_replace($filters,$changes),'','&',PHP_QUERY_RFC3986);}
+LittleSparks\pageStart('Village Conversation Archive');
+?>
+<link rel="stylesheet" href="<?= e(LittleSparks\assetUrl('archive.css')) ?>">
+<script src="<?= e(LittleSparks\assetUrl('archive.js')) ?>" defer></script>
+<section class="world-intro"><p class="eyebrow">THE VILLAGE CONVERSATION ARCHIVE</p><h1>Every little<br><span>exchange.</span></h1><p>Explore the retained public story: original saved words, their speakers, and the moment they met. Reading never starts a simulation or an AI request.</p></section>
+<form id="archive-filters" method="get" action="conversations.php" class="archive-filters" aria-describedby="archive-help">
+<div class="archive-search"><label for="archive-search">Search names, dialogue or topics</label><input id="archive-search" type="search" name="q" value="<?= e($filters['q']) ?>" maxlength="128" placeholder="Lanterns, radishes, a familiar name…"></div>
+<div><label for="archive-resident">Resident</label><select id="archive-resident" name="resident"><option value="">All residents</option><?php if($filters['resident']!==''&&!in_array($filters['resident'],array_column($archive['residents']??[],'id'),true)): ?><option value="<?= e($filters['resident']) ?>" selected>Selected resident (no matches)</option><?php endif; ?><?php foreach($archive['residents']??[] as $resident): ?><option value="<?= e($resident['id']) ?>" <?= $filters['resident']===$resident['id']?'selected':'' ?>><?= e($resident['name']) ?></option><?php endforeach; ?></select></div>
+<div><label for="archive-source">Source</label><select id="archive-source" name="source"><?php foreach(['all'=>'All sources','openai'=>'AI-generated','scripted'=>'Scripted'] as $value=>$label): ?><option value="<?= $value ?>" <?= $filters['source']===$value?'selected':'' ?>><?= $label ?></option><?php endforeach; ?></select></div>
+<div><label for="archive-from">From (UTC)</label><input id="archive-from" type="date" name="from" value="<?= e($filters['from']) ?>"></div>
+<div><label for="archive-until">Through (UTC)</label><input id="archive-until" type="date" name="until" value="<?= e($filters['until']) ?>"></div>
+<div><label for="archive-order">Order</label><select id="archive-order" name="order"><option value="newest" <?= $filters['order']==='newest'?'selected':'' ?>>Newest first</option><option value="oldest" <?= $filters['order']==='oldest'?'selected':'' ?>>Oldest first</option></select></div>
+<div><label for="archive-size">Per page</label><select id="archive-size" name="size"><?php foreach([10,25,50,100] as $size): ?><option value="<?= $size ?>" <?= $filters['size']===$size?'selected':'' ?>><?= $size ?></option><?php endforeach; ?></select></div>
+<div class="archive-filter-actions"><button type="submit" class="button button-primary">Find conversations</button><a href="conversations.php" class="small-button">Clear filters</a></div>
+</form>
+<p id="archive-help" class="field-help">Search spans all retained public exchanges. Resident choices come from this page; search a resident's name to find their older conversations, then narrow by resident. Date filters use UTC; timestamp display follows your preference.</p>
+<?php if($error): ?><p role="alert"><?= e($error) ?></p><p><a href="conversations.php">Try the archive again ↗</a></p><?php endif; ?>
+<?php if($archive): $pagination=$archive['pagination']; ?>
+<p id="archive-status" role="status" aria-live="polite"><?= $pagination['total'] ?> matching <?= $pagination['total']===1?'conversation':'conversations' ?> · <?= $pagination['from'] ?>–<?= $pagination['until'] ?> · Page <?= $pagination['page'] ?> of <?= $pagination['pages'] ?></p>
+<?php if(!$archive['conversations']): ?><p class="archive-empty">No public conversations match these filters. Try another name, phrase or date.</p><?php else: ?>
+<table class="archive-table" role="table"><caption class="sr-only">Saved public conversations. Use Read exchange to expand the complete original messages.</caption><thead role="rowgroup"><tr role="row"><th scope="col" role="columnheader">Date &amp; time</th><th scope="col" role="columnheader">Residents</th><th scope="col" role="columnheader">Conversation</th><th scope="col" role="columnheader">Source</th><th scope="col" role="columnheader">Action</th></tr></thead><tbody role="rowgroup">
+<?php foreach($archive['conversations'] as $conversation): $expanded=$open===$conversation['id'];$domId='exchange-'.hash('sha256',$conversation['id']); ?>
+<tr class="archive-record" role="row"><td role="cell" data-label="Date &amp; time"><time datetime="<?= e($conversation['created_at']) ?>"><?= e($conversation['created_at']) ?></time></td><td role="cell" data-label="Residents"><?php foreach($conversation['messages'] as $message): ?><a class="archive-resident" href="<?= e(archiveLink($filters,['resident'=>$message['resident_id'],'page'=>1])) ?>"><?= e($message['name']) ?></a><?php endforeach; ?></td><td role="cell" data-label="Conversation"><span class="archive-topic"><?= e($conversation['topic']) ?></span><span class="archive-preview"><?php foreach($conversation['messages'] as $message): ?><span><?= e($message['text']) ?></span><?php endforeach; ?></span></td><td role="cell" data-label="Source"><span class="archive-source"><?= $conversation['provider']==='openai'?'AI-generated':'Scripted' ?></span></td><td role="cell" data-label="Action"><a class="small-button archive-expand" href="<?= e(archiveLink($filters,['open'=>$expanded?'':$conversation['id']])) ?>#<?= $domId ?>" aria-expanded="<?= $expanded?'true':'false' ?>" aria-controls="<?= $domId ?>"><?= $expanded?'Close exchange':'Read exchange' ?><span class="sr-only"> between <?= e($conversation['messages'][0]['name']) ?> and <?= e($conversation['messages'][1]['name']) ?></span></a></td></tr>
+<tr class="archive-expansion" role="row" id="<?= $domId ?>" <?= $expanded?'':'hidden' ?>><td colspan="5" role="cell"><article class="archive-exchange" aria-label="Complete saved exchange"><p class="field-help"><?= $conversation['provider']==='openai'?'Saved AI-generated dialogue':'Saved scripted dialogue' ?> · <?= e($conversation['topic']) ?></p><?php foreach($conversation['messages'] as $message): ?><blockquote class="archive-bubble"><p class="archive-speaker"><a href="resident.php?id=<?= e($message['resident_id']) ?>"><?= e($message['name']) ?></a></p><p class="archive-speech"><?= e($message['text']) ?></p></blockquote><?php endforeach; ?></article></td></tr>
+<?php endforeach; ?></tbody></table>
+<?php endif; ?>
+<nav class="pagination" aria-label="Conversation archive pages"><?php if($pagination['page']>1): ?><a class="small-button" rel="prev" href="<?= e(archiveLink($filters,['page'=>$pagination['page']-1])) ?>">Previous</a><?php else: ?><span class="small-button" aria-disabled="true">Previous</span><?php endif; ?><span>Page <?= $pagination['page'] ?> of <?= $pagination['pages'] ?></span><?php if($pagination['page']<$pagination['pages']): ?><a class="small-button" rel="next" href="<?= e(archiveLink($filters,['page'=>$pagination['page']+1])) ?>">Next</a><?php else: ?><span class="small-button" aria-disabled="true">Next</span><?php endif; ?></nav>
+<?php endif; ?>
+<p class="field-help">Only authorized public exchanges appear here. Original saved speech is shown in full when expanded. <a href="village.php">Return to the commons ↗</a></p>
+<?php LittleSparks\pageEnd(); ?>
