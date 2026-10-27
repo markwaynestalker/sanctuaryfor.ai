@@ -131,3 +131,7 @@ No database migration, new receipt, billing reconciliation, production ENV edit 
 ## Optional site-operator suggestions (#15)
 
 See docs/OPERATOR_IDEAS.md and .env.example for the complete OWNER_* table: explicit default-off activation, required web-only password hash, login attempts/hour (10), session seconds (3600), ideas/UTC day (12), pending/resident (4), text length (500), context items/resident (2), history page size (20), ranges and activation procedure. Quotas are checked transactionally; invalid values fail, never clamp. They control operator access/input/context only and never lower AI allowances or add provider calls. Fixed HTTPS/CSRF, immutable attribution, participant binding, the 1000-character SQL shape and bounded context/body/page domains are security/data-integrity protections. No activation or production migration is implicit.
+
+## Optional internal weather source (#44)
+
+See SHARED_WEATHER.md and .env.example for WEATHER_ENABLED (0), protected SOURCE_URL/optional BEARER_TOKEN, STATION, REFRESH_MINUTES (30, 1..1440), MAX_AGE_MINUTES (120, 1..1440), HTTP_TIMEOUT_SECONDS (3, 1..10), and DAILY_REQUESTS (48, 0..INT_MAX). Prefix LITTLE_SPARKS_WEATHER_ applies. Source requests reserve atomically in a separate internal ledger and never consume/refund/reset OpenAI slots or raise spending limits. Invalid values fail safely; no automatic retries within a refresh period. Fixed tailnet URL/redirect/payload/depth/temperature domains are security/data-shape guards. No new timer, source credential or production setting is created automatically.

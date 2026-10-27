@@ -7,7 +7,7 @@ const pure=vm.createContext({});vm.runInContext(source,pure);const a=pure.Sparks
 assert.equal(a.villageZone,'America/New_York');
 for(const zone of ['UTC','America/New_York','Europe/London','Asia/Tokyo','Australia/Sydney'])assert.ok(a.validZone(zone));
 for(const zone of ['',null,{},'javascript:alert(1)','Bad/Zone','x'.repeat(10000)])assert.equal(a.safeZone(zone),'UTC');
-for(const weather of ['clear','rain','snow'])assert.equal(a.safeWeather(weather),weather);
+for(const weather of ['clear','rain','fog','snow'])assert.equal(a.safeWeather(weather),weather);
 for(const weather of ['',null,{},'thunderstorm','<img>'])assert.equal(a.safeWeather(weather),'clear');
 const denied={getItem(){throw Error('denied');},setItem(){throw Error('denied');}};
 assert.equal(a.preferences(denied).zone,'UTC');assert.equal(a.preferences(denied).weather,'clear');
@@ -31,7 +31,7 @@ class Element{
     addEventListener(type,f){(this.listeners[type]??=[]).push(f);}fire(type){for(const f of this.listeners[type]??[])f();}
     append(option){this.options.push(option);}closest(){return this.container;}getAttribute(key){return this.attributes[key];}
 }
-const ids=Object.fromEntries(['display-timezone','landscape','scene-weather','atmosphere-controls','village-clock'].map(id=>[id,new Element()]));
+const ids=Object.fromEntries(['display-timezone','landscape','scene-weather','scene-weather-label','weather-note','atmosphere-controls','village-clock'].map(id=>[id,new Element()]));
 ids['display-timezone'].container=new Element();ids['display-timezone'].options=['UTC','America/New_York'].map(value=>({value}));
 const time=new Element();time.attributes={datetime:'2026-10-25T23:30:00Z'};
 const timers=new Map(),storage=new Map(),writes=[];
@@ -55,3 +55,13 @@ assert.ok(css.includes('prefers-reduced-motion:reduce')&&css.includes('animation
 assert.ok(css.includes('forced-colors:active')&&css.includes('pointer-events:none')&&css.includes('animation-play-state:paused'));
 assert.ok(!/requestAnimationFrame|setInterval|fetch\(/.test(source),'No extra render loop, polling or HTTP');
 console.log('PASS shared New York atmosphere, visitor timestamps/today, UTC and both DST boundaries, invalid/denied preferences, no-Intl fallback, all weather presets, one visible clock timer, hidden/resume, pause, static reduced motion and zero network');
+
+const shared={version:1,id:'a'.repeat(64),kind:'foggy',classification:'reported_farm_weather',temperature_f:43,description:'Fair skies',observed_at:Math.floor(now/1000)-30,valid_until:Math.floor(now/1000)+3600,server_time:Math.floor(now/1000)};
+const oldWrites=writes.length;runtime.setSharedWeather(shared);assert.equal(ids.landscape.dataset.weather,'fog');assert.equal(ids.landscape.dataset.weatherSource,'shared');assert.equal(runtime.weatherPace(),.7);assert.equal(ids['scene-weather'].hidden,true);assert.equal(ids['scene-weather-label'].hidden,true);assert.ok(ids['weather-note'].textContent.includes('Shared farm weather: Foggy'));
+ids['scene-weather'].value='snow';ids['scene-weather'].fire('change');assert.equal(ids.landscape.dataset.weather,'fog','A visitor cannot change shared conditions');assert.equal(writes.length,oldWrites,'Shared weather never enters cosmetic storage');
+for(const kind of ['sunny','rainy','foggy','snowy']){runtime.setSharedWeather({...shared,kind});assert.ok(runtime.weatherPace()>0&&runtime.weatherPace()<=1);assert.equal(timers.size,1,'Shared weather adds no timer or network request');}
+assert.throws(()=>runtime.setSharedWeather({...shared,kind:'storm'}));assert.throws(()=>runtime.setSharedWeather({...shared,id:'private-key'}));
+now+=3600001;doc.dispatchEvent({type:'visibilitychange'});assert.ok(ids['weather-note'].textContent.includes('Last observed'));assert.equal(runtime.weatherPace(),1,'Expired weather cannot claim fresh behavioral effects');
+assert.equal(ids.landscape.dataset.weather,'clear','Stale precipitation clears to the neutral atmosphere');runtime.setSharedWeather({available:false,classification:'reported_farm_weather'});assert.ok(ids['weather-note'].textContent.includes('unavailable'));assert.equal(runtime.weatherPace(),1);assert.equal(ids.landscape.dataset.weather,'clear');runtime.setSharedWeather(null);assert.equal(ids['scene-weather'].hidden,false);assert.equal(ids.landscape.dataset.weatherSource,'preview');assert.ok(ids['weather-note'].textContent.includes('Local scene preview only'));assert.equal(timers.size,1);
+assert.ok(css.includes('scene-fog')&&css.includes('data-weather="fog"'));
+console.log('PASS saved shared sun/rain/fog/snow, visitor override denial, weather-aware pace, source/staleness labels, preview restoration and zero extra timers/requests');

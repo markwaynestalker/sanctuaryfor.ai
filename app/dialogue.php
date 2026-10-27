@@ -10,7 +10,7 @@ function expressiveDialogue(string $line,array $residentNames=[]):string
     if(preg_match('/[^\p{Latin}\p{N}\p{P}\p{S}\p{Z}]/u',$line))throw new AiGuard('invalid_proposal');
     $normalize=static fn(string $text):string=>str_replace(['’','‘'],"'",$text);
     $text=strtolower($normalize($line));
-    $objects='trees?|bush(?:es)?|flowers?|gardens?|pets?|cats?|cottages?|houses?|paths?|lanterns?|plots?';
+    $objects='trees?|bush(?:es)?|flowers?|gardens?|pets?|cats?|cottages?|houses?|paths?|lanterns?|plots?|snowm[ae]n';
     $completed='planted|sowed|sown|seeded|built|constructed|erected|installed|crafted|fashioned|placed|decorated|adopted|watered|grew|grown|harvested|created|added|removed|moved|visited|gifted';
     $actions='plant|sow|build|construct|install|place|decorate|adopt|water|grow|create|add|remove|move';
     $ongoing='planting|sowing|building|constructing|installing|placing|decorating|adopting|watering|growing|creating|adding|removing|moving';

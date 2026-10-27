@@ -42,7 +42,7 @@ class Element{
     focus(){this.doc.activeElement=this;}showModal(){this.open=true;}close(){this.open=false;for(const f of this.listeners.close??[])f({});}
     click(){const event={defaultPrevented:false,preventDefault(){this.defaultPrevented=true;}};for(const f of this.listeners.click??[])f(event);if(this.href&&!event.defaultPrevented)this.doc.location.href=new URL(this.href,this.doc.location.href).href;}
 }
-async function meadow({mobile=false,reduced=false,third=false,conversation=exchange,replay=60,sleep,people=residents,width=mobile?388:1000}={}){
+async function meadow({mobile=false,reduced=false,third=false,conversation=exchange,replay=60,sleep,weather,people=residents,width=mobile?388:1000}={}){
     const elements=new Map(),requests=[],frames=new Map(),media=new Map(),motionStates=[];let clock=1000,sequence=0;
     const location={href:'http://fixture.test/village.php',pathname:'/village.php',search:'',hash:''};
     const document={location,hidden:false,listeners:{},getElementById(id){if(!elements.has(id))elements.set(id,new Element(id.includes('link')?'a':'div',this));return elements.get(id);},createElement(tag){return new Element(tag,this);},addEventListener(type,f){this.listeners[type]=f;}};
@@ -57,7 +57,7 @@ async function meadow({mobile=false,reduced=false,third=false,conversation=excha
         addEventListener(){},requestAnimationFrame(f){frames.set(++sequence,f);return sequence;},cancelAnimationFrame(id){frames.delete(id);},
         ResizeObserver:class{constructor(f){resize=f;}observe(){}},
         fetch:async(url,options)=>{requests.push({url,options});const ids=new URL(url,'http://fixture.test/').searchParams.get('ids')?.split(',')||[];return {ok:true,json:async()=>url.includes('residents.php')?{residents:population,total:population.length,page:0,lastPage:0,csrf:'fixture'}:{homes:people.map((r,i)=>({resident_id:r.id,plot:{x:i*4,y:0,width:4,height:4},objects:[{kind:'house',x:i*4+1,y:1},...(i===0?[{kind:'tree',x:3,y:3},{kind:'flowers',x:0,y:2},{kind:'bush',x:3,y:0},{kind:'path',x:1,y:2},{kind:'decoration',x:2,y:0}]:[])]})).filter(h=>ids.includes(h.resident_id)),conversations:conversation?[conversation]:[]}};}});
-    const originalFetch=context.fetch;context.fetch=async(...args)=>{const result=await originalFetch(...args);if(args[0].includes('commons.php')){const json=result.json;result.json=async()=>({...await json(),settings:{replay_cooldown_seconds:replay,...(sleep?{sleep}:{})}});}return result;};
+    const originalFetch=context.fetch;context.fetch=async(...args)=>{const result=await originalFetch(...args);if(args[0].includes('commons.php')){const json=result.json;result.json=async()=>({...await json(),settings:{replay_cooldown_seconds:replay,...(sleep?{sleep}:{}),...(weather?{weather}:{})}});}return result;};
     vm.runInContext(helperSource,context);vm.runInContext(meadowSource,context);vm.runInContext(villageSource,context);await new Promise(setImmediate);
     return {$,document,requests,frames,media,motionStates,resize(width){$('landscape').clientWidth=width;resize([{contentRect:{width,height:520}}]);},setConversation(value){conversation=value;},advanceTime(ms){clock+=ms;document.listeners['sparks:clock']?.();},step(){clock+=80;const callbacks=[...frames.values()];frames.clear();for(const f of callbacks)f(clock);},clock:()=>clock};
 }
@@ -144,3 +144,9 @@ for(const reduced of [false,true]){
 console.log('PASS shared rest/wake clock, DST, strict public policy, desktop/mobile profiles/history, reduced motion and no extra HTTP');
 
 const operatorPopup=await meadow({mobile:true,reduced:true});operatorPopup.$('resident-directory').children[1].children[0].click();operatorPopup.$('profile-idea-link').click();assert.equal(operatorPopup.$('resident-profile').open,false);assert.equal(operatorPopup.document.location.href,'http://fixture.test/owner.php?resident='+b,'Operator link navigates natively out of modal without triggering AI');
+
+for(const mobile of [false,true]){
+ const weather={version:1,id:'f'.repeat(64),kind:'snowy',classification:'reported_farm_weather',temperature_f:43,description:'Fair skies',observed_at:Math.floor(Date.now()/1000)-30,valid_until:Math.floor(Date.now()/1000)+3600,server_time:Math.floor(Date.now()/1000)};
+ const m=await meadow({mobile,reduced:true,weather});assert.equal(m.requests.length,2);assert.equal(m.frames.size,0,'Reduced motion remains still with shared snow');assert.equal(m.$('home-layer').children.length,2);m.$('resident-directory').children[0].children[0].click();assert.ok(m.$('resident-profile').open,'Weather preserves accessible profiles');
+}
+console.log('PASS shared weather composes with desktop/mobile saved homes, profiles, reduced motion and the existing two read-only requests');

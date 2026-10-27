@@ -33,6 +33,7 @@ function trimDirectorContext(array $context,int $maximum):array
             $tails[]=['owner'=>$owner,'field'=>$field,'rank'=>[$priority,-count($list),$last['at']??$last['created_at']??$last['knowledge']['learned_at']??'']];
         };
         $offer(-1,'operator_suggestions',$context['operator_suggestions']??[],-1);
+        if(isset($context['village_weather']))$tails[]=['owner'=>-1,'field'=>'village_weather','rank'=>[1,0,'']];
         $offer(-1,'director_continuity',$context['director_continuity'],0);
         $offer(-1,'shared_recent_conversations',$context['shared_recent_conversations'],count($context['shared_recent_conversations'])>1?5:7);
         foreach($context['participants'] as $i=>$p){
@@ -43,6 +44,7 @@ function trimDirectorContext(array $context,int $maximum):array
         }
         if(!$tails)throw new AiGuard('configuration_invalid');
         usort($tails,fn($a,$b)=>$a['rank']<=>$b['rank']);$drop=$tails[0];
+        if($drop['field']==='village_weather'){unset($context['village_weather']);continue;}
         if($drop['owner']===-1)array_pop($context[$drop['field']]);else array_pop($context['participants'][$drop['owner']][$drop['field']]);
     }
     return $context;
@@ -53,6 +55,7 @@ function prepareDirectorEncounter(PDO $db,array $pair,array $choices,array $clai
         // Repeat contract guidance in fresh input so existing managed sessions receive it too.
         'dialogue_guidance'=>directorSchema($choices)['properties']['messages']['items']['properties']['text']['description'],
         'participants'=>[],'shared_recent_conversations'=>[],'allowed_actions'=>array_keys($choices),'world_action_actor_id'=>$pair[0]['id'],'director_continuity_is_not_participant_knowledge'=>true,'director_continuity'=>[]];
+    if($weather=encounterVillageWeather($db,$claim))$context['village_weather']=$weather;
     foreach($pair as $index=>$actor){
         $id=$actor['id'];$other=$pair[1-$index]['id'];$known=[];
         // Retrieve only generation context, not an entire UI profile and its duplicate history/trails.

@@ -4,10 +4,16 @@ namespace LittleSparks;
 
 function recordSchedulerResult(\PDO $db,array $result):void
 {
-    $value=['at'=>time(),'status'=>$result['status']??'pending','opportunity_id'=>$result['opportunity_id']??null,'replayed'=>$result['replayed']??false,
-        'sleep_policy'=>villageSleepConfiguration()];
-    $db->prepare("INSERT INTO settings(name,value) VALUES ('scheduler:last_tick',?) ON CONFLICT(name) DO UPDATE SET value=excluded.value")
-        ->execute([json_encode($value,JSON_THROW_ON_ERROR)]);
+    $now=time();$db->exec('BEGIN IMMEDIATE');
+    try{
+        $value=['at'=>$now,'status'=>$result['status']??'pending','opportunity_id'=>$result['opportunity_id']??null,'replayed'=>$result['replayed']??false,
+            'sleep_policy'=>villageSleepConfiguration()];
+        if(villageWeatherConfiguration()['enabled'])$value['weather_enabled']=true;
+        if($weather=cachedVillageWeather($db))$value['weather']=$weather;
+        $db->prepare("INSERT INTO settings(name,value) VALUES ('scheduler:last_tick',?) ON CONFLICT(name) DO UPDATE SET value=excluded.value")
+            ->execute([json_encode($value,JSON_THROW_ON_ERROR)]);
+        $db->exec('COMMIT');
+    }catch(\Throwable $e){$db->exec('ROLLBACK');throw $e;}
 }
 
 function schedulerFlag(string $name):bool

@@ -24,6 +24,14 @@ if(($argv[2]??'')==='daily'){
 // Seed genuine saved legacy activity; never use a live transport.
 putenv('LITTLE_SPARKS_SIMULATION_ENABLED=1');putenv('LITTLE_SPARKS_AI_ENABLED=0');
 for($i=0;$i<12;$i++)LittleSparks\simulateOpportunity($db,gmdate('Y-m-d\TH:i:00\Z',$now-3600+$i*60),false,null,$now);
+// This fixture tests preservation, not the planner's hash-based choice of
+// conversation/action/quiet/none. Seed one known validated legacy exchange so
+// twelve legitimate non-conversation outcomes cannot make CI fail at random.
+$seed=LittleSparks\claimActivity($db,gmdate('Y-m-d\TH:i:00\Z',$now-1200),$now);$seedChoices=['none'=>null];
+check(count($seed['pair'])===2,'Two fixture residents available for saved history');
+$seedContext=LittleSparks\prepareMemoryEncounter($db,$seed['pair'],$seedChoices);
+$seedProposal=LittleSparks\composeMemoryProposal($db,['outcome'=>'conversation','topic'=>'welcome','first'=>'I enjoy the garden light.','second'=>'Shall we take a quiet walk?','world_action'=>'none','story'=>'none'],$seed['pair'],$seedContext);
+$seedResult=LittleSparks\applyActivity($db,$seed,$seedProposal,$seedChoices,$now);check($seedResult['status']==='completed','Deterministic legacy history seed');
 check((int)$db->query('SELECT COUNT(*) FROM conversations')->fetchColumn()>0,'Populated history');
 $before=LittleSparks\identityPreservationDigest($db);
 // A consistent private backup includes committed WAL history; migrate only a copy.

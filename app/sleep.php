@@ -27,12 +27,11 @@ function villageSleepState(int $now,?array $configuration=null):array
     }
     return $c+['sleeping'=>$sleeping,'server_time'=>$now,'next_transition_at'=>$next];
 }
-function villagePublicSleepState(\PDO $db,int $now):array
+function villagePublicSleepState(\PDO $db,int $now,?array $tick=null):array
 {
     // FPM need not read the private CLI environment/credential channel. The
     // scheduler publishes only this harmless policy alongside its existing tick.
-    $q=$db->prepare('SELECT value FROM settings WHERE name=?');$q->execute(['scheduler:last_tick']);
-    $raw=$q->fetchColumn();$tick=$raw===false?null:json_decode($raw,true);
+    $tick??=publishedVillageTick($db);
     $c=$tick['sleep_policy']??null;
     if($c===null)return villageSleepState($now);
     if(!is_array($c)||!is_bool($c['enabled']??null)||($c['time_zone']??null)!=='America/New_York'
