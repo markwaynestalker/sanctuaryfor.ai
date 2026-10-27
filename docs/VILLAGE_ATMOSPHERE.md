@@ -4,11 +4,15 @@ The village presentation clock follows `America/New_York` for everyone, includin
 
 Timestamp timezone is a separate browser preference. Choose UTC, New York, London, Tokyo, Sydney or the browser's recognized timezone. Journal/profile `<time datetime>` attributes and all API/database timestamps retain their original UTC values. Visible times and “Saved today” use the same selected zone; no-JavaScript pages retain their escaped UTC text. Unsupported/invalid preferences safely fall back to UTC. The preference applies across village, journal and profile pages in the same browser.
 
-Scene weather offers clear (default), rain and snow. It is a decorative local preset, not live Toronto weather or a recorded village event. Two bounded CSS pseudo-elements provide the effects without polling, particles added each frame, audio or lightning. Pause Wandering and resident dialogs pause weather; reduced motion shows static cues. Hidden tabs pause weather and suspend the display clock. Resuming catches up directly, without backlog. There is no weather API, geolocation, provider prompt change or automatic AI request.
+Local scene preview offers sunny/clear (default), rain, fog and snow. It is a decorative local preset, not live Toronto weather or a recorded village event. Two bounded CSS pseudo-elements provide the effects without polling, particles added each frame, audio or lightning. Pause Wandering and resident dialogs pause weather; reduced motion shows static cues. Hidden tabs pause weather and suspend the display clock. Resuming catches up directly, without backlog. There is no weather API, geolocation, provider prompt change or automatic AI request.
 
 Only cosmetic timezone/weather values are saved in local storage (`sparks_display_timezone_v1`, `sparks_scene_weather_v1`). Denied storage falls back to in-memory preferences. Private revisit links and resident records never enter this storage.
 
 At **360 CSS pixels or less of actual scene width**, homes, yards and home-object visuals are omitted from the commons. Their collision footprints disappear too; the chicken retains its small protected refuge. All six phone residents remain available and can roam the open space. Cottages return above that boundary with their original saved objects. Page padding/zoom affect the measured scene width; there is no device-name/user-agent detection. The directory, profile pages and saved neighborhood map remain authoritative and accessible at every width. Resize preserves still-valid positions and reuses loaded records; different neighborhood membership still needs its normal read-only request.
+
+## Optional shared weather follow-up (#44)
+
+[Shared farm weather](SHARED_WEATHER.md) adds a separately enabled, sanitized server-side observation snapshot for both the scene and Director. Active shared conditions disable the local preview control. Stale/unavailable observations show a neutral scene; raw source/automation data never reaches browsers or the Director. New York lighting, nighttime rest and visitor timestamp preferences remain independent. The local-preview behavior above remains the default when shared weather is disabled.
 
 ## Verification and rollout
 

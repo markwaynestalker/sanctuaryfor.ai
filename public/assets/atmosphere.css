@@ -23,3 +23,8 @@
 @keyframes scene-snow { to { background-position:20px 120px; } }
 @media(prefers-reduced-motion:reduce) { .landscape,.landscape::before,.landscape .scene-hill,.landscape .scene-sun,.landscape .scene-moon { transition:none; } .scene-weather::before,.scene-weather::after { animation:none !important; } }
 @media(forced-colors:active) { .scene-weather,.scene-sun,.scene-moon { display:none; } }
+
+/* Shared and preview fog stay behind robots, speech and the protected chicken. */
+.landscape[data-weather="fog"] .scene-weather::before{opacity:.45;background:linear-gradient(0deg,#c7d9d388,transparent 75%),radial-gradient(ellipse at 20% 65%,#e1ece566,transparent 65%);background-size:130% 100%;animation:scene-fog 24s ease-in-out infinite alternate}
+@keyframes scene-fog{to{background-position:50% 0}}
+@media(prefers-reduced-motion:reduce){.landscape[data-weather="fog"] .scene-weather::before{animation:none!important}}

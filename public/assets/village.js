@@ -241,6 +241,7 @@
             if (!response.ok) throw new Error('Saved village life unavailable.');
             const data = await response.json(); if (version !== commonsVersion) return;
             replayCooldown = commons.replayCooldown(data.settings);
+            globalThis.SparksAtmosphere?.setSharedWeather?.(data.settings?.weather??null);
             sleepPolicy=commons.sleepConfiguration(data.settings?.sleep);sleepReceivedAt=performance.now();syncSleep();
             homes = Array.isArray(data.homes) ? data.homes.slice(0, 24) : [];
             exchanges = commons.latestExchanges(Array.isArray(data.conversations) ? data.conversations : [], ids);
@@ -288,7 +289,7 @@
         const delta = lastTick ? Math.min((now - lastTick) / 1000, .2) : 0;
         lastTick = now;
         advancePlayback(now);
-        meadow.step(walkers,sceneGeometry,delta,now,Math.random);
+        meadow.step(walkers,sceneGeometry,delta*(globalThis.SparksAtmosphere?.weatherPace?.()??1),now,Math.random);
         for (const walker of walkers) {
             if (walker.ambientUntil && now > walker.ambientUntil) { walker.bubble.textContent = ''; walker.ambientUntil = 0; }
             place(walker);

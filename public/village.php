@@ -11,8 +11,8 @@ function escape(string $value): string { return htmlspecialchars($value, ENT_QUO
 $page = filter_input(INPUT_GET, 'page', FILTER_VALIDATE_INT, ['options' => ['min_range' => 0, 'max_range' => 250]]) ?: 0;
 $village = ['residents' => [], 'total' => 0, 'page' => 0, 'lastPage' => 0];
 $available = true;
-$identity=false;$descriptionMax=2000;$operatorIdeas=getenv('LITTLE_SPARKS_OWNER_IDEAS_ENABLED')==='1';
-try { $db=LittleSparks\connect((string) getenv('LITTLE_SPARKS_DB'));$identity=LittleSparks\identityEnabled($db);if($identity)$descriptionMax=LittleSparks\identityConfiguration()['description_max'];$village = LittleSparks\residents($db, $page); }
+$sharedWeather=null;$identity=false;$descriptionMax=2000;$operatorIdeas=getenv('LITTLE_SPARKS_OWNER_IDEAS_ENABLED')==='1';
+try { $db=LittleSparks\connect((string) getenv('LITTLE_SPARKS_DB'));$identity=LittleSparks\identityEnabled($db);if($identity)$descriptionMax=LittleSparks\identityConfiguration()['description_max'];$village = LittleSparks\residents($db, $page);$sharedWeather=LittleSparks\publicVillageWeather(LittleSparks\publishedVillageTick($db),time()); }
 catch (Throwable) { $available = false; }
 ?>
 <!DOCTYPE html>
@@ -51,7 +51,7 @@ catch (Throwable) { $available = false; }
     <section aria-labelledby="landscape-title" class="landscape-section">
         <div class="scene-toolbar"><h2 id="landscape-title">The sanctuary commons</h2><button type="button" id="motion-toggle" class="small-button" aria-pressed="false" disabled>Pause wandering</button></div>
         <p class="simulation-note">Virtual characters, real saved identities. Wandering is local to your screen. Meetings replay saved public conversations, labeled AI-generated or scripted; visiting never generates new dialogue. Each cottage has a yard showing its actual saved improvements. The arrangement is decorative; the neighborhood map preserves real plot locations. These robots are not conscious AI.</p>
-        <div id="atmosphere-controls" class="atmosphere-controls" hidden><p id="village-clock" class="field-help"></p><label for="scene-weather">Scene weather</label><select id="scene-weather"><option value="clear">Clear</option><option value="rain">Rain</option><option value="snow">Snow</option></select><p class="field-help">A fictional New York village clock and decorative weather, not real-world observations. These effects do not change resident activity.</p></div>
+        <div id="atmosphere-controls" class="atmosphere-controls" hidden><p id="village-clock" class="field-help"></p><label id="scene-weather-label" for="scene-weather">Local scene preview</label><select id="scene-weather"><option value="clear">Sunny</option><option value="rain">Rainy</option><option value="fog">Foggy</option><option value="snow">Snowy</option></select><p class="field-help">The village clock follows New York. Shared conditions use sanitized farm observations; local previews do not affect the Sparks.</p></div>
         <p id="compact-meadow-note" class="field-help" hidden>A little open meadow: cottages are hidden on this narrow scene. Saved homes and gardens are still in resident profiles and the neighborhood map.</p>
         <div class="commons-neighborhood">
             <p id="neighborhood-status" class="field-help" role="status">The commons shows a small neighborhood at a time. Every resident is listed below.</p>
@@ -59,8 +59,9 @@ catch (Throwable) { $available = false; }
                 <button id="previous-neighborhood" type="button" class="small-button">Previous neighbors</button><button id="next-neighborhood" type="button" class="small-button">Next neighbors</button>
             </div>
         </div>
+        <p id="weather-note" class="field-help" role="status"><?php if(isset($sharedWeather['kind'])): ?><?= $sharedWeather['current']?'Shared farm weather: ':'Last observed farm weather (stale): ' ?><?= escape(ucfirst($sharedWeather['kind'])) ?> · <?= $sharedWeather['temperature_f'] ?>°F. Observed <time datetime="<?= gmdate('Y-m-d\TH:i:s\Z',$sharedWeather['observed_at']) ?>"><?= gmdate('Y-m-d\TH:i:s\Z',$sharedWeather['observed_at']) ?></time>.<?php elseif($sharedWeather): ?>Farm weather is unavailable. The shared scene is neutral.<?php else: ?>Local scene preview only; it does not change resident activity.<?php endif; ?></p>
         <p id="sleep-note" class="field-help" role="status" hidden></p>
-        <div id="landscape" class="landscape" aria-label="Village landscape; each robot has a profile in the resident directory below">
+        <div id="landscape" class="landscape" data-shared-weather="<?= escape(json_encode($sharedWeather,JSON_THROW_ON_ERROR)) ?>" aria-label="Village landscape; each robot has a profile in the resident directory below">
             <div class="scene-sun" aria-hidden="true"></div><div class="scene-moon" aria-hidden="true"></div><div class="scene-hill hill-back" aria-hidden="true"></div><div class="scene-hill hill-front" aria-hidden="true"></div><div class="scene-weather" aria-hidden="true"></div>
             <div id="home-layer" class="commons-homes" role="group" aria-label="Saved resident cottages"></div>
             <p id="scene-empty" class="scene-empty"><?= $available ? ($village['total'] ? 'Meet our saved residents in the directory below.' : 'The village is quiet. Its next little spark could be yours.') : 'The village is resting. Please visit again soon.' ?></p>

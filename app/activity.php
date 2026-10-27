@@ -146,6 +146,7 @@ function claimActivity(PDO $db,string $at,int $now): array
         $db->prepare("INSERT INTO simulation_opportunities(id,scheduled_at,day,resident_a,resident_b,outcome,expires_at,created_at) VALUES (?,?,?,?,?,'pending',?,?)")
             ->execute([$id,$at,$day,$pair[0]['id']??null,$pair[1]['id']??null,$now+directorExecutionConfiguration()['lease_seconds'],$time]);
         if($resting)$db->prepare('INSERT INTO settings(name,value) VALUES (?,?)')->execute(['activity_rest:'.$id,'night_rest']);
+        if($weather=captureVillageWeather($db,$now))$db->prepare('INSERT INTO settings(name,value) VALUES (?,?)')->execute(['village_weather:opportunity:'.$id,json_encode($weather,JSON_THROW_ON_ERROR)]);
         $db->exec('COMMIT');return ['id'=>$id,'pair'=>$pair,'created_at'=>$time];
     }catch(\Throwable $e){$db->exec('ROLLBACK');throw $e;}
 }

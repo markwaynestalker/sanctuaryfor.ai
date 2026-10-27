@@ -3,6 +3,7 @@ declare(strict_types=1);
 namespace LittleSparks;
 use PDO;
 require_once __DIR__.'/sleep.php';
+require_once __DIR__.'/weather.php';
 
 function unsignedEnvironmentInteger(string $name,?int $default=null):int
 {
