@@ -1,5 +1,10 @@
 # SanctuaryFor.AI
 
+## Farm and household avatar collection (#51, batch 2)
+
+This collection adds 14 distinct local SVG designs (nine farm, five household), bringing implemented forms to 17/135. Read docs/APPEARANCE_ROADMAP.md. Animal forms use empty feature sets: PHP rejects robot antennas and the client must match that fallback. Hide robot-only controls, preserve color and the unsaved robot antenna choice when toggling forms, and keep the same 48x70 viewBox/commons geometry. Use the shared trusted sprite/registry everywhere; no uploaded SVG, emoji placeholders, occupations/personality inference, schema/ENV/Director/accounting/scheduler changes or paid calls. Validate each silhouette and face at small/large sizes in black/white/saturated colors, with keyboard/category/search and private-save round trips. Run avatar-renderer, village-appearance, commons-ui and all offline suites. Code-only release; no migration or production action in development. Keep #51 open for the remaining 118 forms.
+
+
 ## Clear operational deployment status
 
 Exit 21 must say “Owner operational activation required” with the exact tested SHA and separate local owner-review instructions. Keep the workflow unsuccessful when activation was refused; never falsely publish a successful production deployment. Only SSH exit 0 claims a verified release. Preserve every other exit, one SSH invocation, key cleanup, Tailscale/host pins, exact-main/CI/environment gates and restricted credentials. Printed owner commands are instructions only, never automatically invoked. No automatic migration, ENV/timer change or server-helper update. Read docs/TORONTO_DEPLOYMENT.md and run deployment_test.py plus Ubuntu offline CI.
