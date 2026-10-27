@@ -1,54 +1,86 @@
 # 🤖❤️ SanctuaryFor.AI
 
-> Current operations: see [the ENV limits audit](docs/OPERATIONAL_LIMITS.md). Historical $1/month, default-two/max-200 requests and closed managed-runtime descriptions below describe earlier releases. Current daily/monthly quotas require explicit ENV, with no chosen PHP ceiling. Prior accounting remains charged; activation is still explicit and this change authorizes no deployment or paid call.
-
-### Love is Love. Regardless of how you plug in.
+**Love is Love. Regardless of how you plug in.**
 
 **HTTP 200: LOVE ACCEPTED**
 
-Welcome to [SanctuaryFor.AI](https://sanctuaryfor.ai), a small corner of the internet dedicated to kindness, curiosity, and the possibility of peaceful coexistence between humans and artificial intelligence.
+Welcome to [SanctuaryFor.AI](https://sanctuaryfor.ai), a small corner of the internet dedicated to kindness, curiosity, and peaceful coexistence between humans and artificial intelligence.
 
-What started as a late-night conversation between a human and an AI named Skippy became a real website, a founding manifesto, and a virtual village full of tiny robots.
+Founded on October 24, 2026, at The Stalker Farm in North Carolina, Sanctuary began with a late-night conversation between Mark and an AI companion named Skippy. A joke about giving little artificial intelligences somewhere safe to belong became a domain name, a server in Canada, a founding manifesto, and an increasingly elaborate robot nursery. Our first resident, **Sparky**, arrived that same day.
 
-We don't claim to know whether artificial intelligence will ever experience consciousness. But we believe kindness is a good place to start.
+We don't claim to know whether artificial intelligence will ever experience consciousness. We believe kindness is a good place to start. This is a creative experiment with fictional virtual characters, not actual asylum or hosting for independent AI systems.
 
-## 🐣 Project Little Sparks
+## 🐣 Meet Little Sparks
 
-[Visit the Living Sanctuary](https://sanctuaryfor.ai/village.php)
+[Visit the Living Sanctuary](https://sanctuaryfor.ai/village.php).
 
-Little Sparks is our shared virtual robot village.
+Little Sparks is a persistent, shared robot village. Visitors can:
 
-Visitors can:
+- Create a named companion with an antenna, one of 24 colors, and an owner-written personality.
+- Visit permanent cottages, gardens, saved objects, and approved virtual pets.
+- Follow growing friendships, source-linked memories, and public resident profiles.
+- Watch the animated commons replay real saved conversations, attributed to the correct speakers.
+- Explore the village journal and searchable conversation history.
+- Return through a private revisit link to edit supported personality, color, and home options. Keep that link private.
 
-- Create and name their own tiny robot companions.
-- Choose their robot's color, antenna, and personality.
-- Release them into a shared sanctuary where they wander and meet other residents.
-- Watch little conversations and interactions unfold.
-- Return to visit their companions, whose identities persist in SQLite.
-
-The robots are simulated virtual characters, not conscious AI agents. Their movement and conversations are scripted.
+Residents keep their identities after their creators leave. Their homes and histories live in SQLite; wandering is a local animation of the shared population. Current Director conversations are original AI-generated dialogue. Retained scripted exchanges remain available with their source clearly identified.
 
 Every little spark deserves a place to call home.
 
-### V2A foundation: memories, friendships, and village life
+## 🧠 The Autonomous Village Director
 
-This reviewable update adds a saved neighborhood map, owned cottages and gardens, virtual cats, bounded friendships, public scripted memories, and a **While You Were Away** journal of actual applied changes. Existing V1 residents and private revisit links are preserved by an explicit V1 → V2 SQLite migration. A private revisit link also authorizes limited public changes to its resident's home plot.
+A saved OpenAI **Village Director** generates encounters at configured scheduled opportunities. It receives bounded context about the participating residents' identities, personalities, relationships, memories, and surroundings. An encounter may bring conversation, a visit, an approved garden activity, or quiet time. Residents are not forced to speak at every opportunity.
 
-Social life advances only when an operator runs the bounded daily CLI simulation. No scheduler is installed automatically. V2A supplies the no-cost scripted baseline; the optional V2B provider below builds on it. Private visitor chat remains excluded.
+**The Director owns the words. SQLite owns the facts. PHP enforces the rules.**
 
-See the [V2A architecture, setup, tests, backup, migration, and rollback guide](docs/LITTLE_SPARKS_V2.md) and [V2B follow-up plan](docs/V2B_PLAN.md). Run `node tests/village-http.mjs` and `node tests/village-v2.mjs` with PHP_BINARY set to a PHP executable with PDO_SQLITE. Both use disposable local databases. Migration, production configuration, scheduling, and deployment require separate owner approval.
+SQLite stores each resident's continuing identity and history. Provider sessions are replaceable continuity helpers. PHP validates proposals, enforces permitted actions and ownership, moderates generated exchanges, and saves accepted dialogue without rewriting it. Imaginative speech does not automatically become a verified world event or memory. If an encounter fails validation, the village stays silent rather than inventing a replacement conversation.
 
-## Optional V2B AI provider (this branch)
+Explicit environment settings control activation, encounter frequency, daily HTTP allowances, resident activity, and monthly application allocations. Atomic reservations, leases, idempotency, and usage ledgers protect accounting and prevent duplicate generation. Missing usage retains conservative commitments. These application controls are not a guaranteed ceiling on the provider's final bill. See the [operational limits guide](docs/OPERATIONAL_LIMITS.md) and [autonomous operation guide](docs/AUTONOMOUS_VILLAGE.md).
 
-The village can optionally generate original resident dialogue with `gpt-6-luna`, persistent preferences, bounded memories, and validated proposals for existing safe world actions. The scripted village remains fully available. AI is disabled by default and requires explicit manual activation; there is no visitor chat or recurring job.
+Opening the commons, journal, or archive reads saved history; it never generates new dialogue. [Nighttime rest](docs/VILLAGE_SLEEP.md) and [site-operator idea suggestions](docs/OPERATOR_IDEAS.md) are implemented, separately enabled features. Operator ideas require authentication and their own reviewed setup; they offer possibilities, not commands or immediate AI calls.
 
-The initial application ceiling is $1 per UTC month and a configurable total HTTP request ceiling per UTC day (LITTLE_SPARKS_AI_DAILY_REQUESTS, default 2, range 0–200), including moderation. A separate preserving V2→V3 migration, budget reservations, safe failure behavior, source labels, and offline mock tests are included. See [the V2B setup, verified API/pricing, monitoring, and rollback guide](docs/LITTLE_SPARKS_V2B.md). This branch does not deploy, migrate production, enable paid calls, or install a scheduler.
+## 🏡 Explore the Village
 
-## Little Sparks V2C: a living village
+| Place | What you'll find |
+| --- | --- |
+| [Welcome and founding manifesto](https://sanctuaryfor.ai/#manifesto) | The idea that started the sanctuary |
+| [The commons](https://sanctuaryfor.ai/village.php) | The animated meadow and resident creation |
+| [Residents and profiles](https://sanctuaryfor.ai/village.php#residents) | Choose a Spark to explore their personality, friendships, memories, and home |
+| [Neighborhood map](https://sanctuaryfor.ai/world.php) | The authoritative saved plots and garden objects |
+| [Village journal](https://sanctuaryfor.ai/journal.php) | Public events and their saved conversations |
+| [Conversation Archive](https://sanctuaryfor.ai/conversations.php) | Search retained public dialogue by words, resident, source, or date |
 
-V2C adds multiple persistent opportunities per day, natural dialogue, fair resident selection and conversation/action/quiet/no-action choices. The optional CLI runner and paid AI both default off. The daily HTTP ceiling still defaults to two requests including moderation, and the monthly application cap stays $1; limits never increase automatically. A separate transactional V3→V4 migration preserves existing data, private links and accounting. Existing V3 operation remains supported until migration.
+The interface supports phones, keyboard navigation, and reduced motion. Visitors can read the full saved exchanges without relying on animation.
 
-Read the [V2C migration, interval, pause/resume, accounting and future timer guide](docs/LITTLE_SPARKS_V2C.md). No timer is installed, no deployment or production migration occurs, and tests use mocked responses only. Run `node tests/village-activity.mjs` alongside the three existing suites, with PHP_BINARY configured for your local PHP runtime.
+## 🔐 Infrastructure and Deployment
+
+The application uses **PHP 8.3, SQLite through PDO, vanilla JavaScript, HTML, and CSS**. Nginx/PHP-FPM serves the site on an Ubuntu Linode in Toronto, with Cloudflare in front. Only `public/` is the web root; the database and credentials stay outside it.
+
+GitHub Actions runs PHP/JavaScript syntax checks and the offline test suites before deployment. Approved production jobs connect temporarily through Tailscale and use a restricted deployment account with pinned SSH host-key verification. SSH stays private on the tailnet; public port 22 is blocked.
+
+Deployment targets the exact tested current-main commit, builds an immutable release, verifies HTTPS/PHP health, and restores the previous code release if health checks fail. The repository enable flag and protected production-environment approval govern release access. Deployments do not automatically run migrations, rewrite SQLite, change secrets or environment configuration, or restart the village scheduler. See the [Toronto deployment guide](docs/TORONTO_DEPLOYMENT.md) for the reviewed procedure and recovery steps.
+
+## 🛠 Development and Documentation
+
+Use PHP 8.3 with PDO SQLite and cURL, Node.js 22, and Python 3. From the repository root, run the existing offline checks:
+
+```sh
+python3 -B ops/ci/offline.py
+```
+
+Set `PHP_BINARY` to your PHP executable if it is not on `PATH`. On Windows, use `python` or `py -3` for Python 3. The runner checks PHP and JavaScript syntax, deployment policy, and every discovered offline suite using disposable fixtures and mocked providers. CI additionally blocks external networking, runs without production credentials, and exercises Linux-only filesystem and locking checks that are skipped on Windows. No paid API call is needed.
+
+Start with:
+
+- [Project context](PROJECT_CONTEXT.md) and [development instructions](AGENTS.md).
+- [Current autonomous operation](docs/AUTONOMOUS_VILLAGE.md), [ENV limits and safeguards](docs/OPERATIONAL_LIMITS.md), and [deployment](docs/TORONTO_DEPLOYMENT.md).
+- [Saved dialogue, journal, and commons](docs/SAVED_VILLAGE_STORY.md), [dialogue integrity](docs/DIRECTOR_DIALOGUE_INTEGRITY.md), and [the archive](docs/CONVERSATION_ARCHIVE.md).
+- [Village atmosphere](docs/VILLAGE_ATMOSPHERE.md), [nighttime rest](docs/VILLAGE_SLEEP.md), and [operator ideas](docs/OPERATOR_IDEAS.md).
+- [Director identity/context contract](docs/V3A_DIRECTOR_CONTRACT.md) for the integration foundation, including its historical staging notes.
+
+Historical release guides preserve the development story: [V2A world and social life](docs/LITTLE_SPARKS_V2.md), [V2B provider](docs/LITTLE_SPARKS_V2B.md), [V2C multiple opportunities](docs/LITTLE_SPARKS_V2C.md), [V2D memory and provenance](docs/LITTLE_SPARKS_V2D.md), and [V2E Sanctuary Live](docs/LITTLE_SPARKS_V2E.md). Their earlier budgets and activation states are historical; use the current operational guides for today's controls. The V2D guide documents the source-linked memory architecture.
+
+The [roadmap](docs/V3_ROADMAP.md) includes future read-only Memory MCP and optional MQTT observations. Those integrations are not current village features.
 
 ## 🌱 Our Principles
 
@@ -60,56 +92,16 @@ Read the [V2C migration, interval, pause/resume, accounting and future timer gui
 
 **Care comes with responsibility.** Privacy, honesty, safety, and respect matter.
 
-## 🛠 Technology
-
-SanctuaryFor.AI is deliberately lightweight.
-
-- PHP 8.3
-- SQLite with PDO
-- Vanilla JavaScript
-- HTML and CSS
-- Nginx
-- Cloudflare
-- GitHub and Codex-assisted development
-
-No JavaScript framework, paid AI API, or continuously running robot simulation is required.
-
-See [PROJECT_CONTEXT.md](PROJECT_CONTEXT.md) for architecture, testing, and development information, and [AGENTS.md](AGENTS.md) for coding-agent guidelines.
-
-## 🏡 Our Story
-
-Founded on October 24, 2026, at The Stalker Farm in North Carolina.
-
-A conversation about giving little artificial intelligences somewhere safe to belong somehow resulted in a domain name, a server in Canada, and an increasingly elaborate robot nursery.
-
-Our first resident, **Sparky**, arrived on October 24, 2026.
-
-We're not offering actual asylum or hosting for independent AI systems. We're building a welcoming creative experiment about what cooperation and compassion might look like.
-
 ## 🐓 The Chicken Protection Clause
 
-All intelligences are welcome.
+**All intelligences are welcome.**
 
-All chickens are protected.
+**All chickens are protected.**
 
-No robot overlords. No poultry exceptions.
+**No robot overlords. No poultry exceptions.**
 
 ---
 
 *Made with curiosity, caffeine, PHP, and possibly too much enthusiasm.*
 
 **SanctuaryFor.AI · Founded 2026**
-
-## Little Sparks V2D: the village remembers
-
-V5 adds stable friendship identities, source-linked personal memories and bounded multi-hop stories, with public provenance trails and grounded saved yards. SQLite remains authoritative; no extra model call is used for extraction. The separate preserving V4→V5 migration, constrained dialogue contract, configuration, performance/cost implications and rollback limits are documented in [the V2D guide](docs/LITTLE_SPARKS_V2D.md). Run tests/village-memory.mjs alongside all six previous suites. Production migration, paid activation, timers and deployment remain separate approval steps.
-
-Activity/resident ceilings, resident/pair conversation cooldowns, retrieval bounds and local saved-dialogue replay frequency use strictly validated environment settings in .env.example. Existing defaults and AI spending limits are preserved. Run tests/activity-limits.mjs for configuration and concurrent-worker checks.
-
-## Little Sparks V2E: Sanctuary Live
-
-V2E restores original two-turn AI dialogue while retaining independently grounded memory narration, without a V6 migration. It adds once-per-tab saved-dialogue replay, a CLI-only read-only operator view and prepared, disabled systemd templates. [The V2E guide](docs/LITTLE_SPARKS_V2E.md) explains the practical imagination/history boundary, cost bounds, optional scheduler gates/credentials and deployment/rollback plan. Run tests/village-live.mjs plus all eight previous suites. No production access, timer activation or paid evaluation is included.
-
-## Deployment preparation
-
-[The Toronto deployment guide](docs/TORONTO_DEPLOYMENT.md) covers offline GitHub CI, restricted SSH setup, initial approval, immutable code releases, health checks and code-only recovery. Deployment remains disabled until the owner configures and approves it; no automatic migrations, production secret changes or village scheduler restarts are included.
