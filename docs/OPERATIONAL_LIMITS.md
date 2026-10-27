@@ -15,6 +15,9 @@ Names in these tables have prefix `LITTLE_SPARKS_`.
 | `ACTIVITY_DAILY_MAX` | 100 | 0..INT_MAX opportunities/UTC day | Explicit **100**; at 15 minutes there are 96 scheduled opportunities/day |
 | `RESIDENT_DAILY_MAX` | 12 | 0..INT_MAX considered opportunities/resident/day | **1000**, as requested |
 | `SIMULATION_INTERVAL_MINUTES` | 15 | 1..1440 | **15** |
+| `SLEEP_ENABLED` | 0 | 0 or 1 | Leave 0 until owner activation |
+| `SLEEP_START_HOUR` | 23 | 0..23, different from end | 23 |
+| `SLEEP_END_HOUR` | 7 | 0..23, different from start | 7 |
 | `RESIDENT_CONVERSATION_COOLDOWN_SECONDS` | 0 | 0..86400 | 0 initially |
 | `PAIR_CONVERSATION_COOLDOWN_SECONDS` | 0 | 0..604800 | 0 initially |
 | `ACTIVITY_CANDIDATES` | 64 | 2..10000 | 64; bounded fair-selection query, not a daily quota |

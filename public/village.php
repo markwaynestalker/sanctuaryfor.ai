@@ -59,6 +59,7 @@ catch (Throwable) { $available = false; }
                 <button id="previous-neighborhood" type="button" class="small-button">Previous neighbors</button><button id="next-neighborhood" type="button" class="small-button">Next neighbors</button>
             </div>
         </div>
+        <p id="sleep-note" class="field-help" role="status" hidden></p>
         <div id="landscape" class="landscape" aria-label="Village landscape; each robot has a profile in the resident directory below">
             <div class="scene-sun" aria-hidden="true"></div><div class="scene-moon" aria-hidden="true"></div><div class="scene-hill hill-back" aria-hidden="true"></div><div class="scene-hill hill-front" aria-hidden="true"></div><div class="scene-weather" aria-hidden="true"></div>
             <div id="home-layer" class="commons-homes" role="group" aria-label="Saved resident cottages"></div>

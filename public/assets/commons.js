@@ -31,6 +31,20 @@ globalThis.SparksCommons = (() => {
         if (!Number.isInteger(value) || value < 0 || value > 3600) throw new Error('Replay configuration is invalid.');
         return value;
     }
+    function sleepConfiguration(value) {
+        if(value===undefined)return null;
+        if(!value||typeof value.enabled!=='boolean'||typeof value.sleeping!=='boolean'||value.time_zone!=='America/New_York'
+            ||![value.start_hour,value.end_hour].every(h=>Number.isInteger(h)&&h>=0&&h<=23)
+            ||value.start_hour===value.end_hour||!Number.isSafeInteger(value.server_time)||value.server_time<0)throw new Error('Sleep configuration is invalid.');
+        return Object.freeze({...value});
+    }
+    function sleepingAt(config,now) {
+        if(!config?.enabled)return false;
+        try {
+            const hour=Number(new Intl.DateTimeFormat('en-US',{timeZone:config.time_zone,hourCycle:'h23',hour:'2-digit'}).formatToParts(new Date(now)).find(p=>p.type==='hour').value);
+            return config.start_hour<config.end_hour?hour>=config.start_hour&&hour<config.end_hour:hour>=config.start_hour||hour<config.end_hour;
+        }catch{return config.sleeping;}
+    }
     function playbackTurn(c, elapsed) {
         const first = turnDuration(c.messages[0]);
         return elapsed < 0 ? null : elapsed < first ? c.messages[0] : elapsed < first + turnDuration(c.messages[1]) ? c.messages[1] : null;
@@ -56,5 +70,5 @@ globalThis.SparksCommons = (() => {
             }
         });
     }
-    return Object.freeze({validId, pairKey, profileUrl, bindProfileLink, latestExchanges, sourceLabel, turnDuration, playbackTurn, replayCooldown, replayHistory});
+    return Object.freeze({validId, pairKey, profileUrl, bindProfileLink, latestExchanges, sourceLabel, turnDuration, playbackTurn, replayCooldown, replayHistory,sleepConfiguration,sleepingAt});
 })();

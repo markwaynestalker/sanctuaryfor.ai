@@ -102,6 +102,7 @@ function recoverExpiredAiLease(PDO $db,int $now):void
 
 function reserveAi(PDO $db,string $period,array $pair,array $config,int $now): array
 {
+    if(villageSleepingAt($now))throw new AiGuard('night_rest');
     if(identityEnabled($db)&&!directorEnabled($db))throw new AiGuard('migration_required');
     if(!in_array((int)$db->query('PRAGMA user_version')->fetchColumn(),[3,4,5,6],true))throw new AiGuard('migration_required');
     if(86400-$now%86400<aiDayBoundaryGuard())throw new AiGuard('day_boundary');
@@ -151,6 +152,7 @@ function startAiRequest(PDO $db,array $attempt,string $stage): void
     $db->exec('BEGIN IMMEDIATE');
     try{
         assertSimulationLease($db,$attempt['id']);
+        if($stage==='responses_started'&&villageSleepingAt(time()))throw new AiGuard('night_rest');
         if(gmdate('Y-m-d')!==$attempt['day'])throw new AiGuard('day_boundary');
         $query=$db->prepare("UPDATE ai_attempts SET $stage=1 WHERE id=? AND $stage=0");$query->execute([$attempt['id']]);
         if($query->rowCount()!==1)throw new AiGuard('request_already_started');

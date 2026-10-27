@@ -63,6 +63,7 @@ function parseActivityProposal(array $response,array $choices): array
 // favorites from monopolizing today; same-day claims count even if they later fail.
 function selectActivityResidents(PDO $db,string $day,?array $cfg=null,?int $now=null): array
 {
+    if(villageSleepingAt($now??time()))return [];
     $cfg??=activityConfiguration();$now??=time();
     $query=$db->prepare("SELECT r.id,r.personality,
         (SELECT COUNT(*) FROM simulation_opportunities o WHERE o.resident_a=r.id OR o.resident_b=r.id) AS turns,
@@ -99,6 +100,7 @@ function activityResult(PDO $db,string $id): array
     $result=$q->fetch()?:throw new Problem(503,'Opportunity unavailable.');
     $q=$db->prepare('SELECT value FROM settings WHERE name=?');$q->execute(['activity_failure:'.$id]);$reason=$q->fetchColumn();
     if(is_string($reason))$result['failure_category']=$reason;
+    $q->execute(['activity_rest:'.$id]);if($q->fetchColumn()==='night_rest')$result['reason']='night_rest';
     return $result;
 }
 
@@ -139,13 +141,24 @@ function claimActivity(PDO $db,string $at,int $now): array
         if($db->query("SELECT 1 FROM simulation_opportunities WHERE outcome='pending' LIMIT 1")->fetchColumn())throw new Problem(409,'Another opportunity is in progress.');
         $day=gmdate('Y-m-d',$now);$q=$db->prepare('SELECT COUNT(*) FROM simulation_opportunities WHERE day=?');$q->execute([$day]);
         if((int)$q->fetchColumn()>=$cfg['daily_opportunities'])throw new Problem(429,'The village is resting at its configured daily ceiling.');
-        $pair=selectActivityResidents($db,$day,$cfg,$now);$time=gmdate('Y-m-d\TH:i:s\Z',$now);
+        $resting=villageSleepingAt($now)||villageSleepingAt(strtotime($at));
+        $pair=$resting?[]:selectActivityResidents($db,$day,$cfg,$now);$time=gmdate('Y-m-d\TH:i:s\Z',$now);
         $db->prepare("INSERT INTO simulation_opportunities(id,scheduled_at,day,resident_a,resident_b,outcome,expires_at,created_at) VALUES (?,?,?,?,?,'pending',?,?)")
             ->execute([$id,$at,$day,$pair[0]['id']??null,$pair[1]['id']??null,$now+directorExecutionConfiguration()['lease_seconds'],$time]);
+        if($resting)$db->prepare('INSERT INTO settings(name,value) VALUES (?,?)')->execute(['activity_rest:'.$id,'night_rest']);
         $db->exec('COMMIT');return ['id'=>$id,'pair'=>$pair,'created_at'=>$time];
     }catch(\Throwable $e){$db->exec('ROLLBACK');throw $e;}
 }
 
+function nightRestOpportunity(PDO $db,string $at,int $now):?array
+{
+    if(!villageSleepConfiguration()['enabled']||(identityEnabled($db)&&!directorEnabled($db)))return null;
+    opportunityId($at);
+    if(!villageSleepingAt($now)&&!villageSleepingAt(strtotime($at)))return null;
+    $claim=claimActivity($db,$at,$now);
+    if(isset($claim['replay']))return $claim['replay']+['replayed'=>true];
+    return applyActivity($db,$claim,['outcome'=>'quiet','topic'=>'quiet','first'=>'','second'=>'','world_action'=>'none'],['none'=>null],$now);
+}
 function activityResultOrNull(PDO $db,string $id): ?array
 {
     $q=$db->prepare('SELECT 1 FROM simulation_opportunities WHERE id=?');$q->execute([$id]);
@@ -236,7 +249,7 @@ function failActivity(PDO $db,array $claim,?array $attempt,?array $usage,string 
         $db->prepare("INSERT INTO simulation_runs(id,period,status,provider,started_at,finished_at,error_code,input_tokens,output_tokens,cost_microusd) VALUES (?,?,'failed',?,?,?,'simulation_failed',?,?,?)")
             ->execute([$run,$claim['id'],($attempt||directorEnabled($db))?'openai':'scripted',$claim['created_at'],$time,$usage['input_tokens']??0,$usage['output_tokens']??0,$usage['cost_microusd']??0]);
         $db->prepare("UPDATE simulation_opportunities SET outcome='failed',run_id=?,finished_at=? WHERE id=?")->execute([$run,$time,$claim['id']]);
-        $category=in_array($reason,['transport_uncertain','provider_api_error','usage_unknown','invalid_proposal','moderation_rejected','apply_rejected','credentials_unavailable','daily_request_cap','encounter_request_cap','execution_deadline','monthly_budget_cap','simulation_busy','day_boundary','period_recorded','configuration_invalid','model_unpriced','pricing_unverified','session_unavailable','ledger_capacity'],true)?$reason:'apply_rejected';
+        $category=in_array($reason,['transport_uncertain','provider_api_error','usage_unknown','invalid_proposal','moderation_rejected','apply_rejected','credentials_unavailable','daily_request_cap','encounter_request_cap','execution_deadline','night_rest','monthly_budget_cap','simulation_busy','day_boundary','period_recorded','configuration_invalid','model_unpriced','pricing_unverified','session_unavailable','ledger_capacity'],true)?$reason:'apply_rejected';
         $db->prepare('INSERT OR IGNORE INTO settings(name,value) VALUES (?,?)')->execute(['activity_failure:'.$claim['id'],$category]);
         if($attempt){
             $code=$usage===null?($reason==='usage_unknown'?'usage_unknown':'transport_uncertain'):(in_array($reason,['invalid_proposal','moderation_rejected'],true)?$reason:'apply_rejected');
@@ -254,6 +267,7 @@ function simulateOpportunity(PDO $db,string $at,bool $allowPaid=false,?AiTranspo
     if(identityEnabled($db))return ['status'=>'paused','reason'=>'identity_runtime_pending','replayed'=>false];
     $now??=time();
     if(getenv('LITTLE_SPARKS_SIMULATION_ENABLED')!=='1')return ['status'=>'paused','replayed'=>false];
+    if($rest=nightRestOpportunity($db,$at,$now))return $rest;
     if(memoryEnabled($db))memoryConfiguration();
     simulationInterval(); // Reject invalid configuration even for explicit/manual opportunities.
     $claim=claimActivity($db,$at,$now);

@@ -4,7 +4,8 @@ namespace LittleSparks;
 
 function recordSchedulerResult(\PDO $db,array $result):void
 {
-    $value=['at'=>time(),'status'=>$result['status']??'pending','opportunity_id'=>$result['opportunity_id']??null,'replayed'=>$result['replayed']??false];
+    $value=['at'=>time(),'status'=>$result['status']??'pending','opportunity_id'=>$result['opportunity_id']??null,'replayed'=>$result['replayed']??false,
+        'sleep_policy'=>villageSleepConfiguration()];
     $db->prepare("INSERT INTO settings(name,value) VALUES ('scheduler:last_tick',?) ON CONFLICT(name) DO UPDATE SET value=excluded.value")
         ->execute([json_encode($value,JSON_THROW_ON_ERROR)]);
 }

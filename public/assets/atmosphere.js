@@ -66,6 +66,7 @@ globalThis.SparksAtmosphere = (() => {
             clearTimeout(timer);timer=null;setPaused(motionPaused);
             if(document.hidden)return;
             updateTimes();
+            document.dispatchEvent(new Event('sparks:clock'));
             if(scene&&validZone(villageZone)){
                 const state=atmosphereAt(Date.now());scene.dataset.phase=state.phase;
                 for(const [name,value] of Object.entries({stars:state.stars,'sun-x':state.sunX+'%','sun-y':state.sunY+'px','sun-opacity':state.sunOpacity,'moon-x':state.moonX+'%','moon-y':state.moonY+'px'}))scene.style.setProperty('--'+name,String(value));

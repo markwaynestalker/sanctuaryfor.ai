@@ -51,5 +51,5 @@ function commons(PDO $db,array $ids): array
         ['resident_id'=>$c['first_id'],'name'=>$c['first_name'],'text'=>$c['first_text'],'created_at'=>$c['created_at']],
         ['resident_id'=>$c['second_id'],'name'=>$c['second_name'],'text'=>$c['second_text'],'created_at'=>$c['created_at']]
     ]];
-    return ['homes'=>$homes,'conversations'=>$conversations,'settings'=>['replay_cooldown_seconds'=>replayCooldownSeconds()]];
+    return ['homes'=>$homes,'conversations'=>$conversations,'settings'=>['replay_cooldown_seconds'=>replayCooldownSeconds(),'sleep'=>villagePublicSleepState($db,time())]];
 }

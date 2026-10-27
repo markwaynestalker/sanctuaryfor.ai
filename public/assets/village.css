@@ -119,3 +119,5 @@ dl { font-size: 13px; }dt { color: var(--muted); margin-top: 12px; }dd { margin:
 @media(prefers-reduced-motion: reduce) { .new-spark .robot { animation: none; } }
 @media(forced-colors: active) { .robot-face, .robot-body, .robot-ears, .robot-feet, .robot-antenna { background: ButtonText; }.robot-face::before, .robot-face::after { background: ButtonFace; }.robot-bubble { border: 1px solid CanvasText; } }
 textarea{width:100%;min-height:8rem;resize:vertical;font:inherit;color:inherit;background:#15232a;border:1px solid #657b7a;border-radius:.65rem;padding:.8rem;box-sizing:border-box}textarea:focus-visible{outline:3px solid #b9ebcf;outline-offset:3px}.identity-description,#profile-details dd{white-space:pre-wrap;overflow-wrap:anywhere}.identity-editor{border-top:1px solid #657b7a;margin-top:1.5rem;padding-top:1rem;display:grid;gap:.8rem}
+
+.sleep-badge{position:absolute;top:-8px;right:-6px;font-size:17px;pointer-events:none}.landscape[data-sleeping="true"] .cottage-shape{filter:drop-shadow(0 0 4px #efd69480)}
