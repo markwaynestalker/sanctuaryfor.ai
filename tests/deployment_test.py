@@ -94,7 +94,7 @@ class PolicyTests(unittest.TestCase):
         self.assertEqual(deployment.count('tags:'), 1)
         self.assertIn("version: '1.104.2'", deployment)
         self.assertIn('sha256sum: 512f613ed7d04fc7282f7dc5bd76aa105aae28168fbb9357eb749ebcbc29f0ae', deployment)
-        self.assertIn('args: --accept-routes=false --accept-dns=false', deployment)
+        self.assertIn('args: --accept-dns=false\n', deployment)
         self.assertIn("TORONTO_HOST: '100.75.63.110'", deployment)
         self.assertIn("TORONTO_PORT: '22'", deployment)
         self.assertNotIn('vars.TORONTO_DEPLOY_HOST', deployment)
@@ -103,6 +103,32 @@ class PolicyTests(unittest.TestCase):
         self.assertNotIn('tailscale ssh', deployment)
         self.assertNotIn('continue-on-error:', deployment)
         self.assertNotIn('id-token: write', workflow)
+
+    def test_tailscale_custom_args_do_not_duplicate_action_flags(self):
+        workflow = (ROOT / '.github/workflows/deploy.yml').read_text()
+        settings = [line.strip().removeprefix('args: ') for line in workflow.splitlines() if line.strip().startswith('args: ')]
+        self.assertEqual(settings, ['--accept-dns=false'])
+
+        def duplicates(custom):
+            # Match the reviewed v4.3.0 Linux OAuth upArgs assembly (src/main.ts).
+            # Keep this fixture in sync when reviewing a new immutable action pin.
+            argv = ['up', '--advertise-tags=tag:sanctuarytorontodeploy', '--hostname=offline',
+                    '--accept-routes', *filter(None, custom.split(' ')), '--authkey=DUMMY_OFFLINE']
+            flags = [arg.split('=', 1)[0] for arg in argv if arg.startswith('--')]
+            return {flag for flag in flags if flags.count(flag) > 1}
+
+        self.assertEqual(duplicates(settings[0]), set())
+        for custom, conflict in [
+            ('--accept-routes=false --accept-dns=false', '--accept-routes'),
+            ('--accept-routes=true', '--accept-routes'),
+            ('--accept-dns=false --accept-dns=true', '--accept-dns'),
+            ('--accept-dns=false --accept-dns=false', '--accept-dns'),
+            ('--hostname=other', '--hostname'),
+            ('--authkey=other', '--authkey'),
+            ('--advertise-tags=tag:other', '--advertise-tags'),
+        ]:
+            with self.subTest(custom=custom):
+                self.assertIn(conflict, duplicates(custom))
 
     @unittest.skipUnless(os.name == 'posix', 'Mock SSH shell check runs on Linux CI')
     def test_ssh_step_uses_tailnet_only_and_preserves_pins_without_network(self):

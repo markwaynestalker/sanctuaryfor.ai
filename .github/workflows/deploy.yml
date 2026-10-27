@@ -40,7 +40,7 @@ jobs:
           version: '1.104.2'
           sha256sum: 512f613ed7d04fc7282f7dc5bd76aa105aae28168fbb9357eb749ebcbc29f0ae
           use-cache: 'false'
-          args: --accept-routes=false --accept-dns=false
+          args: --accept-dns=false
           timeout: 60s
           retry: '1'
       # No checkout, third-party SSH action, or repository program runs with this key.
