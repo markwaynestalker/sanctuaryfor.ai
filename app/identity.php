@@ -29,10 +29,10 @@ function validateDescription(mixed $value): string
 }
 function withIdentity(PDO $db,array $resident): array
 {
-    if(!identityEnabled($db))return $resident;
+    if(!identityEnabled($db))return withAppearances($db,[$resident])[0];
     $q=$db->prepare('SELECT description,color,revision FROM resident_identities WHERE resident_id=?');$q->execute([$resident['id']]);$identity=$q->fetch();
     if(!$identity)throw new Problem(503,'Resident identity is unavailable.');
-    return array_replace($resident,['description'=>$identity['description'],'color'=>$identity['color'],'identity_version'=>(int)$identity['revision']]);
+    return withAppearances($db,[array_replace($resident,['description'=>$identity['description'],'color'=>$identity['color'],'identity_version'=>(int)$identity['revision']])])[0];
 }
 function identityForNewResident(PDO $db,string $id,string $description,string $color,string $time): void
 {
@@ -69,6 +69,11 @@ function editIdentity(PDO $db,array $input,string $network,int $now): array
             ->execute([$resident['id'],$request,$hash,$current['description'],$description,$current['color'],$color,$revision+1,$time]);
         $q=$db->prepare('UPDATE resident_identities SET description=?,color=?,revision=revision+1,updated_at=? WHERE resident_id=? AND revision=?');$q->execute([$description,$color,$time,$resident['id'],$revision]);
         if($q->rowCount()!==1)throw new \RuntimeException('Identity revision conflict.');
+        // Old combined-edit clients retain their explicit preset-color intent.
+        if($color!==$current['color']&&appearanceInstalled($db)){
+            $a=effectiveAppearance($current);$a['primary_color']=$color;
+            writeAppearance($db,$resident['id'],$a,$current['appearance_version'],substr(hash('sha256','legacy-identity:'.$request),0,32),$now);
+        }
         $result=withIdentity($db,publicResident($resident));$db->exec('RELEASE identity_edit');$savepoint=false;$db->exec('COMMIT');return ['resident'=>$result,'replayed'=>false];
     }catch(Problem $e){if($savepoint){$db->exec('ROLLBACK TO identity_edit');$db->exec('RELEASE identity_edit');}$db->exec('COMMIT');throw $e;}
     catch(\Throwable $e){$db->exec('ROLLBACK');throw $e;}

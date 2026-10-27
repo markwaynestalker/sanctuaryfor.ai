@@ -139,3 +139,7 @@ See SHARED_WEATHER.md and .env.example for WEATHER_ENABLED (0), protected SOURCE
 ## Optional bulletin board (#45)
 
 See [VILLAGE_BULLETIN.md](VILLAGE_BULLETIN.md#env-controls) for the complete BULLETIN_ ENV table, defaults, integer ranges and recommended initial values. Posting is default-off after a separate V6 add-on migration. Daily, per-resident, active, total retained, cooldown, duplicate, expiry, context and page limits are independent of AI budgets and opportunity scheduling. Zero posting quotas disable posting; no cap or output budget is raised automatically.
+
+## Appearance-only editing (#51)
+
+`LITTLE_SPARKS_APPEARANCE_EDITS_PER_DAY` defaults to 24 per resident/UTC day; `LITTLE_SPARKS_APPEARANCE_REQUESTS_PER_HOUR` defaults to 60 per network/hour. Both accept canonical integers 0..PHP_INT_MAX; zero refuses new operations and invalid values fail safely. A valid duplicate edit remains idempotent after the daily edit allowance fills, subject to the network request limit. The registry, feature allowlists, six-digit RGB format, 2048-byte request bound, 512-character stored configuration and bounded public page batches are security/data-contract safeguards, not AI quotas. No AI/simulation/spending limits change. See SPARK_APPEARANCE.md.

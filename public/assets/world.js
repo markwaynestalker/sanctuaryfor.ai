@@ -27,7 +27,7 @@
         }
         for (const plot of data.plots) {
             const cell=document.createElement('span'),label=document.createElement('span');
-            cell.className=`map-plot color-${colors.has(plot.resident.color)?plot.resident.color:'mint'}`; cell.style.left=`${(plot.x-data.origin.x)/16*100}%`; cell.style.top=`${(plot.y-data.origin.y)/16*100}%`;
+            cell.className=`map-plot color-${colors.has(plot.resident.color)?plot.resident.color:'mint'}`; if(globalThis.SparkAvatars)cell.style.setProperty('--shell',SparkAvatars.palette(SparkAvatars.appearance(plot.resident)).primary); cell.style.left=`${(plot.x-data.origin.x)/16*100}%`; cell.style.top=`${(plot.y-data.origin.y)/16*100}%`;
             label.textContent=plot.resident.name; cell.append(label); map.append(cell);
         }
         for (const object of data.objects) {

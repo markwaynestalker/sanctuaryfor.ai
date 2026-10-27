@@ -45,13 +45,14 @@ function world(PDO $db, int $sector): array
 {
     $sector = max(0,min(624,$sector));
     $x = ($sector % 25)*16; $y = intdiv($sector,25)*16;
-    $query = $db->prepare('SELECT p.slot,r.id,r.name,r.color FROM home_plots p JOIN residents r ON r.id=p.resident_id WHERE p.slot%100 BETWEEN ? AND ? AND CAST(p.slot/100 AS INTEGER) BETWEEN ? AND ? ORDER BY p.slot');
+    $query = $db->prepare('SELECT p.slot,r.id,r.name,r.color,r.antenna FROM home_plots p JOIN residents r ON r.id=p.resident_id WHERE p.slot%100 BETWEEN ? AND ? AND CAST(p.slot/100 AS INTEGER) BETWEEN ? AND ? ORDER BY p.slot');
     foreach ([intdiv($x,4),intdiv($x+15,4),intdiv($y,4),intdiv($y+15,4)] as $index=>$bound) $query->bindValue($index+1,$bound,PDO::PARAM_INT);
     $query->execute();
     $plots = [];
     $rows=$query->fetchAll();$identityColors=[];
     if(identityEnabled($db)&&$rows){$ids=array_column($rows,'id');$q=$db->prepare('SELECT resident_id,color FROM resident_identities WHERE resident_id IN ('.implode(',',array_fill(0,count($ids),'?')).')');$q->execute($ids);$identityColors=array_column($q->fetchAll(),'color','resident_id');}
-    foreach ($rows as $row){$row['color']=$identityColors[$row['id']]??$row['color'];$plots[] = ['resident' => array_intersect_key($row,array_flip(['id','name','color']))] + plotCoordinates((int)$row['slot']);}
+    foreach($rows as &$row)$row['color']=$identityColors[$row['id']]??$row['color'];unset($row);
+    foreach(withAppearances($db,$rows) as $row)$plots[]=['resident'=>array_intersect_key($row,array_flip(['id','name','color','antenna','appearance']))]+plotCoordinates((int)$row['slot']);
     $query = $db->prepare('SELECT id,resident_id,kind,variant,x,y FROM world_objects WHERE x BETWEEN ? AND ? AND y BETWEEN ? AND ? ORDER BY y,x');
     $query->execute([$x,$x+15,$y,$y+15]);
     return ['sector'=>$sector,'origin'=>['x'=>$x,'y'=>$y],'size'=>16,'plots'=>$plots,'objects'=>$query->fetchAll()];
@@ -74,7 +75,7 @@ function journal(PDO $db, int $before = 0): array
         // Batch only this event page. Both participants disambiguate multi-pair runs;
         // legacy social keys additionally identify the exact conversation when available.
         $query=$db->prepare("SELECT e.id AS event_id,c.id AS conversation_id,$source AS provider,
-            m.sequence,r.name,m.body
+            m.sequence,m.resident_id,r.name,m.body
             FROM events e
             JOIN conversation_participants a ON a.resident_id=e.actor_id
             JOIN conversations c ON c.id=a.conversation_id AND c.run_id=e.run_id AND c.visibility='public'
@@ -92,7 +93,7 @@ function journal(PDO $db, int $before = 0): array
         foreach($query->fetchAll() as $line){
             $eventId=$line['event_id'];$conversationId=$line['conversation_id'];
             $dialogue[$eventId][$conversationId]??=['id'=>$conversationId,'provider'=>$line['provider'],'messages'=>[]];
-            $dialogue[$eventId][$conversationId]['messages'][]=['name'=>$line['name'],'body'=>$line['body']];
+            $dialogue[$eventId][$conversationId]['messages'][]=['resident_id'=>$line['resident_id'],'name'=>$line['name'],'body'=>$line['body']];
         }
     }
     foreach ($rows as &$row){
@@ -125,7 +126,7 @@ function profile(PDO $db, string $id): array
             $source=$db->prepare('SELECT 1 FROM ai_conversations WHERE conversation_id=?');$source->execute([$conversation['id']]);
             if($source->fetchColumn())$conversation['provider']='openai';
         }
-        $messages = $db->prepare('SELECT r.name,m.body FROM messages m JOIN residents r ON r.id=m.resident_id WHERE m.conversation_id=? ORDER BY m.sequence LIMIT 2');
+        $messages = $db->prepare('SELECT r.id AS resident_id,r.name,m.body FROM messages m JOIN residents r ON r.id=m.resident_id WHERE m.conversation_id=? ORDER BY m.sequence LIMIT 2');
         $messages->execute([$conversation['id']]); $conversation['messages'] = $messages->fetchAll();
     }
     $result=['resident'=>$resident,'plot'=>$slot===false ? null : plotCoordinates((int)$slot),'friendships'=>$friends,'memories'=>$memories,'conversations'=>$conversations,'preferences'=>preferences($db,$id)];

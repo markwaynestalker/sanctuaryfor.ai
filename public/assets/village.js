@@ -25,7 +25,7 @@
     let lastPage = 0, population = [], walkers = [], paused = reduced.matches;
     let neighborhood = 0;
     let frame = 0, lastTick = 0, pending = null, busy = false, loading = false;
-    let selectedButton = null, ownerEditor = null;
+    let selectedButton = null, ownerEditor = null, creationAppearance = null;
     // Read bearer credentials only from the fragment; remove before any network request.
     function takePrivateFragment() {
         const token = new URLSearchParams(location.hash.slice(1)).get('revisit');
@@ -35,20 +35,11 @@
     let revisitToken = takePrivateFragment();
     const status = (message) => { $('form-status').textContent = message; };
     const swatches = [...($('color-swatches')?.querySelectorAll?.('button') || [])];
-    const markColor = () => swatches.forEach(button => button.setAttribute('aria-pressed', String(button.dataset.color === $('robot-color').value)));
-    swatches.forEach(button => button.addEventListener('click', () => { $('robot-color').value = button.dataset.color; markColor(); previewRobot(); }));
-    $('robot-color').addEventListener('change', markColor);
-    function robot(resident) {
-        const element = document.createElement('span');
-        element.className = `robot color-${colors.has(resident.color) ? resident.color : 'mint'} antenna-${antennas.has(resident.antenna) ? resident.antenna : 'orb'}`;
-        element.setAttribute('aria-hidden', 'true');
-        for (const part of ['antenna', 'ears', 'face', 'body', 'feet']) {
-            const bit = document.createElement('span');
-            bit.className = `robot-${part}`;
-            element.append(bit);
-        }
-        return element;
-    }
+    const markColor = () => swatches.forEach(button => button.setAttribute('aria-pressed', String(button.dataset.color === (creationAppearance?.value().primary_color || $('robot-color').value))));
+    swatches.forEach(button => button.addEventListener('click', () => { $('robot-color').value = button.dataset.color; creationAppearance?.setColor(button.dataset.color); markColor(); previewRobot(); }));
+    $('robot-color').addEventListener('change', () => {markColor();creationAppearance?.setColor($('robot-color').value);});
+    const avatars=globalThis.SparkAvatars;
+    function robot(resident) {return avatars.render(resident,'robot');}
     async function api(endpoint, body) {
         const response = await fetch(`api/${endpoint}.php`, {
             credentials: 'same-origin', cache: 'no-store',
@@ -70,7 +61,7 @@
         const ideaLink=$('profile-idea-link');if(ideaLink)ideaLink.href='/owner.php?resident='+resident.id;
         const details = $('profile-details');
         details.replaceChildren();
-        for (const [label, value] of Object.entries({Personality: resident.description || resident.personality, Color: resident.color, Antenna: resident.antenna, Created: resident.created_at, 'Permanent ID': resident.id})) {
+        for (const [label, value] of Object.entries({Personality: resident.description || resident.personality, Color: avatars.appearance(resident).primary_color, Antenna: avatars.appearance(resident).features.antenna || 'None', Created: resident.created_at, 'Permanent ID': resident.id, Form: avatars.registry.forms.find(f=>f.id===avatars.appearance(resident).form).name})) {
             const term = document.createElement('dt'), description = document.createElement('dd');
             term.textContent = label;
             if(label==='Created'){
@@ -90,9 +81,9 @@
         const description = form.querySelector('textarea'), color = form.querySelector('select');
         const feedback = form.querySelector('[role="status"]'), submit = form.querySelector('button');
         description.value = resident.description; color.value = resident.color;
-        let revision = resident.identity_version, attempt = null, saving = false;
+        let revision = resident.identity_version, attempt = null, saving = false, appearanceSaving = false;
         form.addEventListener('submit', async event => {
-            event.preventDefault(); if (saving) return;
+            event.preventDefault(); if (saving || appearanceSaving) return;
             const fields = {description: description.value, color: color.value, expectedRevision: revision};
             const signature = JSON.stringify(fields);
             if (!attempt || attempt.signature !== signature) attempt = {signature, requestId: [...crypto.getRandomValues(new Uint8Array(16))].map(b => b.toString(16).padStart(2, '0')).join('')};
@@ -105,12 +96,29 @@
                 // The editor owns its token only in this closure, never in DOM/storage.
                 $('profile-robot').replaceChildren(robot(resident));
                 const values = $('profile-details').querySelectorAll('dd');
-                values[0].textContent = resident.description; values[1].textContent = resident.color;
+                values[0].textContent = resident.description; values[1].textContent = avatars.appearance(resident).primary_color;
                 feedback.textContent = 'Saved. These character notes do not change recorded history.';
             } catch (error) { feedback.textContent = error.message; }
             finally { saving = false; submit.disabled = false; }
         });
-        ownerEditor = form; $('resident-profile').append(form);
+        ownerEditor = document.createElement('div'); ownerEditor.append(form);
+        if(Number.isInteger(resident.appearance_version)){
+            color.parentElement?.querySelector('label[for="edit-color"]')?.setAttribute('hidden','');color.hidden=true;
+            submit.textContent='Save personality';
+            const picker=avatars.editor(resident),save=document.createElement('button'),message=document.createElement('p');
+            save.type='button';save.className='small-button';save.textContent='Save appearance';message.setAttribute('role','status');
+            let appearanceRevision=resident.appearance_version,appearanceAttempt=null;
+            save.addEventListener('click',async()=>{
+                if(save.disabled||saving||!picker.valid())return;
+                const fields={appearance:picker.value(),expectedRevision:appearanceRevision},signature=JSON.stringify(fields);
+                if(!appearanceAttempt||appearanceAttempt.signature!==signature)appearanceAttempt={signature,requestId:[...crypto.getRandomValues(new Uint8Array(16))].map(b=>b.toString(16).padStart(2,'0')).join('')};
+                appearanceSaving=true;save.disabled=true;submit.disabled=true;message.textContent='Saving appearance…';
+                try{const data=await api('appearance',{...fields,token,requestId:appearanceAttempt.requestId});resident=data.resident;appearanceRevision=resident.appearance_version;appearanceAttempt=null;population=population.map(r=>r.id===resident.id?resident:r);render();if(!picker.element.isConnected||!$('resident-profile').open)return;$('profile-robot').replaceChildren(robot(resident));const values=$('profile-details').querySelectorAll('dd'),look=avatars.appearance(resident);values[1].textContent=look.primary_color;values[2].textContent=look.features.antenna||'None';values[5].textContent=avatars.registry.forms.find(f=>f.id===look.form).name;message.textContent='Appearance saved. Your Spark’s identity and story stay the same.';}
+                catch(error){message.textContent=error.message;}finally{appearanceSaving=false;save.disabled=false;submit.disabled=false;}
+            });
+            ownerEditor.append(picker.element,save,message);
+        }
+        $('resident-profile').append(ownerEditor);
     }
     async function openPrivateRevisit() {
         if (!csrf || revisitToken === null) return;
@@ -146,7 +154,7 @@
             button.type = 'button'; button.className = 'directory-resident';
             button.append(robot(resident));
             const caption = document.createElement('span'), name = document.createElement('strong'), detail = document.createElement('span');
-            name.textContent = resident.name; detail.textContent = `${resident.description ? 'Owner-written personality' : resident.personality} · ${resident.color}`;
+            name.textContent = resident.name; detail.textContent = `${resident.description ? 'Owner-written personality' : resident.personality} · ${avatars.appearance(resident).primary_color}`;
             caption.append(name, detail); button.append(caption);
             button.addEventListener('click', () => showProfile(resident, button));
             item.append(button); $('resident-directory').append(item);
@@ -183,6 +191,7 @@
             if (!resident || !home.plot) continue;
             const link = document.createElement('a'), yard = document.createElement('span'), name = document.createElement('span');
             link.className = `commons-home color-${colors.has(resident.color) ? resident.color : 'mint'}`;
+            link.style.setProperty('--shell',avatars.palette(avatars.appearance(resident)).primary);
             link.style.left=`${placement.left}px`;link.style.top=`${placement.top}px`;link.style.width=`${placement.width}px`;
             link.href = commons.profileUrl(resident.id); link.setAttribute('aria-label', `Visit ${resident.name}’s saved home and profile`);
             link.title=`${resident.name}’s saved home`;
@@ -346,7 +355,7 @@
     }
     $('chicken').addEventListener('click', () => { $('chicken-message').textContent = 'Protection protocol active. The chicken is safe, mildly suspicious, and expecting snacks. 🐓'; });
     function previewRobot() {
-        $('robot-preview').replaceChildren(robot({color: $('robot-color').value, antenna: $('robot-antenna').value}));
+        $('robot-preview').replaceChildren(robot(creationAppearance?{appearance:creationAppearance.value()}:{color: $('robot-color').value, antenna: $('robot-antenna').value}));
     }
     $('robot-color').addEventListener('change', previewRobot);
     $('robot-antenna').addEventListener('change', previewRobot);
@@ -391,7 +400,10 @@
         event.preventDefault();
         if (busy) return;
         if (!$('private-link-panel').hidden) { status('Save and hide the previous private link before welcoming another robot.'); $('private-link').focus(); return; }
+        if(creationAppearance&&!creationAppearance.valid())return;
         const fields = Object.fromEntries(new FormData(event.currentTarget));
+        for(const key of Object.keys(fields))if(key.startsWith('spark-appearance-'))delete fields[key];
+        if(creationAppearance)fields.appearance=creationAppearance.value();
         const signature = JSON.stringify(fields);
         if (!pending || pending.signature !== signature) {
             const bytes = crypto.getRandomValues(new Uint8Array(16));
@@ -416,6 +428,7 @@
         } catch (error) { status(error.message + ' You can retry; the same request will not create a duplicate.'); }
         finally { busy = false; $('create-submit').disabled = false; }
     });
+    if($('creation-appearance')){creationAppearance=avatars.editor({color:$('robot-color').value,antenna:$('robot-antenna').value},value=>{$('robot-antenna').value=value.features.antenna||'orb';if(colors.has(value.primary_color))$('robot-color').value=value.primary_color;markColor();previewRobot();});$('creation-appearance').append(creationAppearance.element);}
     previewRobot(); motionLabel();
     refresh().then(async () => {
         status('The village is ready. Take a moment to choose your little spark.');

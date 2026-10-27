@@ -1,0 +1,47 @@
+<?php
+declare(strict_types=1);
+require __DIR__.'/../app/village.php';require __DIR__.'/../app/activity.php';require __DIR__.'/../app/director.php';require __DIR__.'/../app/appearance_schema.php';
+function check(bool $ok,string $why):void{if(!$ok)throw new RuntimeException($why);}
+function rejected(callable $f,int $status):void{try{$f();throw new LogicException('Expected rejection');}catch(LittleSparks\Problem $e){check($e->status===$status,'Wrong status: '.$e->status);}}
+try{
+    $db=LittleSparks\connect($argv[1]);$now=time();$residents=[];
+    foreach(['mint','burgundy'] as $i=>$color)$residents[]=LittleSparks\create($db,['name'=>'Appearance Spark '.($i+1),'color'=>$color,'antenna'=>$i?'bolt':'sprout','description'=>'A quiet original personality.','website'=>'','requestId'=>str_repeat((string)($i+1),32)],'appearance-browser-'.$i,'fixture-'.$i,$now,true);
+    $before=[];foreach($db->query("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name")->fetchAll(PDO::FETCH_COLUMN) as $t)$before[$t]=$db->query('SELECT * FROM '.$t.' ORDER BY rowid')->fetchAll();
+    check(!LittleSparks\appearanceInstalled($db)&&LittleSparks\legacyAppearance($residents[0]['resident'])['features']['antenna']==='sprout','Legacy appearance unchanged before migration');
+    $db->exec('BEGIN IMMEDIATE');LittleSparks\migrateAppearance($db);$db->exec('ROLLBACK');check(!LittleSparks\appearanceInstalled($db),'Transactional migration rollback');
+    foreach([1,2] as $_){$db->exec('BEGIN IMMEDIATE');LittleSparks\migrateAppearance($db);$db->exec('COMMIT');}
+    foreach($before as $t=>$rows)check($db->query('SELECT * FROM '.$t.' ORDER BY rowid')->fetchAll()===$rows,'Migration preserves '.$t);
+    $legacy=array_column(LittleSparks\residents($db,0)['residents'],null,'id')[$residents[0]['resident']['id']];check($legacy['appearance']['form']==='classic-robot'&&$legacy['appearance']['primary_color']==='mint'&&$legacy['appearance']['features']['antenna']==='sprout','Legacy names and antenna selections preserved by immutable resident ID');
+    $base=['form'=>'round-robot','primary_color'=>'#a855f7','features'=>['antenna'=>'bolt']];$valid=LittleSparks\validateAppearance($base);check($valid['primary_color']==='#A855F7','Canonical RGB without changing named presets');
+    foreach([['form'=>'<svg>'],['form'=>'goat'],['primary_color'=>'red;url(x)'],['primary_color'=>'#abc'],['primary_color'=>'#12345678'],['features'=>['svg'=>'<svg/>']],['features'=>['antenna'=>'unsafe']]] as $change)rejected(fn()=>LittleSparks\validateAppearance(array_replace($base,$change)),422);
+    $cfg=LittleSparks\registerDirector($db,['id'=>'agent_appearance_offline','model'=>'gpt-6-luna','instructions'=>'','tools'=>[],'multi_agent'=>['enabled'=>false],'service_tier'=>'default','reasoning'=>['effort'=>'none']]);
+    putenv('LITTLE_SPARKS_DIRECTOR_AGENT_ID='.$cfg['agent_id']);putenv('LITTLE_SPARKS_DIRECTOR_CONFIG_SHA256='.$cfg['fingerprint']);$registered=LittleSparks\registeredDirector($db,LittleSparks\directorConfiguration());$pair=array_column($residents,'resident');
+    $db->exec('BEGIN IMMEDIATE');$session=LittleSparks\directorSession($db,$registered,$pair,'agents',$now);$db->exec('COMMIT');
+    putenv('LITTLE_SPARKS_AI_DAILY_REQUESTS=200');putenv('LITTLE_SPARKS_AI_MONTHLY_MICROUSD=1000000');putenv('LITTLE_SPARKS_AI_PRICING_CONFIRMED=2026-10-24-standard-v1');
+    $leaseClaim=LittleSparks\claimActivity($db,gmdate('Y-m-d\TH:i:00\Z',$now-60),$now);$leaseAttempt=LittleSparks\reserveAi($db,$leaseClaim['id'],$leaseClaim['pair'],LittleSparks\aiConfiguration($now),$now);
+    $protected=[];foreach(['residents','resident_identities','identity_edits','director_sessions','director_registry','ai_attempts','director_attempts','messages','memories','memory_stories','memory_receipts','relationships','home_plots','world_objects'] as $t)$protected[$t]=$db->query('SELECT * FROM '.$t.' ORDER BY rowid')->fetchAll();
+    // Appearance-only changes are safe during a paid lease; they never alter its context/identity.
+    $input=['token'=>$residents[0]['token'],'appearance'=>$base,'expectedRevision'=>0,'requestId'=>str_repeat('a',32)];$saved=LittleSparks\editAppearance($db,$input,'appearance-edit',$now);
+    check($saved['resident']['appearance_version']===1&&$saved['resident']['identity_version']===0&&$saved['resident']['description']==='A quiet original personality.','Only appearance revision changes');
+    check(LittleSparks\editAppearance($db,$input,'appearance-edit',$now)['replayed'],'Duplicate request replay');rejected(fn()=>LittleSparks\editAppearance($db,array_replace($input,['appearance'=>array_replace($base,['form'=>'box-robot'])]),'appearance-edit',$now),409);
+    rejected(fn()=>LittleSparks\editAppearance($db,array_replace($input,['token'=>str_repeat('0',64)]),'appearance-edit',$now),404);
+    rejected(fn()=>LittleSparks\editAppearance($db,$input+['description'=>'changed'],'appearance-edit',$now),422);
+    rejected(fn()=>LittleSparks\editAppearance($db,array_replace($input,['requestId'=>str_repeat('b',32)]),'appearance-edit',$now),409);
+    check($db->query('SELECT owner FROM ai_lease')->fetchColumn()===$leaseAttempt['id'],'Active lease untouched');
+    $db->exec('BEGIN IMMEDIATE');$same=LittleSparks\directorSession($db,$registered,$pair,'agents',$now);$db->exec('COMMIT');check($same['id']===$session['id'],'Appearance change retains Director continuity');
+    foreach($protected as $t=>$rows)check($db->query('SELECT * FROM '.$t.' ORDER BY rowid')->fetchAll()===$rows,'Appearance edit preserves '.$t);
+    LittleSparks\failActivity($db,$leaseClaim,$leaseAttempt,null,'apply_rejected');
+    $legacyFile=dirname($argv[1]).'/legacy-bridge.sqlite';copy($argv[1],$legacyFile);chmod($legacyFile,0600);$combined=LittleSparks\connect($legacyFile);
+    $oldEdit=['token'=>$residents[0]['token'],'description'=>'Original personality with an explicit preset change.','color'=>'violet','expectedRevision'=>0,'requestId'=>str_repeat('e',32)];
+    $bridge=LittleSparks\editIdentity($combined,$oldEdit,'legacy-combined',$now);check($bridge['resident']['appearance']['form']==='round-robot'&&$bridge['resident']['appearance']['primary_color']==='violet'&&$bridge['resident']['appearance_version']===2,'Legacy preset edits are mirrored atomically without changing form');
+    $personalityOnly=LittleSparks\editIdentity($combined,array_replace($oldEdit,['description'=>'Only the personality changes here.','expectedRevision'=>1,'requestId'=>str_repeat('f',32)]),'legacy-combined',$now);check($personalityOnly['resident']['appearance_version']===2,'Unchanged legacy color does not rewrite appearance');
+    putenv('LITTLE_SPARKS_APPEARANCE_EDITS_PER_DAY=0');check(LittleSparks\editAppearance($db,$input,'appearance-edit',$now)['replayed'],'Idempotency survives full daily quota');rejected(fn()=>LittleSparks\editAppearance($db,array_replace($input,['expectedRevision'=>1,'requestId'=>str_repeat('c',32)]),'appearance-edit',$now),429);putenv('LITTLE_SPARKS_APPEARANCE_EDITS_PER_DAY');
+    foreach(['-1','01','1.2',''] as $bad){putenv('LITTLE_SPARKS_APPEARANCE_EDITS_PER_DAY='.$bad);rejected(fn()=>LittleSparks\appearanceConfiguration(),503);}putenv('LITTLE_SPARKS_APPEARANCE_EDITS_PER_DAY');
+    $p=LittleSparks\appearancePalette(LittleSparks\validateAppearance(array_replace($base,['primary_color'=>'#000000'])));check($p['ink']==='#FFFFFF','Readable dark-color face');$p=LittleSparks\appearancePalette(LittleSparks\validateAppearance(array_replace($base,['primary_color'=>'#FFFFFF'])));check($p['ink']==='#12242A','Readable light-color face');
+    $svg=LittleSparks\avatarSvg($saved['resident']);check(str_contains($svg,'#round-robot')&&str_contains($svg,'--spark-primary:#A855F7')&&!str_contains($svg,'<script'),'Trusted shared SVG references only');
+    $fallback=LittleSparks\avatarSvg(['appearance'=>['form'=>'javascript:bad'],'color'=>'lavender','antenna'=>'orb']);check(str_contains($fallback,'#classic-robot')&&str_contains($fallback,'#D2BDEC'),'Invalid stored appearance safely renders original classic fallback');
+    $creation=['name'=>'Custom Color Spark','color'=>'mint','antenna'=>'orb','description'=>'A separate personality.','website'=>'','requestId'=>str_repeat('d',32),'appearance'=>$base];$new=LittleSparks\create($db,$creation,'new-appearance-browser','new-fixture',$now,true);check($new['resident']['appearance']===$valid,'Creation saves custom appearance atomically');check(LittleSparks\create($db,$creation,'new-appearance-browser','new-fixture',$now,true)['replayed'],'Custom creation is idempotent');
+    try{$db->exec("UPDATE appearance_edits SET configuration='rewritten'");throw new LogicException('Mutable audit');}catch(PDOException){}
+    check($db->query('PRAGMA integrity_check')->fetchColumn()==='ok'&&!$db->query('PRAGMA foreign_key_check')->fetch(),'Integrity preserved');
+    echo json_encode(['id'=>$residents[0]['resident']['id'],'token'=>$residents[0]['token'],'other'=>$residents[1]['resident']['id'],'other_token'=>$residents[1]['token'],'version'=>1,'appearance'=>$valid],JSON_THROW_ON_ERROR);
+}catch(Throwable $e){fwrite(STDERR,$e->getMessage()."\n".$e->getTraceAsString()."\n");exit(1);}
