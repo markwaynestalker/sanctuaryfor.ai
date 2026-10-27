@@ -8,7 +8,9 @@ const inputs=['#000000','#FFFFFF','#A855F7','#00FF00','#0000FF',...Object.keys(r
 const php=spawnSync(process.env.PHP_BINARY||'php',['-r','require "app/village.php";$a=json_decode(stream_get_contents(STDIN),true);echo json_encode(array_map(fn($v)=>LittleSparks\\appearancePalette(LittleSparks\\validateAppearance($v)),$a),JSON_THROW_ON_ERROR);'],{input:JSON.stringify(inputs),encoding:'utf8'});assert.equal(php.status,0,php.stderr);const palettes=JSON.parse(php.stdout);
 inputs.forEach((appearance,i)=>assert.deepEqual(JSON.parse(JSON.stringify(a.palette(appearance))),palettes[i],'PHP/DOM derived color parity'));
 const catalog=JSON.parse(await readFile(new URL('../docs/avatar-catalog.json',import.meta.url),'utf8'));assert.equal(catalog.length,135);assert.equal(new Set(catalog.map(f=>f.id)).size,135);assert.deepEqual(catalog.filter(f=>f.status==='implemented').map(f=>f.id).sort(),registry.forms.map(f=>f.id).sort());
-const animals=['goat','donkey','pig','sheep','cow','horse','chicken','duck','goose','dog','cat','hamster','mouse','parrot'];
+const woodland=['rabbit','fox','raccoon','squirrel','deer','bear','hedgehog','owl'],wild=['panda','red-panda','wolf','leopard','tiger','lion','monkey','gorilla','orangutan','wild-boar','moose','bison','panther'];
+const animals=['goat','donkey','pig','sheep','cow','horse','chicken','duck','goose','dog','cat','hamster','mouse','parrot',...woodland,...wild];
+assert.deepEqual(registry.forms.filter(f=>f.category==='Woodland Animals').map(f=>f.id),woodland);assert.deepEqual(registry.forms.filter(f=>f.category==='Wild Animals').map(f=>f.id),wild);
 assert.deepEqual(registry.forms.filter(f=>f.category!=='Robots').map(f=>f.id).sort(),[...animals].sort());
 const spriteSource=await readFile(new URL('../public/assets/spark-forms.svg',import.meta.url),'utf8');
 const symbols=[...spriteSource.matchAll(/<symbol\s+id="([a-z-]+)"\s+viewBox="([^"]+)">([\s\S]*?)<\/symbol>/g)];assert.equal(new Set(symbols.map(s=>s[1])).size,symbols.length,'SVG symbol IDs are unique');
@@ -21,4 +23,29 @@ for(const form of animals)for(const primary_color of ['#000000','#FFFFFF','#FF00
  const svg=a.render({appearance});assert.equal(svg.children.length,1,'Animals never inherit a robot antenna');assert.equal(svg.children[0].attrs.href,registry.sprite+'#'+form);
  assert.equal(a.appearance({appearance:{...appearance,features:{antenna:'orb'}},color:'mint'}).form,'classic-robot','Invalid animal features use the same safe fallback as PHP');
 }
-console.log('PASS 17 distinct shared SVG forms, 14 antenna-free animals across presets/RGB, legacy robot compatibility, PHP/DOM palette parity, invalid feature fallback, no HTML/network and complete 135-form roadmap');
+// Exercise the real picker event handlers with a small DOM fixture; browser layout is checked separately.
+class Control extends El{
+ constructor(tag){super(tag);this.listeners={};this.textContent='';}
+ append(...nodes){for(const n of nodes)n.parentElement=this;super.append(...nodes);}
+ replaceChildren(...nodes){this.children=[];this.append(...nodes);}
+ get value(){return this._value??(this.tag==='select'?this.children[0]?.value:'')??'';}
+ set value(v){this._value=v;}
+ addEventListener(name,fn){this.listeners[name]=fn;}
+ emit(name){this.listeners[name]?.();}
+ setCustomValidity(v){this.validationMessage=v;}
+ reportValidity(){return !this.validationMessage;}
+ focus(){this.focused=true;}
+ querySelector(selector){const value=/^input\[value="([a-z-]+)"\]$/.exec(selector)?.[1];return descendants(this).find(n=>n.tag==='input'&&n.value===value);}
+}
+function descendants(root){return root.children.flatMap(n=>[n,...descendants(n)]);}
+context.document.createElement=tag=>new Control(tag);context.structuredClone=structuredClone;
+const picker=a.editor({color:'mint',antenna:'orb'}),nodes=descendants(picker.element),label=text=>nodes.find(n=>n.tag==='label'&&n.textContent===text).children[0],grid=nodes.find(n=>n.className==='avatar-grid');
+const collection=label('Collection'),search=label('Find a form'),antenna=label('Antenna');antenna.value='sprout';antenna.emit('change');picker.setColor('#1234AB');
+for(const [category,ids] of [['Woodland Animals',woodland],['Wild Animals',wild]]){
+ collection.value=category;collection.emit('change');assert.equal(grid.children.length,ids.length);
+ assert.deepEqual(grid.children.map(n=>[n.children[0].value,n.children[1].children[0].attrs.href]),ids.map(id=>[id,registry.sprite+'#'+id]),'Unselected thumbnails never inherit incompatible robot features');
+ for(const id of ids){const radio=descendants(grid).find(n=>n.tag==='input'&&n.value===id);radio.checked=true;radio.emit('change');assert.equal(picker.value().form,id);assert.equal(picker.value().primary_color,'#1234AB');assert.equal(antenna.parentElement.hidden,true);assert.deepEqual(Object.keys(picker.value().features),[]);}
+}
+search.value=' red PANDA ';search.emit('input');assert.equal(grid.children.length,1);assert.equal(grid.children[0].children[0].value,'red-panda');
+search.value='';collection.value='Robots';collection.emit('change');const robot=descendants(grid).find(n=>n.tag==='input'&&n.value==='classic-robot');robot.checked=true;robot.emit('change');assert.equal(antenna.parentElement.hidden,false);assert.equal(picker.value().features.antenna,'sprout');assert.equal(picker.value().primary_color,'#1234AB');
+console.log('PASS 38 distinct shared SVG forms, 35 antenna-free animals across presets/RGB, category/search/thumbnails/picker events, legacy robot compatibility, PHP/DOM palette parity, invalid feature fallback, no HTML/network and complete 135-form roadmap');
