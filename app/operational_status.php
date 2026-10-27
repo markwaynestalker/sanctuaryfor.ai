@@ -21,6 +21,8 @@ function operationalStatus(PDO $db,int $now):array
         if(!$cfg['enabled']||!$cfg['simulation_enabled'])$out['blocking_reasons'][]='scheduler_paused';
         if(!$cfg['ai_enabled']||!$cfg['allow_paid'])$out['blocking_reasons'][]='paid_ai_disabled';
         $pricing=aiConfiguration($now);$interval=simulationInterval();$limits=activityConfiguration();memoryConfiguration();
+        $out['sleep']=villageSleepState($now);
+        if($out['sleep']['sleeping'])$out['blocking_reasons'][]='night_rest';
         $slots=2;$reserve=estimatedAiCost(aiInputTokenLimit(),$pricing['max_output'],$pricing['input_rate'],$pricing['output_rate']);
         if(directorEnabled($db)){
             require_once __DIR__.'/director.php';$director=directorConfiguration();$registered=registeredDirector($db,$director);

@@ -115,8 +115,10 @@ function managedDirectorEncounter(PDO $db,DirectorTransport $transport,array $at
 
 function simulateDirectorOpportunity(PDO $db,string $at,bool $allowPaid,?AiTransport $responses=null,?DirectorTransport $managed=null,?int $now=null,?DirectorContextProvider $contextProvider=null,bool $conversationOnly=false,?StagingPermit $staging=null,bool $configuredManaged=false,?string $stagingContinueAfter=null):array
 {
-    $now??=time();$cfg=directorConfiguration();
+    $now??=time();
     if(getenv('LITTLE_SPARKS_SIMULATION_ENABLED')!=='1')return ['status'=>'paused'];
+    if($rest=nightRestOpportunity($db,$at,$now))return $rest;
+    $cfg=directorConfiguration();
     if(!$cfg['enabled']||getenv('LITTLE_SPARKS_AI_ENABLED')!=='1'||!$allowPaid)return ['status'=>'silent','reason'=>'director_disabled'];
     // The live API rejects spend_control. Atomic application commitments remain
     // enforced, but neither these nor best-effort usage prove a provider bill cap.

@@ -13,6 +13,7 @@
     try { replayStorage = sessionStorage; } catch { /* Storage may be disabled. */ }
     const played = commons.replayHistory(replayStorage);
     let replayCooldown = 60;
+    let sleepPolicy=null,sleepReceivedAt=0,sleeping=false;
     let sceneWidth = 1000, sceneHeight = 520, sceneGeometry;
     if (typeof ResizeObserver !== 'undefined') new ResizeObserver(entries => {
         const changed = sceneWidth !== entries[0].contentRect.width;
@@ -155,16 +156,17 @@
             actor.append(robot(resident));
             const label = document.createElement('span'); label.className = 'robot-name'; label.textContent = resident.name;
             const bubble = document.createElement('span'); bubble.className = 'robot-bubble'; bubble.setAttribute('aria-hidden', 'true');
-            actor.append(label, bubble); actor.addEventListener('click', () => showProfile(resident, button));
+            const sleepBadge=document.createElement('span');sleepBadge.className='sleep-badge';sleepBadge.textContent='💤';sleepBadge.setAttribute('aria-hidden','true');
+            actor.append(label, sleepBadge, bubble); actor.addEventListener('click', () => showProfile(resident, button));
             $('robot-layer').append(actor);
             const old=previousWalkers.get(resident.id);
-            const walker = {resident, element: actor, bubble, x: old?.x??0, y: old?.y??0, target:old?.target, nextDecision:old?.nextDecision, stop: old?.stop??performance.now()+Math.random()*2500, ambientUntil: 0, hover: false};
+            const walker = {resident, element: actor, bubble,sleepBadge, x: old?.x??0, y: old?.y??0, target:old?.target, nextDecision:old?.nextDecision, stop: old?.stop??performance.now()+Math.random()*2500, ambientUntil: 0, hover: false};
             actor.addEventListener('pointerenter', () => { walker.hover = true; });
             actor.addEventListener('pointerleave', () => { walker.hover = false; });
             walkers.push(walker); place(walker);
         });
         renderHomes();
-        frame = 0; lastTick = 0; schedule();
+        frame = 0; lastTick = 0;syncSleep(); schedule();
     }
     function renderHomes() {
         $('home-layer').replaceChildren();
@@ -237,6 +239,7 @@
             if (!response.ok) throw new Error('Saved village life unavailable.');
             const data = await response.json(); if (version !== commonsVersion) return;
             replayCooldown = commons.replayCooldown(data.settings);
+            sleepPolicy=commons.sleepConfiguration(data.settings?.sleep);sleepReceivedAt=performance.now();syncSleep();
             homes = Array.isArray(data.homes) ? data.homes.slice(0, 24) : [];
             exchanges = commons.latestExchanges(Array.isArray(data.conversations) ? data.conversations : [], ids);
             renderHomes(); renderRecordings();
@@ -273,11 +276,11 @@
         }
     }
     function schedule() {
-        if (!frame && !document.hidden && !paused && !$('resident-profile').open && walkers.length) frame = requestAnimationFrame(tick);
+        if (!frame && !sleeping && !document.hidden && !paused && !$('resident-profile').open && walkers.length) frame = requestAnimationFrame(tick);
     }
     function tick(now) {
         frame = 0;
-        if (document.hidden || paused || $('resident-profile').open) { lastTick = now; return; }
+        if (sleeping || document.hidden || paused || $('resident-profile').open) { lastTick = now; return; }
         schedule();
         if (now - lastTick < 80) return;
         const delta = lastTick ? Math.min((now - lastTick) / 1000, .2) : 0;
@@ -316,7 +319,16 @@
     function syncSceneMotion(){globalThis.SparksAtmosphere?.setPaused(paused||document.hidden||$('resident-profile').open);}
     $('motion-toggle').addEventListener('click', () => { paused = !paused; motionLabel(); });
     reduced.addEventListener('change', () => { paused = reduced.matches; motionLabel(); });
-    document.addEventListener('visibilitychange', () => { if (document.hidden) stopPlayback(); syncSceneMotion(); lastTick = 0; schedule(); });
+    function syncSleep() {
+        const next=commons.sleepingAt(sleepPolicy,sleepPolicy?sleepPolicy.server_time*1000+performance.now()-sleepReceivedAt:Date.now());
+        if(next&&!sleeping){stopPlayback();if(frame)cancelAnimationFrame(frame);frame=0;lastTick=0;}
+        sleeping=next;$('landscape').dataset.sleeping=String(sleeping);
+        $('sleep-note').hidden=!sleeping;$('sleep-note').textContent=sleeping?'The Sparks are sleeping. Their profiles, homes and saved conversations are still here to explore.':'';
+        for(const w of walkers){w.sleepBadge.hidden=!sleeping;w.element.dataset.sleeping=String(sleeping);w.element.setAttribute('aria-label',w.resident.name+(sleeping?' is sleeping.':'')+' Open resident profile');}
+        if(!sleeping)schedule();
+    }
+    document.addEventListener('sparks:clock',syncSleep);
+    document.addEventListener('visibilitychange', () => { if (document.hidden) stopPlayback();syncSleep(); syncSceneMotion(); lastTick = 0; schedule(); });
     narrow.addEventListener('change', () => {
         const before=walkers.map(w=>w.resident.id).join(',');render();
         // A width-only change does not refetch saved data for unchanged neighbors.

@@ -42,7 +42,7 @@ class Element{
     focus(){this.doc.activeElement=this;}showModal(){this.open=true;}close(){this.open=false;for(const f of this.listeners.close??[])f({});}
     click(){const event={defaultPrevented:false,preventDefault(){this.defaultPrevented=true;}};for(const f of this.listeners.click??[])f(event);if(this.href&&!event.defaultPrevented)this.doc.location.href=new URL(this.href,this.doc.location.href).href;}
 }
-async function meadow({mobile=false,reduced=false,third=false,conversation=exchange,replay=60,people=residents,width=mobile?388:1000}={}){
+async function meadow({mobile=false,reduced=false,third=false,conversation=exchange,replay=60,sleep,people=residents,width=mobile?388:1000}={}){
     const elements=new Map(),requests=[],frames=new Map(),media=new Map(),motionStates=[];let clock=1000,sequence=0;
     const location={href:'http://fixture.test/village.php',pathname:'/village.php',search:'',hash:''};
     const document={location,hidden:false,listeners:{},getElementById(id){if(!elements.has(id))elements.set(id,new Element(id.includes('link')?'a':'div',this));return elements.get(id);},createElement(tag){return new Element(tag,this);},addEventListener(type,f){this.listeners[type]=f;}};
@@ -57,9 +57,9 @@ async function meadow({mobile=false,reduced=false,third=false,conversation=excha
         addEventListener(){},requestAnimationFrame(f){frames.set(++sequence,f);return sequence;},cancelAnimationFrame(id){frames.delete(id);},
         ResizeObserver:class{constructor(f){resize=f;}observe(){}},
         fetch:async(url,options)=>{requests.push({url,options});const ids=new URL(url,'http://fixture.test/').searchParams.get('ids')?.split(',')||[];return {ok:true,json:async()=>url.includes('residents.php')?{residents:population,total:population.length,page:0,lastPage:0,csrf:'fixture'}:{homes:people.map((r,i)=>({resident_id:r.id,plot:{x:i*4,y:0,width:4,height:4},objects:[{kind:'house',x:i*4+1,y:1},...(i===0?[{kind:'tree',x:3,y:3},{kind:'flowers',x:0,y:2},{kind:'bush',x:3,y:0},{kind:'path',x:1,y:2},{kind:'decoration',x:2,y:0}]:[])]})).filter(h=>ids.includes(h.resident_id)),conversations:conversation?[conversation]:[]}};}});
-    const originalFetch=context.fetch;context.fetch=async(...args)=>{const result=await originalFetch(...args);if(args[0].includes('commons.php')){const json=result.json;result.json=async()=>({...await json(),settings:{replay_cooldown_seconds:replay}});}return result;};
+    const originalFetch=context.fetch;context.fetch=async(...args)=>{const result=await originalFetch(...args);if(args[0].includes('commons.php')){const json=result.json;result.json=async()=>({...await json(),settings:{replay_cooldown_seconds:replay,...(sleep?{sleep}:{})}});}return result;};
     vm.runInContext(helperSource,context);vm.runInContext(meadowSource,context);vm.runInContext(villageSource,context);await new Promise(setImmediate);
-    return {$,document,requests,frames,media,motionStates,resize(width){$('landscape').clientWidth=width;resize([{contentRect:{width,height:520}}]);},setConversation(value){conversation=value;},step(){clock+=80;const callbacks=[...frames.values()];frames.clear();for(const f of callbacks)f(clock);},clock:()=>clock};
+    return {$,document,requests,frames,media,motionStates,resize(width){$('landscape').clientWidth=width;resize([{contentRect:{width,height:520}}]);},setConversation(value){conversation=value;},advanceTime(ms){clock+=ms;document.listeners['sparks:clock']?.();},step(){clock+=80;const callbacks=[...frames.values()];frames.clear();for(const f of callbacks)f(clock);},clock:()=>clock};
 }
 for(const mobile of [false,true]){
     const m=await meadow({mobile});assert.equal(m.requests.length,2,'one listing and one read-only saved-life request');assert.equal(m.$('home-layer').children.length,2);
@@ -124,3 +124,20 @@ for(const mobile of [false,true]){
     const still=await meadow({mobile,reduced:true,conversation:boundary});assert.ok(still.$('saved-dialogue').textContent.includes(text),'Reduced-motion transcript keeps full boundary speech');
 }
 console.log('PASS six compact phone residents, restored wider cottages, all 40 neighbors reachable, stable fold/unfold without refetch, desktop/mobile profile links, shared atmosphere pause, full Unicode boundary speech, literal text and reduced motion');
+
+const sleepPolicy={enabled:true,sleeping:false,time_zone:'America/New_York',start_hour:23,end_hour:7,server_time:Date.parse('2026-01-02T03:59:00Z')/1000};
+assert.equal(h.sleepConfiguration(undefined),null);
+for(const bad of [null,{...sleepPolicy,enabled:1},{...sleepPolicy,start_hour:24},{...sleepPolicy,end_hour:23},{...sleepPolicy,time_zone:'UTC'},{...sleepPolicy,server_time:-1}])assert.throws(()=>h.sleepConfiguration(bad));
+for(const [at,expected] of [['2026-01-02T03:59:59Z',false],['2026-01-02T04:00:00Z',true],['2026-01-02T12:00:00Z',false],['2026-07-02T03:00:00Z',true],['2026-07-02T11:00:00Z',false],['2026-03-08T07:00:00Z',true],['2026-11-01T06:30:00Z',true]])assert.equal(h.sleepingAt(sleepPolicy,Date.parse(at)),expected,at);
+for(const mobile of [false,true]){
+ const m=await meadow({mobile,sleep:sleepPolicy});assert.equal(m.frames.size,1,'Awake has exactly one animation loop');
+ m.advanceTime(120000);assert.equal(m.frames.size,0,'Server-anchored shared clock stops nighttime wandering despite visitor date');
+ assert.equal(m.$('sleep-note').hidden,false);assert.ok(m.$('robot-layer').children.every(el=>el.dataset.sleeping==='true'&&el.attributes['aria-label'].includes('sleeping')));
+ assert.equal(m.$('home-layer').children.length,2);assert.ok(m.$('saved-dialogue').textContent.includes(exchange.messages[0].text),'History remains readable during rest');
+ m.$('resident-directory').children[0].children[0].click();assert.equal(m.$('profile-life-link').href,'/resident.php?id='+a);m.$('resident-profile').close();
+ m.advanceTime(8*3600000);assert.equal(m.$('sleep-note').hidden,true);assert.equal(m.frames.size,1,'Wake restores one animation loop');assert.equal(m.requests.length,2,'Clock transitions never poll or generate');
+}
+for(const reduced of [false,true]){
+ const m=await meadow({reduced,sleep:sleepPolicy});if(!reduced)m.$('motion-toggle').click();m.advanceTime(120000);m.advanceTime(8*3600000);assert.equal(m.frames.size,0,'Rest/wake respects existing pause/reduced motion');
+}
+console.log('PASS shared rest/wake clock, DST, strict public policy, desktop/mobile profiles/history, reduced motion and no extra HTTP');

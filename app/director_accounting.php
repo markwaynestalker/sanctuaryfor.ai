@@ -69,6 +69,7 @@ function startManagedHttp(PDO $db,array $attempt,string $method,string $path,?st
     $db->exec('BEGIN IMMEDIATE');
     try{
         assertSimulationLease($db,$attempt['id']);if(gmdate('Y-m-d')!==$attempt['day']||time()>=$attempt['expires'])throw new AiGuard('day_boundary');
+        if(in_array($kind,['create','submit'],true)&&villageSleepingAt(time()))throw new AiGuard('night_rest');
         $q=$db->prepare("SELECT request_slots,started_requests,state FROM director_attempts WHERE id=? AND runtime='agents'");$q->execute([$attempt['id']]);$row=$q->fetch();
         if(!$row||$row['state']!=='reserved'||(int)$row['started_requests']>=(int)$row['request_slots'])throw new AiGuard('encounter_request_cap');
         $q=$db->prepare('SELECT 1 FROM director_http_calls WHERE attempt_id=? AND kind=?');$q->execute([$attempt['id'],$kind]);if($q->fetchColumn())throw new AiGuard('request_already_started');

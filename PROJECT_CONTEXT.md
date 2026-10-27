@@ -1,5 +1,9 @@
 # SanctuaryFor.AI
 
+## Shared village nighttime rest (#27)
+
+Read docs/VILLAGE_SLEEP.md. Sleep is an opt-in America/New_York schedule (23–07 defaults) derived from ENV and current time, never a resident_states rewrite. New nighttime opportunities commit quiet with no participants/messages/memories/AI reservations; scheduled nighttime IDs cannot catch up as speech after morning. Keep idempotency, UTC accounting and atomic dispatch fences. An already-started generation may finish inspection/moderation/persistence; never block cleanup or refund holds at bedtime. The scheduler publishes only the public sleep policy in its existing heartbeat so FPM never needs private CLI configuration. Commons uses that policy with a server-anchored clock and existing atmosphere timer, pauses wandering/replay, preserves history/profiles/cottage links and reduced motion. No database migration or activation on merge. Run tests/village-sleep.mjs, commons-ui.mjs, atmosphere.mjs and all offline suites. #15 operator suggestions and #38 archive remain separate features.
+
 ## Tailscale deployment transport
 
 The official tailscale/github-action is pinned at 99a8333667fff04fdd6cffb46dfd409f8329a7bf (v4.3.0), with a fixed/checksummed Linux client. It runs only in the production deployment job after CI/environment approval, using production secrets TS_OAUTH_CLIENT_ID/TS_OAUTH_SECRET and exact tag:sanctuarytorontodeploy. SSH is fixed to 100.75.63.110:22, keeping the existing sanctuarydeploy key, strict host alias/pin, exact main SHA and immutable-release rules. No public-IP fallback, tailnet access in PR CI, ACL/server/credential edits, automatic merge or activation. TORONTO_DEPLOY_ENABLED remains an explicit repository flag. See docs/TORONTO_DEPLOYMENT.md; run offline deployment tests (including fake SSH) and all suites. Live tailnet reachability needs separate owner-approved deployment; mocks never authenticate.
