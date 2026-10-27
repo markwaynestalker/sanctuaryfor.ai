@@ -78,6 +78,7 @@ for(const mobile of [false,true]){
     m.$('motion-toggle').click();assert.ok(m.motionStates.at(-1),'Weather shares the wandering pause control');assert.ok(actors.every(el=>!el.children.at(-1).textContent),'pause clears bubbles');assert.ok(m.$('saved-dialogue').textContent.includes(exchange.messages[0].text),'stationary transcript remains available');
     for(let i=0;i<2;i++){
         m.$('resident-directory').children[i].children[0].click();assert.equal(m.$('resident-profile').open,true);assert.equal(m.$('profile-life-link').href,'/resident.php?id='+residents[i].id);
+        assert.equal(m.$('profile-idea-link').href,'/owner.php?resident='+residents[i].id,'Operator link targets the selected immutable resident');
         m.$('profile-life-link').click();assert.equal(m.$('resident-profile').open,false);assert.equal(m.document.location.href,'http://fixture.test/resident.php?id='+residents[i].id,'native modal link navigates to selected resident');
     }
 }
@@ -141,3 +142,5 @@ for(const reduced of [false,true]){
  const m=await meadow({reduced,sleep:sleepPolicy});if(!reduced)m.$('motion-toggle').click();m.advanceTime(120000);m.advanceTime(8*3600000);assert.equal(m.frames.size,0,'Rest/wake respects existing pause/reduced motion');
 }
 console.log('PASS shared rest/wake clock, DST, strict public policy, desktop/mobile profiles/history, reduced motion and no extra HTTP');
+
+const operatorPopup=await meadow({mobile:true,reduced:true});operatorPopup.$('resident-directory').children[1].children[0].click();operatorPopup.$('profile-idea-link').click();assert.equal(operatorPopup.$('resident-profile').open,false);assert.equal(operatorPopup.document.location.href,'http://fixture.test/owner.php?resident='+b,'Operator link navigates natively out of modal without triggering AI');

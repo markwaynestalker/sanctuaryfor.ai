@@ -127,3 +127,7 @@ No database migration, new receipt, billing reconciliation, production ENV edit 
 ## Offline verification
 
 `tests/village-director.mjs` includes explicit 2000/$25 admission, preserved uncertain commitments beyond former ceilings, concurrent reservation boundary, external metadata slots, unchanged eight-slot behavior, execution ENV changes and query-only status. `tests/activity-limits.mjs` covers global/resident/cooldown changes and concurrent transactional enforcement. `tests/village-ai.mjs` covers Responses/moderation and monthly limits. All use disposable SQLite and mock providers; run the full offline suite before review. No real paid call is a verification step.
+
+## Optional site-operator suggestions (#15)
+
+See docs/OPERATOR_IDEAS.md and .env.example for the complete OWNER_* table: explicit default-off activation, required web-only password hash, login attempts/hour (10), session seconds (3600), ideas/UTC day (12), pending/resident (4), text length (500), context items/resident (2), history page size (20), ranges and activation procedure. Quotas are checked transactionally; invalid values fail, never clamp. They control operator access/input/context only and never lower AI allowances or add provider calls. Fixed HTTPS/CSRF, immutable attribution, participant binding, the 1000-character SQL shape and bounded context/body/page domains are security/data-integrity protections. No activation or production migration is implicit.
