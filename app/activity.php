@@ -216,7 +216,7 @@ function applyActivity(PDO $db,array $claim,array $proposal,array $choices,int $
         }
         if(isset($proposal['director'])){
             $db->prepare('INSERT INTO director_runs VALUES (?,?,?,?,?,?)')->execute([$run,$proposal['director_session'],$proposal['director_fingerprint'],$conversation??null,$proposal['topic'],$time]);
-            if($outcome==='conversation'){verifyDirectorDialogue($db,$run,$conversation,$proposal);saveDirectorMemory($db,$conversation,$proposal,$pair,$time);}
+            if($outcome==='conversation'){verifyDirectorDialogue($db,$run,$conversation,$proposal);saveDirectorMemory($db,$conversation,$proposal,$pair,$time);saveOperatorIdeaExposures($db,$conversation,$proposal['operator_idea_ids']??[],$time);}
             $db->prepare("UPDATE director_sessions SET state='ready' WHERE id=? AND runtime='agents'")->execute([$proposal['director_session']]);
         }elseif($outcome==='conversation'&&memoryEnabled($db))conversationMemory($db,$conversation,$proposal['shared_receipt']??null);
         if($outcome==='quiet'&&$pair)event($db,$pair[0]['id'],null,'quiet_time','simulation',$time,'activity:'.$claim['id'].':quiet',$run);

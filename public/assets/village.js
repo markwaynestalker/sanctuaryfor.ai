@@ -8,6 +8,7 @@
     const commons = globalThis.SparksCommons;
     const meadow = globalThis.SparksMeadow;
     const setProfileLink = commons.bindProfileLink($('profile-life-link'), $('resident-profile'));
+    $('profile-idea-link')?.addEventListener('click',()=>{if($('resident-profile').open)$('resident-profile').close();});
     let homes = [], exchanges = new Map(), activeMeeting = null, commonsVersion = 0;
     let replayStorage;
     try { replayStorage = sessionStorage; } catch { /* Storage may be disabled. */ }
@@ -66,6 +67,7 @@
         $('profile-robot').replaceChildren(robot(resident));
         $('profile-private').hidden = !isPrivate;
         setProfileLink(resident);
+        const ideaLink=$('profile-idea-link');if(ideaLink)ideaLink.href='/owner.php?resident='+resident.id;
         const details = $('profile-details');
         details.replaceChildren();
         for (const [label, value] of Object.entries({Personality: resident.description || resident.personality, Color: resident.color, Antenna: resident.antenna, Created: resident.created_at, 'Permanent ID': resident.id})) {

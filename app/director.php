@@ -173,6 +173,7 @@ function simulateDirectorOpportunity(PDO $db,string $at,bool $allowPaid,?AiTrans
             startAiRequest($db,$attempt,'moderation_started');$moderation=$responses->post('moderations',['model'=>'omni-moderation-latest','input'=>json_encode([$prepared['context'],$proposal],JSON_THROW_ON_ERROR|JSON_UNESCAPED_UNICODE)],$attempt['expires']);
             if(count($moderation['results']??[])!==1||($moderation['results'][0]['flagged']??null)!==false)throw new AiGuard('moderation_rejected');
         }
+        $proposal['operator_idea_ids']=$prepared['operator_idea_ids']??[];
         $proposal['director_session']=$session['id'];$proposal['director_fingerprint']=$registered['fingerprint'];
         $result=applyActivity($db,$claim,$proposal,$choices,$now,$attempt,$usage);
         return $result;

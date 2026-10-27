@@ -2,6 +2,7 @@
 declare(strict_types=1);
 namespace LittleSparks;
 use PDO;
+require_once __DIR__.'/operator_ideas.php';
 
 /** Structured, bounded encounter context; future authorized MCP retrieval can
  * implement this seam without changing generation, validation or persistence. */
@@ -31,6 +32,7 @@ function trimDirectorContext(array $context,int $maximum):array
             if(!$list)return;$last=$list[array_key_last($list)];
             $tails[]=['owner'=>$owner,'field'=>$field,'rank'=>[$priority,-count($list),$last['at']??$last['created_at']??$last['knowledge']['learned_at']??'']];
         };
+        $offer(-1,'operator_suggestions',$context['operator_suggestions']??[],-1);
         $offer(-1,'director_continuity',$context['director_continuity'],0);
         $offer(-1,'shared_recent_conversations',$context['shared_recent_conversations'],count($context['shared_recent_conversations'])>1?5:7);
         foreach($context['participants'] as $i=>$p){
@@ -94,9 +96,11 @@ function prepareDirectorEncounter(PDO $db,array $pair,array $choices,array $clai
     usort($context['shared_recent_conversations'],fn($a,$b)=>[$b['at'],$b['id']]<=>[$a['at'],$a['id']]);
     $context['director_continuity']=$db->query("SELECT e.actor_id,e.target_id,e.kind,e.created_at FROM events e LEFT JOIN simulation_runs r ON r.id=e.run_id
         WHERE e.visibility='public' AND (e.run_id IS NULL OR r.status='completed') ORDER BY e.id DESC LIMIT 5")->fetchAll();
+    $suggestions=[];foreach($pair as $actor)foreach(operatorIdeasForResident($db,$actor['id']) as $idea)$suggestions[]=$idea+['resident_id'=>$actor['id']];
+    if($suggestions)$context['operator_suggestions']=$suggestions;
     $context=trimDirectorContext($context,$memory['context_bytes']);
     $aliases=[];foreach($context['participants'] as $p)foreach($p['memories'] as $m)if($m['source_alias']??null)$aliases[]=$m['source_alias'];
-    return ['context'=>$context,'sources'=>array_intersect_key($sources,array_flip($aliases))];
+    return ['context'=>$context,'sources'=>array_intersect_key($sources,array_flip($aliases)),'operator_idea_ids'=>array_column($context['operator_suggestions']??[],'id')];
 }
 function directorRequest(array $pricing,array $registered,array $prepared,array $choices):array
 {
