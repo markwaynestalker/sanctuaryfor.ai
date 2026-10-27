@@ -518,6 +518,108 @@
       "name": "Penguin",
       "category": "Birds",
       "features": []
+    },
+    {
+      "id": "frog",
+      "name": "Frog",
+      "category": "Reptiles, Amphibians & Small Creatures",
+      "features": []
+    },
+    {
+      "id": "turtle",
+      "name": "Turtle",
+      "category": "Reptiles, Amphibians & Small Creatures",
+      "features": []
+    },
+    {
+      "id": "snake",
+      "name": "Snake",
+      "category": "Reptiles, Amphibians & Small Creatures",
+      "features": []
+    },
+    {
+      "id": "crocodile",
+      "name": "Crocodile",
+      "category": "Reptiles, Amphibians & Small Creatures",
+      "features": []
+    },
+    {
+      "id": "lizard",
+      "name": "Lizard",
+      "category": "Reptiles, Amphibians & Small Creatures",
+      "features": []
+    },
+    {
+      "id": "chameleon",
+      "name": "Chameleon",
+      "category": "Reptiles, Amphibians & Small Creatures",
+      "features": []
+    },
+    {
+      "id": "snail",
+      "name": "Snail",
+      "category": "Reptiles, Amphibians & Small Creatures",
+      "features": []
+    },
+    {
+      "id": "caterpillar",
+      "name": "Caterpillar",
+      "category": "Reptiles, Amphibians & Small Creatures",
+      "features": []
+    },
+    {
+      "id": "ladybug",
+      "name": "Ladybug",
+      "category": "Reptiles, Amphibians & Small Creatures",
+      "features": []
+    },
+    {
+      "id": "cricket",
+      "name": "Cricket",
+      "category": "Reptiles, Amphibians & Small Creatures",
+      "features": []
+    },
+    {
+      "id": "spider",
+      "name": "Spider",
+      "category": "Reptiles, Amphibians & Small Creatures",
+      "features": []
+    },
+    {
+      "id": "scorpion",
+      "name": "Scorpion",
+      "category": "Reptiles, Amphibians & Small Creatures",
+      "features": []
+    },
+    {
+      "id": "beetle",
+      "name": "Beetle",
+      "category": "Reptiles, Amphibians & Small Creatures",
+      "features": []
+    },
+    {
+      "id": "ant",
+      "name": "Ant",
+      "category": "Reptiles, Amphibians & Small Creatures",
+      "features": []
+    },
+    {
+      "id": "worm",
+      "name": "Worm",
+      "category": "Reptiles, Amphibians & Small Creatures",
+      "features": []
+    },
+    {
+      "id": "butterfly",
+      "name": "Butterfly",
+      "category": "Reptiles, Amphibians & Small Creatures",
+      "features": []
+    },
+    {
+      "id": "bee",
+      "name": "Bee",
+      "category": "Reptiles, Amphibians & Small Creatures",
+      "features": []
     }
   ]
 }

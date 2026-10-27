@@ -1,6 +1,6 @@
 # Spark appearance roadmap (#51)
 
-All 135 requested forms remain in scope. This collection brings completed forms to **81/135**, with **54 remaining**. `avatar-catalog.json` is the complete checklist, separate from the public registry: planned designs are never exposed as completed forms or rendered as generic/emoji placeholders.
+All 135 requested forms remain in scope. This collection brings completed forms to **98/135**, with **37 remaining**. `avatar-catalog.json` is the complete checklist, separate from the public registry: planned designs are never exposed as completed forms or rendered as generic/emoji placeholders.
 
 | PR batch | Scope | Count |
 |---|---|---:|
@@ -9,8 +9,8 @@ All 135 requested forms remain in scope. This collection brings completed forms 
 | Woodland and wild (PR #55, shipped) | All listed woodland and wild animals | 21 |
 | Unusual mammals (PR #56, shipped) | All listed unusual mammals | 16 |
 | Aquatic (PR #57, shipped) | All listed aquatic creatures | 13 |
-| Birds (this PR) | All listed birds | 14 |
-| Reptiles and small creatures | All listed reptiles, amphibians, insects and small creatures | 17 |
+| Birds (PR #58, shipped) | All listed birds | 14 |
+| Reptiles and small creatures (this PR) | All listed reptiles, amphibians, insects and small creatures | 17 |
 | Mythical | All listed mythical/fantasy creatures | 13 |
 | Remaining forms | Four remaining robots, plants, celestial/elements and objects | 24 |
 
@@ -55,3 +55,11 @@ Fourteen forms: Peacock, Flamingo, Eagle, Turkey, Dove, Crow, Swan, Dodo, Hummin
 Birds use empty animal feature sets and the shared 48x70 footprint, renderer/picker, RGB/24 presets, category/search, native keyboard controls and private appearance edits. They add no flight physics, extra animation loop, inferred personalities, Director context or new behavior. The protected commons chicken remains separate.
 
 Check every form at large/meadow sizes in black, white and saturated colors, bounds including stroke margin, desktop/390px/320px controls, reduced motion, private saves and public profiles. Offline coverage includes all 78 animal forms plus bird membership, thumbnails, selection and case-insensitive Flamingo search. The existing exhaustive disposable fixture configures both edit allowances, verifies exhaustion/replay and restores/checks unchanged application defaults. Run all offline suites. Physical iPhone/Safari verification remains an owner check. No runtime PHP/JavaScript, migration, ENV, Director/session, scheduler or accounting changes; no automatic production action. The #51 roadmap retains 54 unbuilt forms even if the umbrella issue is closed.
+
+## Reptiles, amphibians and small creatures
+
+Seventeen forms: Frog, Turtle, Snake, Crocodile, Lizard, Chameleon, Snail, Caterpillar, Ladybug, Cricket, Spider, Scorpion, Beetle, Ant, Worm, Butterfly and Bee. Authored local SVGs use bulging eyes, shell plates, coiled neck/tail, toothy muzzle, splayed feet, a spiral tail/swivel eye, shell/eyestalks, body segments, spots, jointed hind legs, eight spider legs, pincers/raised tail, a horn, three body sections, rings, patterned wings and a striped body. Fine limbs have contrasting outlines; antennae/feelers are part of the artwork, never the robot-only feature. All 81 previous forms and antenna symbols remain unchanged.
+
+These remain cosmetic appearances in the existing 48x70 footprint. Reuse the shared renderer/picker, RGB/24 presets, category/search, native keyboard controls, animal feature restrictions and private appearance edits. No crawling/flying physics, new animation loop, inferred personality or Director behavior. The protected commons chicken remains separate.
+
+Check all forms at large/meadow sizes in black, white and saturated colors, bounds including stroke margin, desktop/390px/320px controls, reduced motion, private saves and public profiles. Offline coverage includes all 95 animal forms, new collection membership/thumbnails/picker events and case-insensitive Chameleon search. The existing exhaustive disposable fixture explicitly configures its edit allowances, verifies exhaustion/replay and restores/checks unchanged application defaults. Run all offline suites; physical iPhone/Safari verification remains an owner check. No runtime PHP/JavaScript, migration, ENV, Director/session, scheduler or accounting changes and no automatic production action. The #51 roadmap retains 37 unbuilt forms even if the umbrella issue is closed.
