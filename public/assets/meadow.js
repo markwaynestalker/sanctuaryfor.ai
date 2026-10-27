@@ -5,37 +5,33 @@ globalThis.SparksMeadow = (() => {
     const distance = (a,b) => Math.hypot(a.x-b.x,a.y-b.y);
     const clamp = (n,a,b) => Math.max(a,Math.min(b,n));
     const capacity = mobile => mobile ? 6 : 12;
-    function layout(width, homes, mobile, population) {
+    function layout(width, homes, mobile, population, resting=false) {
         width=Math.max(120,width);
         const compact=width<=360;
-        const shown=compact?[]:homes.slice(0,capacity(mobile)), yardWidth=mobile?Math.min(68,Math.max(44,(width-38)/2)):90, yardHeight=86, gap=14;
+        const shown=homes.slice(0,capacity(mobile)), yardWidth=Math.min(width-24,96), yardHeight=100, gap=16;
         const columns=Math.max(1,Math.min(mobile?3:6,Math.floor((width-24+gap)/(yardWidth+gap))));
-        const plots=shown.map((home,i) => {
+        const gardens=shown.map((home,i) => {
             const row=Math.floor(i/columns), count=Math.min(columns,shown.length-row*columns), column=i%columns;
             const left=12+(column+.5)*(width-24)/count-yardWidth/2+(row%2?5:-2);
-            return {home,left:clamp(left,12,width-yardWidth-12),top:90+row*100+[0,22,7,28,12,24][column]+(row%2)*12,width:yardWidth,height:yardHeight};
+            return {home,left:clamp(left,12,width-yardWidth-12),top:116+row*120+[0,8,16,4,12,6][column],width:yardWidth,height:yardHeight};
         });
-        const compactColumns=Math.max(1,Math.floor((width-68)/72)+1);
-        const height=Math.max(520,...plots.map(p=>p.top+p.height+(width<240?300:240)),compact?188+Math.ceil(population/compactColumns)*80:300+Math.ceil(population/(mobile?3:6))*110);
-        const obstacles=plots.map(p => {
-            const house=p.home.objects?.find(o=>o.kind==='house'), plot=p.home.plot;
-            const x=house&&plot?clamp(house.x-plot.x,0,3):1, y=house&&plot?clamp(house.y-plot.y,0,3):1;
-            const cx=p.left+(x+.5)*p.width/4, cy=p.top+(y+.5)*66/4;
-            return {left:cx-12,right:cx+12,top:cy-22,bottom:cy+9};
-        });
+        const plots=resting?gardens:[], commonColumns=Math.max(1,Math.floor((width-104)/108)+1);
+        const height=Math.max(520,160+Math.ceil(population/commonColumns)*110+155,...plots.map(p=>p.top+p.height+110));
+        const obstacles=plots.map(p=>({left:p.left,right:p.left+p.width,top:p.top,bottom:p.top+p.height}));
         // The chicken gets a small local refuge; no full-width exclusion band.
         obstacles.push({left:width*.93-54,right:width*.93+8,top:height-70,bottom:height-8});
         // The noticeboard stands at the edge, with a small local footprint.
-        obstacles.push({left:8,right:Math.min(112,width*.42),top:height-80,bottom:height-8});
-        return {width,height,compact,plots,obstacles,bounds:{left:34,right:Math.max(34,width-34),top:compact?110:132,bottom:height-78}};
+        obstacles.push({left:8,right:Math.min(116,width*.42),top:height-104,bottom:height-8});
+        return {width,height,compact,gardens,plots,obstacles,bounds:{left:52,right:Math.max(52,width-52),top:150,bottom:height-110}};
     }
     function free(point,scene) {
         const b=scene.bounds;
-        return point.x>=b.left&&point.x<=b.right&&point.y>=b.top&&point.y<=b.bottom&&!scene.obstacles.some(o=>point.x>o.left-30&&point.x<o.right+30&&point.y>o.top-33&&point.y<o.bottom+33);
+        return point.x>=b.left&&point.x<=b.right&&point.y>=b.top&&point.y<=b.bottom&&!scene.obstacles.some(o=>point.x>o.left-50&&point.x<o.right+50&&point.y>o.top-50&&point.y<o.bottom+50);
     }
+    const overlaps=(a,b)=>Math.abs(a.x-b.x)<104&&Math.abs(a.y-b.y)<106;
     function candidates(scene) {
         const result=[],b=scene.bounds;
-        for(let y=b.top;y<=b.bottom;y+=72)for(let x=b.left;x<=b.right;x+=72)if(free({x,y},scene))result.push({x,y});
+        for(let y=b.top;y<=b.bottom;y+=110)for(let x=b.left;x<=b.right;x+=108)if(free({x,y},scene))result.push({x,y});
         return result;
     }
     function target(scene,random,origin) {
@@ -50,15 +46,15 @@ globalThis.SparksMeadow = (() => {
         const points=candidates(scene),used=[];
         // Arrivals start in the shared meadow, without restricting where they
         // may wander afterward or turning the gardens into a collision band.
-        const gardenEdge=scene.compact?scene.bounds.top:Math.max(scene.height*.62,scene.bounds.top,...scene.plots.map(p=>p.top+p.height+36));
+        const gardenEdge=scene.bounds.top;
         const common=points.filter(p=>p.y>=gardenEdge),arrivals=common.length>=walkers.length?common:points;
         walkers.forEach((w,i) => {
-            if(preserve&&Number.isFinite(w.x)&&Number.isFinite(w.y)&&free(w,scene)&&used.every(p=>distance(w,p)>=60)){
+            if(preserve&&Number.isFinite(w.x)&&Number.isFinite(w.y)&&free(w,scene)&&used.every(p=>!overlaps(w,p))){
                 used.push({x:w.x,y:w.y});
                 if(!w.target||!free(w.target,scene))w.target=target(scene,random,w);
                 return;
             }
-            const ranked=arrivals.filter(p=>used.every(other=>distance(p,other)>=64)).sort((a,b)=>{
+            const ranked=arrivals.filter(p=>used.every(other=>!overlaps(p,other))).sort((a,b)=>{
                 if(!used.length)return distance(b,{x:scene.width/2,y:scene.height*.65})-distance(a,{x:scene.width/2,y:scene.height*.65});
                 return Math.min(...used.map(p=>distance(b,p)))-Math.min(...used.map(p=>distance(a,p)));
             });
@@ -79,11 +75,11 @@ globalThis.SparksMeadow = (() => {
             const length=Math.max(1,distance(w,w.target));let dx=(w.target.x-w.x)/length,dy=(w.target.y-w.y)/length;
             prior.forEach((other,j)=>{
                 if(i===j)return;const d=distance(w,other);
-                if(d<78){const angle=(i+1)*2.4;dx+=(d?(w.x-other.x)/d:Math.cos(angle))*(78-d)/30;dy+=(d?(w.y-other.y)/d:Math.sin(angle))*(78-d)/30;}
+                if(d<145){const angle=(i+1)*2.4;dx+=(d?(w.x-other.x)/d:Math.cos(angle))*(145-d)/40;dy+=(d?(w.y-other.y)/d:Math.sin(angle))*(145-d)/40;}
             });
             const norm=Math.max(1,Math.hypot(dx,dy)),speed=({playful:24,curious:20,shy:15,philosophical:17}[w.resident.personality]||18)*(1+(i%3)*.08);
             const move=speed*Math.min(delta,.2),p={x:w.x+dx/norm*move,y:w.y+dy/norm*move};
-            const clear=q=>free(q,scene)&&walkers.every((other,j)=>i===j||distance(q,other)>=60);
+            const clear=q=>free(q,scene)&&walkers.every((other,j)=>i===j||!overlaps(q,other));
             let next=clear(p)?p:null;
             if(!next){const horizontal={x:p.x,y:w.y},vertical={x:w.x,y:p.y};next=clear(horizontal)?horizontal:clear(vertical)?vertical:null;}
             if(next&&distance(w,next)>.05){w.x=next.x;w.y=next.y;w.stuck=0;}
@@ -97,8 +93,5 @@ globalThis.SparksMeadow = (() => {
             w.target=free(p,scene)&&distance(p,w)>12?p:target(scene,random,w);
         }
     }
-    function bubblePosition(point,scene,width,height) {
-        return {left:clamp(point.x-width/2,8,Math.max(8,scene.width-width-8)),top:clamp(point.y-44-height,8,Math.max(8,scene.height-height-8))};
-    }
-    return Object.freeze({capacity,layout,free,seed,step,separate,distance,bubblePosition});
+    return Object.freeze({capacity,layout,free,seed,step,separate,distance,overlaps});
 })();
