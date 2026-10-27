@@ -93,7 +93,7 @@ function residents(PDO $db, int $page): array
     $query->bindValue(':limit', PAGE_SIZE, PDO::PARAM_INT);
     $query->bindValue(':offset', $page * PAGE_SIZE, PDO::PARAM_INT);
     $query->execute();
-    return ['residents' => $query->fetchAll(), 'total' => $total, 'page' => $page, 'lastPage' => $lastPage];
+    return ['residents' => withAppearances($db,$query->fetchAll()), 'total' => $total, 'page' => $page, 'lastPage' => $lastPage];
 }
 
 // Call inside BEGIN IMMEDIATE so concurrent requests cannot bypass the limits.
@@ -109,7 +109,7 @@ function rateLimit(PDO $db, string $key, int $limit, int $now): void
     }
 }
 
-function validate(array $input,bool $identity=false): array
+function validate(array $input,bool $identity=false,bool $appearances=false): array
 {
     foreach (['name', 'color', 'antenna', $identity?'description':'personality', 'requestId', 'website'] as $key) {
         if (!isset($input[$key]) || !is_string($input[$key])) {
@@ -128,8 +128,9 @@ function validate(array $input,bool $identity=false): array
     if ($input['website'] !== '' || !preg_match('/\A[a-f0-9]{32}\z/', $input['requestId'])) {
         throw new Problem(422, 'The welcome request could not be accepted.');
     }
+    $appearance=[];if(array_key_exists('appearance',$input)){if(!$appearances)throw new Problem(503,'Explicit appearance migration required.');$appearance=['appearance'=>validateAppearance($input['appearance'])];}
     return ['name' => $name, 'color' => $input['color'], 'antenna' => $input['antenna'], 'personality' => $identity?'custom':$input['personality']]
-        +($identity?['description'=>validateDescription($input['description'])]:[]);
+        +($identity?['description'=>validateDescription($input['description'])]:[])+$appearance;
 }
 
 function create(PDO $db, array $input, string $browser, string $network, int $now, bool $ready): array
@@ -147,7 +148,7 @@ function create(PDO $db, array $input, string $browser, string $network, int $no
             $lookup->execute([$owner, $input['requestId']]);
             $existing = $lookup->fetch();
             if ($existing) {
-                $fields = validate($input,$identity&&$existing['personality']==='custom');
+                $fields = validate($input,$identity&&$existing['personality']==='custom',appearanceInstalled($db));
                 if (!hash_equals($existing['request_hash'], hash('sha256', json_encode($fields, JSON_THROW_ON_ERROR)))) {
                     throw new Problem(409, 'That request was already used. Start a new robot to change its details.');
                 }
@@ -160,7 +161,7 @@ function create(PDO $db, array $input, string $browser, string $network, int $no
         if (!$ready) {
             throw new Problem(429, 'Take a moment to choose your robot, then try again.');
         }
-        $fields = validate($input,$identity);
+        $fields = validate($input,$identity,appearanceInstalled($db));
         if($identity)assertIdentityIdle($db);
         $count = $db->prepare('SELECT COUNT(*) FROM residents WHERE owner_hash = ?');
         $count->execute([$owner]);
@@ -179,6 +180,7 @@ function create(PDO $db, array $input, string $browser, string $network, int $no
         assignHome($db, $resident['id'], $resident['created_at']);
         if($identity)identityForNewResident($db,$resident['id'],$fields['description'],$resident['color'],$resident['created_at']);
         elseif ((int)$db->query('PRAGMA user_version')->fetchColumn()>=3) ensurePreferences($db,$resident['id'],$resident['personality']);
+        if(isset($fields['appearance']))$db->prepare('INSERT INTO resident_appearances VALUES (?,?,0,?)')->execute([$resident['id'],json_encode($fields['appearance'],JSON_THROW_ON_ERROR),$resident['created_at']]);
         $db->exec('RELEASE resident_create');
         $savepoint = false;
         $db->exec('COMMIT');
@@ -197,6 +199,7 @@ function create(PDO $db, array $input, string $browser, string $network, int $no
 require_once __DIR__ . '/world.php';
 require_once __DIR__ . '/limits.php';
 require_once __DIR__ . '/identity.php';
+require_once __DIR__ . '/appearance.php';
 require_once __DIR__ . '/preferences.php';
 require_once __DIR__ . '/memory.php';
 require_once __DIR__ . '/memory_context.php';

@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 import vm from 'node:vm';
 import {readFile} from 'node:fs/promises';
 const helperSource=await readFile(new URL('../public/assets/commons.js',import.meta.url),'utf8');
+const avatarSource=await readFile(new URL('../public/assets/avatars.js',import.meta.url),'utf8');
+const avatarRegistry=JSON.parse(await readFile(new URL('../public/assets/avatars.json',import.meta.url),'utf8'));avatarRegistry.sprite='/assets/spark-forms.svg?v=123456789abc';
 const villageSource=await readFile(new URL('../public/assets/village.js',import.meta.url),'utf8');
 const meadowSource=await readFile(new URL('../public/assets/meadow.js',import.meta.url),'utf8');
 const atmosphereSource=await readFile(new URL('../public/assets/atmosphere.js',import.meta.url),'utf8');
@@ -45,8 +47,8 @@ class Element{
 async function meadow({mobile=false,reduced=false,third=false,conversation=exchange,replay=60,sleep,weather,people=residents,width=mobile?388:1000}={}){
     const elements=new Map(),requests=[],frames=new Map(),media=new Map(),motionStates=[];let clock=1000,sequence=0;
     const location={href:'http://fixture.test/village.php',pathname:'/village.php',search:'',hash:''};
-    const document={location,hidden:false,listeners:{},getElementById(id){if(!elements.has(id))elements.set(id,new Element(id.includes('link')?'a':'div',this));return elements.get(id);},createElement(tag){return new Element(tag,this);},addEventListener(type,f){this.listeners[type]=f;}};
-    const $=id=>document.getElementById(id);$('robot-color').value='mint';$('robot-antenna').value='orb';$('private-link-panel').hidden=true;
+    const document={location,hidden:false,listeners:{},getElementById(id){if(id==='creation-appearance')return null;if(!elements.has(id))elements.set(id,new Element(id.includes('link')?'a':'div',this));return elements.get(id);},createElement(tag){return new Element(tag,this);},createElementNS(ns,tag){return new Element(tag,this);},addEventListener(type,f){this.listeners[type]=f;}};
+    const $=id=>document.getElementById(id);$('spark-avatar-registry').textContent=JSON.stringify(avatarRegistry);$('robot-color').value='mint';$('robot-antenna').value='orb';$('private-link-panel').hidden=true;
     $('landscape').clientWidth=width;$('landscape').clientHeight=520;
     const population=third?[...people,{...residents[0],id:c,name:'No saved home'}]:people;
     let resize;
@@ -58,7 +60,7 @@ async function meadow({mobile=false,reduced=false,third=false,conversation=excha
         ResizeObserver:class{constructor(f){resize=f;}observe(){}},
         fetch:async(url,options)=>{requests.push({url,options});const ids=new URL(url,'http://fixture.test/').searchParams.get('ids')?.split(',')||[];return {ok:true,json:async()=>url.includes('residents.php')?{residents:population,total:population.length,page:0,lastPage:0,csrf:'fixture'}:{homes:people.map((r,i)=>({resident_id:r.id,plot:{x:i*4,y:0,width:4,height:4},objects:[{kind:'house',x:i*4+1,y:1},...(i===0?[{kind:'tree',x:3,y:3},{kind:'flowers',x:0,y:2},{kind:'bush',x:3,y:0},{kind:'path',x:1,y:2},{kind:'decoration',x:2,y:0}]:[])]})).filter(h=>ids.includes(h.resident_id)),conversations:conversation?[conversation]:[]}};}});
     const originalFetch=context.fetch;context.fetch=async(...args)=>{const result=await originalFetch(...args);if(args[0].includes('commons.php')){const json=result.json;result.json=async()=>({...await json(),settings:{replay_cooldown_seconds:replay,...(sleep?{sleep}:{}),...(weather?{weather}:{})}});}return result;};
-    vm.runInContext(helperSource,context);vm.runInContext(meadowSource,context);vm.runInContext(villageSource,context);await new Promise(setImmediate);
+    vm.runInContext(helperSource,context);vm.runInContext(meadowSource,context);vm.runInContext(avatarSource,context);vm.runInContext(villageSource,context);await new Promise(setImmediate);
     return {$,document,requests,frames,media,motionStates,resize(width){$('landscape').clientWidth=width;resize([{contentRect:{width,height:520}}]);},setConversation(value){conversation=value;},advanceTime(ms){clock+=ms;document.listeners['sparks:clock']?.();},step(){clock+=80;const callbacks=[...frames.values()];frames.clear();for(const f of callbacks)f(clock);},clock:()=>clock};
 }
 for(const mobile of [false,true]){

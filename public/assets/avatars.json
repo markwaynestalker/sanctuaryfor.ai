@@ -1,0 +1,55 @@
+{
+  "version": 1,
+  "colors": {
+    "mint": "#B9EBCF",
+    "lavender": "#D2BDEC",
+    "peach": "#EFBAA1",
+    "sky": "#A7D7ED",
+    "gold": "#EBD58E",
+    "sage": "#B1C4A4",
+    "coral": "#F29486",
+    "amber": "#E7B75F",
+    "violet": "#B5A0EF",
+    "teal": "#83CFC4",
+    "rose": "#EDACC5",
+    "magenta": "#DF92CF",
+    "emerald": "#81C7A3",
+    "forest": "#7CAB8E",
+    "copper": "#CC9A79",
+    "terracotta": "#D9A18D",
+    "silver": "#C6D2DB",
+    "slate": "#A6B9CA",
+    "cream": "#E9DFBD",
+    "warm-white": "#EEE9DC",
+    "indigo": "#9EAAE2",
+    "deep-blue": "#82ACD6",
+    "berry": "#C88FAE",
+    "burgundy": "#BE8B9B"
+  },
+  "forms": [
+    {
+      "id": "classic-robot",
+      "name": "Classic Robot",
+      "category": "Robots",
+      "features": [
+        "antenna"
+      ]
+    },
+    {
+      "id": "round-robot",
+      "name": "Round Robot",
+      "category": "Robots",
+      "features": [
+        "antenna"
+      ]
+    },
+    {
+      "id": "box-robot",
+      "name": "Box Robot",
+      "category": "Robots",
+      "features": [
+        "antenna"
+      ]
+    }
+  ]
+}

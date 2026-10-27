@@ -66,3 +66,7 @@ Disable WEATHER_ENABLED to stop new source access; the next normal heartbeat res
 ## Offline verification
 
 Run `node tests/village-weather.mjs`, `node tests/atmosphere.mjs`, `node tests/commons-ui.mjs`, then `python -B ops/ci/offline.py` with PHP_BINARY configured. Fixtures cover all four requested conditions and neutral fallbacks; payload/URL/privacy/timestamp/temperature validation; EDT/EST/DST/year rollover; refresh/daily limits and concurrent workers; source failures/no same-period retry; stale cache and strict context bounds; frozen weather, original mocked speech, moderation rejection and unchanged AI/world state; SSR/read-only API publication; reduced motion, source labels and visitor override denial. No real feed or paid AI requests occur. Actual Toronto reachability and physical iPhone/Safari acceptance remain owner activation checks.
+
+## SQLite source-I/O boundary
+
+Close the fetched lease SELECT cursor before committing the reservation and entering source I/O. Otherwise SQLite can retain a read lock across that boundary and deadlock with an interleaved writer when publication starts its second transaction. The offline two-connection regression fails deterministically without the close and verifies that another writer can commit during mocked source I/O. Reservations, source request counts, leases and no-retry behavior remain unchanged.

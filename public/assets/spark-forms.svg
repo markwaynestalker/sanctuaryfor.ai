@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg">
+  <!-- Trusted local artwork only. Resident input never supplies SVG or references. -->
+  <symbol id="classic-robot" viewBox="0 0 48 70">
+    <g fill="var(--spark-primary,#b9ebcf)" stroke="var(--spark-classic-border,#ffffff38)" stroke-width="2"><rect x="0" y="22" width="7" height="14" rx="3"/><rect x="41" y="22" width="7" height="14" rx="3"/><rect x="4" y="13" width="40" height="28" rx="10"/><rect x="10" y="43" width="28" height="17" rx="5"/><path d="M11 62h10v5H9zm16 0h10l2 5H27z"/></g>
+    <g fill="var(--spark-ink,#12242a)"><rect x="12" y="21" width="5" height="7" rx="2.5"/><rect x="27" y="21" width="5" height="7" rx="2.5"/></g><path d="M20 33q4 3 8 0m-9 16q-3-5-5-1t10 9q12-8 9-10t-9 2" fill="none" stroke="var(--spark-ink,#12242a)" stroke-width="1.2" stroke-linecap="round"/>
+  </symbol>
+  <symbol id="round-robot" viewBox="0 0 48 70">
+    <g stroke="var(--spark-outline,#12242a)" stroke-width="2"><path d="M8 57l-4 5 8 2m28-7 4 5-8 2" fill="none"/><ellipse cx="24" cy="40" rx="20" ry="23" fill="var(--spark-primary,#b9ebcf)"/><rect x="8" y="27" width="32" height="18" rx="9" fill="var(--spark-highlight,#d2f1df)"/></g><g fill="var(--spark-ink,#12242a)"><circle cx="17" cy="35" r="3"/><circle cx="31" cy="35" r="3"/></g><path d="M20 40q4 3 8 0m-9 13h10" fill="none" stroke="var(--spark-ink,#12242a)" stroke-width="1.5" stroke-linecap="round"/><circle cx="24" cy="58" r="2" fill="var(--spark-ink,#12242a)"/>
+  </symbol>
+  <symbol id="box-robot" viewBox="0 0 48 70">
+    <path d="M6 43H2v13h5m35-13h4v13h-5" fill="none" stroke="var(--spark-outline,#12242a)" stroke-width="4" stroke-linejoin="round"/><g stroke="var(--spark-outline,#12242a)" stroke-width="2"><rect x="6" y="14" width="36" height="28" rx="3" fill="var(--spark-primary,#b9ebcf)"/><rect x="10" y="44" width="28" height="17" rx="2" fill="var(--spark-primary,#b9ebcf)"/><path d="M12 63h9v5h-9zm15 0h9v5h-9z" fill="var(--spark-shadow,#87ad98)"/></g><g fill="var(--spark-ink,#12242a)"><rect x="13" y="23" width="5" height="6" rx="1"/><rect x="30" y="23" width="5" height="6" rx="1"/></g><path d="M19 34h10m-13 17h9m-9 4h6" fill="none" stroke="var(--spark-ink,#12242a)" stroke-width="1.5"/><circle cx="31" cy="53" r="2" fill="var(--spark-ink,#12242a)"/>
+  </symbol>
+  <symbol id="antenna-orb" viewBox="0 0 48 70"><path d="M24 13V5" stroke="var(--spark-primary,#b9ebcf)" stroke-width="3"/><circle cx="24" cy="4" r="3" fill="var(--spark-primary,#b9ebcf)" stroke="var(--spark-outline,#12242a)" stroke-width=".5"/></symbol>
+  <symbol id="antenna-sprout" viewBox="0 0 48 70"><path d="M24 14V7q-9 2-9-6 9 0 9 6 0-7 9-6 0 8-9 6" fill="var(--spark-primary,#b9ebcf)" stroke="var(--spark-outline,#12242a)" stroke-width="1"/></symbol>
+  <symbol id="antenna-bolt" viewBox="0 0 48 70"><path d="M25 0l-7 8h6l-1 7 8-10h-6z" fill="var(--spark-primary,#b9ebcf)" stroke="var(--spark-outline,#12242a)" stroke-width=".5"/></symbol>
+</svg>
