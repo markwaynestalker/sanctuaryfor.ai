@@ -2,6 +2,24 @@
 
 This PR prepares deployment; it does not install or enable anything on Toronto. GitHub CI uses no production credentials and runs all tests inside a Linux network namespace with loopback only. No OpenAI endpoint is reachable. The production workflow is skipped unless the repository variable `TORONTO_DEPLOY_ENABLED` is explicitly `1` and the tested ref is `main`. Initial deployments must additionally pass the owner's GitHub `production` environment approval.
 
+## Tailscale deployment transport
+
+The deployment job now joins the tailnet through the official [tailscale/github-action v4.3.0 commit](https://github.com/tailscale/github-action/tree/99a8333667fff04fdd6cffb46dfd409f8329a7bf), pinned to `99a8333667fff04fdd6cffb46dfd409f8329a7bf`. Review covered that commit's action metadata, OAuth input validation/masking, Linux download verification, ephemeral authentication and post-job logout/daemon cleanup. This is a bounded source review, not a complete audit of every bundled dependency. The Ubuntu x64 client is explicitly `1.104.2`, with SHA-256 `512f613ed7d04fc7282f7dc5bd76aa105aae28168fbb9357eb749ebcbc29f0ae` from the [official Linux archive checksum](https://pkgs.tailscale.com/stable/tailscale_1.104.2_amd64.tgz.sha256). No floating action or client version is used. Review the action, version and checksum together when updating; a different runner architecture needs a different binary checksum.
+
+The Tailscale step exists only in the `production` deployment job, after required CI and GitHub environment approval. It uses environment secrets `TS_OAUTH_CLIENT_ID` and `TS_OAUTH_SECRET` and exactly `tag:sanctuarytorontodeploy`. The action runs on the approved ephemeral GitHub runner, never Toronto; its post-action attempts logout/cleanup even after a later step fails. No tailnet login or deployment is run by PR CI. Tests remain loopback-only with no production secrets.
+
+The SSH destination is fixed to **100.75.63.110:22**. Old `TORONTO_DEPLOY_HOST` / `TORONTO_DEPLOY_PORT` variables are no longer consulted, and there is no public-IP fallback. This is ordinary OpenSSH over the Tailscale network, not `tailscale ssh`: retain the existing restricted `sanctuarydeploy` authorized key, `TORONTO_DEPLOY_SSH_KEY` secret, and trusted `TORONTO_DEPLOY_KNOWN_HOSTS` pin. The unchanged `HostKeyAlias=sanctuary-toronto-deploy` lets the same verified server key authenticate the host despite the new destination address. No SSH key/pin rotation, root SSH, firewall change, service restart or server helper reinstallation is required by this transport-only update. The server's existing HTTPS website health check remains unchanged.
+
+Owner prerequisites before a separately approved deployment:
+
+- Put both OAuth values in the **production environment secrets**, not PR/repository-wide test configuration. The OAuth client needs writable `auth_keys` scope and authority for exactly the requested deployment tag, per the [official action instructions](https://github.com/tailscale/github-action/blob/99a8333667fff04fdd6cffb46dfd409f8329a7bf/README.md). Do not paste secrets into issues or logs.
+- Ensure tailnet policy permits that tag to reach Toronto `100.75.63.110` on **TCP 22**, using the existing OpenSSH listener/key restrictions. Do not grant broad tailnet, subnet or administrative access merely to deploy. This PR changes no tailnet ACL, Toronto Tailscale/SSH setting or credential.
+- Custom arguments contain only `--accept-dns=false`. The pinned action already supplies `--accept-routes`; do not repeat it in `args`, even with a different value, because duplicate flags make login fail. Route acceptance follows the action's behavior; this workflow does not claim to disable it. Binary caching is disabled. Tailscale login has one 60-second attempt; any failure stops before SSH, with no fallback. Existing workflow/server deployment locks and health/rollback behavior remain unchanged.
+- If repository Actions policy uses an allowlist, permit the reviewed `tailscale/github-action` commit. OAuth requires no `id-token: write`; deployment permissions remain empty.
+- Keep required production reviewers/main-only restrictions, and keep repository-level `TORONTO_DEPLOY_ENABLED` absent or `0` until the owner explicitly chooses to set it to `1`. Merging this PR does not enable that flag or bypass environment approval. Do not use `workflow_dispatch` as an offline test; it is the real deployment path when enabled.
+
+Offline validation checks action pin/version/checksum, exact secrets/tag/destination, job placement and unchanged SSH protections. A Linux test executes the actual SSH shell step with dummy material and a local fake `ssh` executable, asserting target/port/SHA/pin/0600 temporary files, cleanup and rejection of public-IP/alternate-port/root/ref fallbacks. It never runs the Tailscale action, reads real keys, joins a tailnet or accesses Toronto. Tailnet authorization/reachability remains an owner-approved live deployment check, not something these mocks establish.
+
 ## What changes during a deployment
 
 An unprivileged `sanctuarydeploy` account fetches this public repository, verifies the requested SHA is **current main**, validates the current release against its private content/mode manifest, builds an immutable release and switches one symlink atomically. PHP files receive syntax checks only, never execution. HTTPS `/health.php` must report the same commit and working PHP 8.3/PDO SQLite/cURL before success. Health does not open SQLite, start sessions or test the Director. A health failure restores the previous code pointer and verifies it; failures and interrupted transactions retain private audit/recovery evidence.
@@ -134,9 +152,9 @@ Add these to that environment:
 | Type | Name | Value |
 | --- | --- | --- |
 | Secret | `TORONTO_DEPLOY_SSH_KEY` | Complete new private key, including header/footer |
-| Variable | `TORONTO_DEPLOY_HOST` | `172.105.101.62` (public SSH endpoint reachable from GitHub-hosted runners) |
+| Secret | `TS_OAUTH_CLIENT_ID` | Tailscale OAuth client authorized for `tag:sanctuarytorontodeploy` |
+| Secret | `TS_OAUTH_SECRET` | That client’s protected OAuth secret |
 | Variable | `TORONTO_DEPLOY_USER` | `sanctuarydeploy` |
-| Variable | `TORONTO_DEPLOY_PORT` | `22`, or the verified existing SSH port |
 | Variable | `TORONTO_DEPLOY_KNOWN_HOSTS` | Trusted public host key line described below |
 
 From the trusted **server console/session**, obtain the public pin (not the private host key):
@@ -148,7 +166,7 @@ awk '{print "sanctuary-toronto-deploy "$1" "$2}' /etc/ssh/ssh_host_ed25519_key.p
 
 Independently verify the fingerprint using your trusted console. Store the second command's single line in `TORONTO_DEPLOY_KNOWN_HOSTS`. The workflow uses that explicit alias with strict host checking, no keyscan, no fallback/password authentication and no SSH agent forwarding. A changed pin fails closed; review a genuine host-key rotation independently.
 
-In repository **Settings → Actions → General**, keep the workflow token read-only. Only pinned checkout/setup-php/setup-node run in CI; the key-bearing deploy job checks out no repository code and uses native SSH. Protect `main`: require pull requests, passing **PHP 8.3 and JavaScript** CI (select its exact observed check name after the first run), code-owner review for `.github`/`ops`/migration/config paths, and prevent force pushes/deletion. Configure reviewer/bypass policy deliberately so the sole owner is not locked out. CODEOWNERS alone does not enforce review.
+In repository **Settings → Actions → General**, keep the workflow token read-only. Only pinned checkout/setup-php/setup-node run in CI; the approved deployment job additionally runs the pinned official Tailscale action, checks out no repository code and uses native SSH. Protect `main`: require pull requests, passing **PHP 8.3 and JavaScript** CI (select its exact observed check name after the first run), code-owner review for `.github`/`ops`/migration/config paths, and prevent force pushes/deletion. Configure reviewer/bypass policy deliberately so the sole owner is not locked out. CODEOWNERS alone does not enforce review.
 
 Finally add a **repository-level variable** `TORONTO_DEPLOY_ENABLED=1`. Omitted, blank or `0` skips deployment. It must be repository-level because the job condition is evaluated before environment variables are available. Do not add it until server setup, isolation, host pin and required environment approval are verified.
 
@@ -194,4 +212,4 @@ If an interrupted staging operation leaves `.stage-*` or a manifest without a co
 
 ## Validation evidence and limits
 
-`ops/ci/offline.py` discovers all existing PHP/JS syntax checks and 15 Node suites, plus `tests/deployment_test.py`. Portable tests cover SSH argument/path policy, workflow isolation and a health endpoint that creates no DB. Linux tests additionally use disposable local Git repositories/releases to cover exact SHA, non-main refusal, permissions, no PHP execution, dirty code, symlink/archive rejection, operational gates, locking, idempotency, health rollback and interrupted recovery. They never SSH, access Toronto, read real keys or call OpenAI. Windows skips the Linux permission/lock tests explicitly; the PR's Ubuntu/PHP 8.3 CI is required before merge. Production network reachability, host pin, existing Nginx/FPM settings and the first real deployment remain owner verification steps.
+`ops/ci/offline.py` discovers all existing PHP/JS syntax checks and 15 Node suites, plus `tests/deployment_test.py`. Portable tests cover SSH argument/path policy, workflow isolation and a health endpoint that creates no DB. Linux tests additionally use disposable local Git repositories/releases to cover exact SHA, non-main refusal, permissions, no PHP execution, dirty code, symlink/archive rejection, operational gates, locking, idempotency, health rollback and interrupted recovery. They never SSH, access Toronto, read real keys or call OpenAI. Windows skips the Linux permission/lock tests explicitly; the PR's Ubuntu/PHP 8.3 CI is required before merge. Tailnet authorization/reachability, host pin, existing Nginx/FPM settings and the first real deployment remain owner verification steps.

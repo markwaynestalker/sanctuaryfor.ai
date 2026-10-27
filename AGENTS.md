@@ -1,8 +1,8 @@
 # SanctuaryFor.AI development instructions
 
-## Director dialogue integrity (#32)
+## Tailscale deployment transport
 
-Read docs/DIRECTOR_DIALOGUE_INTEGRITY.md. The 160-code-point SQL CHECK is real; PHP/SQLite/UI reject rather than silently shorten speech. Keep the ceiling unchanged without an explicitly reviewed preserving migration. Reject explicit incomplete API items; do not infer grammatical completeness from length or punctuation. Director-owned text must match both saved message rows byte-for-byte inside applyActivity; a mismatch rolls back all world/memory effects. Private hash/count receipts are diagnostics only, never public speech, verified facts or model memories; no historical backfill. Keep original moderation, missing-usage uncertainty, reservations, sessions and no-regeneration policy. Run all offline suites, including the boundary fixtures and Unicode replay checks. Historical cause is unproven without matching original provider items. No production or paid calls during development. Tailscale deployment is a separate infrastructure follow-up, not part of this dialogue change.
+The official tailscale/github-action is pinned at 99a8333667fff04fdd6cffb46dfd409f8329a7bf (v4.3.0), with a fixed/checksummed Linux client. It runs only in the production deployment job after CI/environment approval, using production secrets TS_OAUTH_CLIENT_ID/TS_OAUTH_SECRET and exact tag:sanctuarytorontodeploy. SSH is fixed to 100.75.63.110:22, keeping the existing sanctuarydeploy key, strict host alias/pin, exact main SHA and immutable-release rules. No public-IP fallback, tailnet access in PR CI, ACL/server/credential edits, automatic merge or activation. TORONTO_DEPLOY_ENABLED remains an explicit repository flag. See docs/TORONTO_DEPLOYMENT.md; run offline deployment tests (including fake SSH) and all suites. Live tailnet reachability needs separate owner-approved deployment; mocks never authenticate.
 
 ## Reviewed deployment preparation (#28)
 

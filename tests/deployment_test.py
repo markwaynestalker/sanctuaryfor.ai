@@ -77,6 +77,98 @@ class PolicyTests(unittest.TestCase):
         for reference in re.findall(r'uses: ([^\s#]+)', ci + workflow):
             self.assertTrue(reference.startswith('./') or re.fullmatch(r'[^@]+@[a-f0-9]{40}', reference), reference)
 
+    def test_tailscale_is_pinned_and_only_after_production_approval(self):
+        ci = (ROOT / '.github/workflows/ci.yml').read_text()
+        workflow = (ROOT / '.github/workflows/deploy.yml').read_text()
+        checks, deployment = workflow.split('  deploy:\n', 1)
+        self.assertNotIn('tailscale/github-action', ci + checks)
+        self.assertNotIn('TS_OAUTH_', ci + checks)
+        self.assertNotIn('secrets: inherit', checks)
+        pin = 'tailscale/github-action@99a8333667fff04fdd6cffb46dfd409f8329a7bf'
+        self.assertEqual(workflow.count(pin), 1)
+        self.assertLess(deployment.index('name: production'), deployment.index(pin))
+        self.assertLess(deployment.index(pin), deployment.index('name: Deploy the exact tested main commit'))
+        self.assertIn('oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}', deployment)
+        self.assertIn('oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}', deployment)
+        self.assertIn('tags: tag:sanctuarytorontodeploy\n', deployment)
+        self.assertEqual(deployment.count('tags:'), 1)
+        self.assertIn("version: '1.104.2'", deployment)
+        self.assertIn('sha256sum: 512f613ed7d04fc7282f7dc5bd76aa105aae28168fbb9357eb749ebcbc29f0ae', deployment)
+        self.assertIn('args: --accept-dns=false\n', deployment)
+        self.assertIn("TORONTO_HOST: '100.75.63.110'", deployment)
+        self.assertIn("TORONTO_PORT: '22'", deployment)
+        self.assertNotIn('vars.TORONTO_DEPLOY_HOST', deployment)
+        self.assertNotIn('vars.TORONTO_DEPLOY_PORT', deployment)
+        self.assertNotIn('172.105.101.62', deployment)
+        self.assertNotIn('tailscale ssh', deployment)
+        self.assertNotIn('continue-on-error:', deployment)
+        self.assertNotIn('id-token: write', workflow)
+
+    def test_tailscale_custom_args_do_not_duplicate_action_flags(self):
+        workflow = (ROOT / '.github/workflows/deploy.yml').read_text()
+        settings = [line.strip().removeprefix('args: ') for line in workflow.splitlines() if line.strip().startswith('args: ')]
+        self.assertEqual(settings, ['--accept-dns=false'])
+
+        def duplicates(custom):
+            # Match the reviewed v4.3.0 Linux OAuth upArgs assembly (src/main.ts).
+            # Keep this fixture in sync when reviewing a new immutable action pin.
+            argv = ['up', '--advertise-tags=tag:sanctuarytorontodeploy', '--hostname=offline',
+                    '--accept-routes', *filter(None, custom.split(' ')), '--authkey=DUMMY_OFFLINE']
+            flags = [arg.split('=', 1)[0] for arg in argv if arg.startswith('--')]
+            return {flag for flag in flags if flags.count(flag) > 1}
+
+        self.assertEqual(duplicates(settings[0]), set())
+        for custom, conflict in [
+            ('--accept-routes=false --accept-dns=false', '--accept-routes'),
+            ('--accept-routes=true', '--accept-routes'),
+            ('--accept-dns=false --accept-dns=true', '--accept-dns'),
+            ('--accept-dns=false --accept-dns=false', '--accept-dns'),
+            ('--hostname=other', '--hostname'),
+            ('--authkey=other', '--authkey'),
+            ('--advertise-tags=tag:other', '--advertise-tags'),
+        ]:
+            with self.subTest(custom=custom):
+                self.assertIn(conflict, duplicates(custom))
+
+    @unittest.skipUnless(os.name == 'posix', 'Mock SSH shell check runs on Linux CI')
+    def test_ssh_step_uses_tailnet_only_and_preserves_pins_without_network(self):
+        import textwrap
+        workflow = (ROOT / '.github/workflows/deploy.yml').read_text()
+        command = textwrap.dedent(workflow.split('        run: |\n', 1)[1])
+        with tempfile.TemporaryDirectory(prefix='sanctuary-tailnet-test-') as directory:
+            root = Path(directory)
+            binary = root / 'ssh'
+            binary.write_text('''#!/usr/bin/env python3
+import json,os,stat,sys
+from pathlib import Path
+args=sys.argv[1:]
+key=Path(args[args.index('-i')+1])
+pin=Path(next(x.split('=',1)[1] for x in args if x.startswith('UserKnownHostsFile=')))
+Path(os.environ['SSH_CAPTURE']).write_text(json.dumps({'args':args,'key_mode':stat.S_IMODE(key.stat().st_mode),'pin_mode':stat.S_IMODE(pin.stat().st_mode),'key':str(key),'pin':str(pin)}))
+''')
+            binary.chmod(0o700)
+            capture = root / 'captured.json'
+            env = dict(os.environ, PATH=str(root)+os.pathsep+os.environ['PATH'],
+                       TMPDIR=str(root), SSH_CAPTURE=str(capture), GITHUB_STEP_SUMMARY=str(root / 'summary'),
+                       TARGET_SHA=A, TORONTO_HOST='100.75.63.110', TORONTO_USER='sanctuarydeploy', TORONTO_PORT='22',
+                       PRIVATE_KEY='DUMMY_OFFLINE_KEY', KNOWN_HOSTS='DUMMY_OFFLINE_PUBLIC_PIN')
+            result = subprocess.run(['bash', '-c', command], env=env, capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            saved = json.loads(capture.read_text())
+            self.assertEqual(saved['args'][-2:], ['sanctuarydeploy@100.75.63.110', 'deploy ' + A])
+            self.assertEqual(saved['args'][saved['args'].index('-p')+1], '22')
+            self.assertIn('StrictHostKeyChecking=yes', saved['args'])
+            self.assertIn('HostKeyAlias=sanctuary-toronto-deploy', saved['args'])
+            self.assertEqual((saved['key_mode'], saved['pin_mode']), (0o600, 0o600))
+            self.assertNotIn('DUMMY_OFFLINE_KEY', json.dumps(saved)+result.stdout+result.stderr)
+            for name in ['key', 'pin']:
+                self.assertFalse(Path(saved[name]).exists(), 'Ephemeral SSH material removed by trap')
+            capture.unlink()
+            for override in [{'TORONTO_HOST':'172.105.101.62'}, {'TORONTO_PORT':'2222'}, {'TORONTO_USER':'root'}, {'TARGET_SHA':'main'}]:
+                result = subprocess.run(['bash', '-c', command], env=env|override, capture_output=True, text=True)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertFalse(capture.exists(), 'Invalid target cannot even reach mock SSH')
+
     def test_health_reads_only_local_release_marker(self):
         php = os.environ.get('PHP_BINARY') or shutil.which('php')
         self.assertIsNotNone(php, 'Set PHP_BINARY for offline tests')
