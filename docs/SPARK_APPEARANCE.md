@@ -1,6 +1,6 @@
 # Spark appearance foundation (#51)
 
-This first PR supplies shared rendering and editing, with three complete forms: Classic Robot, Round Robot and Box Robot. All 135 requested forms are tracked in [APPEARANCE_ROADMAP.md](APPEARANCE_ROADMAP.md) and `avatar-catalog.json`. The other 132 are future artwork batches, not hidden silhouettes or emoji placeholders. Keep #51 open.
+The foundation supplies shared rendering and editing with Classic Robot, Round Robot and Box Robot. The farm/household collection adds 14 complete animal designs, bringing the registry to 17 forms. All 135 requested forms are tracked in [APPEARANCE_ROADMAP.md](APPEARANCE_ROADMAP.md) and `avatar-catalog.json`; the remaining 118 are future artwork batches, not hidden silhouettes or emoji placeholders. Keep #51 open.
 
 ## Rendering and colors
 

@@ -50,6 +50,90 @@
       "features": [
         "antenna"
       ]
+    },
+    {
+      "id": "goat",
+      "name": "Goat",
+      "category": "Farm Animals",
+      "features": []
+    },
+    {
+      "id": "donkey",
+      "name": "Donkey",
+      "category": "Farm Animals",
+      "features": []
+    },
+    {
+      "id": "pig",
+      "name": "Pig",
+      "category": "Farm Animals",
+      "features": []
+    },
+    {
+      "id": "sheep",
+      "name": "Sheep",
+      "category": "Farm Animals",
+      "features": []
+    },
+    {
+      "id": "cow",
+      "name": "Cow",
+      "category": "Farm Animals",
+      "features": []
+    },
+    {
+      "id": "horse",
+      "name": "Horse",
+      "category": "Farm Animals",
+      "features": []
+    },
+    {
+      "id": "chicken",
+      "name": "Chicken",
+      "category": "Farm Animals",
+      "features": []
+    },
+    {
+      "id": "duck",
+      "name": "Duck",
+      "category": "Farm Animals",
+      "features": []
+    },
+    {
+      "id": "goose",
+      "name": "Goose",
+      "category": "Farm Animals",
+      "features": []
+    },
+    {
+      "id": "dog",
+      "name": "Dog",
+      "category": "Household Animals",
+      "features": []
+    },
+    {
+      "id": "cat",
+      "name": "Cat",
+      "category": "Household Animals",
+      "features": []
+    },
+    {
+      "id": "hamster",
+      "name": "Hamster",
+      "category": "Household Animals",
+      "features": []
+    },
+    {
+      "id": "mouse",
+      "name": "Mouse",
+      "category": "Household Animals",
+      "features": []
+    },
+    {
+      "id": "parrot",
+      "name": "Parrot",
+      "category": "Household Animals",
+      "features": []
     }
   ]
 }

@@ -1,4 +1,4 @@
-import assert from 'node:assert/strict';import vm from 'node:vm';import {readFile} from 'node:fs/promises';import {spawnSync} from 'node:child_process';
+import assert from 'node:assert/strict';import vm from 'node:vm';import {readFile} from 'node:fs/promises';import {spawnSync} from 'node:child_process';import {createHash} from 'node:crypto';
 const source=await readFile(new URL('../public/assets/avatars.js',import.meta.url),'utf8'),registry=JSON.parse(await readFile(new URL('../public/assets/avatars.json',import.meta.url),'utf8'));registry.sprite='/assets/spark-forms.svg?v=123456789abc';
 class El{constructor(tag){this.tag=tag;this.attrs={};this.children=[];this.styles={};this.style={setProperty:(k,v)=>this.styles[k]=v};}setAttribute(k,v){this.attrs[k]=v;}append(...e){this.children.push(...e);}set innerHTML(v){throw Error('HTML injection');}}
 const context=vm.createContext({document:{getElementById:()=>({textContent:JSON.stringify(registry)}),createElementNS:(ns,tag)=>new El(tag)},fetch(){throw Error('No renderer network');}});vm.runInContext(source,context);const a=context.SparkAvatars;
@@ -8,4 +8,17 @@ const inputs=['#000000','#FFFFFF','#A855F7','#00FF00','#0000FF',...Object.keys(r
 const php=spawnSync(process.env.PHP_BINARY||'php',['-r','require "app/village.php";$a=json_decode(stream_get_contents(STDIN),true);echo json_encode(array_map(fn($v)=>LittleSparks\\appearancePalette(LittleSparks\\validateAppearance($v)),$a),JSON_THROW_ON_ERROR);'],{input:JSON.stringify(inputs),encoding:'utf8'});assert.equal(php.status,0,php.stderr);const palettes=JSON.parse(php.stdout);
 inputs.forEach((appearance,i)=>assert.deepEqual(JSON.parse(JSON.stringify(a.palette(appearance))),palettes[i],'PHP/DOM derived color parity'));
 const catalog=JSON.parse(await readFile(new URL('../docs/avatar-catalog.json',import.meta.url),'utf8'));assert.equal(catalog.length,135);assert.equal(new Set(catalog.map(f=>f.id)).size,135);assert.deepEqual(catalog.filter(f=>f.status==='implemented').map(f=>f.id).sort(),registry.forms.map(f=>f.id).sort());
-console.log('PASS shared PHP/DOM SVG symbols, all legacy presets/antennas, RGB contrast/palette parity, malformed render fallback, no HTML/network and complete 135-form roadmap without placeholder artwork');
+const animals=['goat','donkey','pig','sheep','cow','horse','chicken','duck','goose','dog','cat','hamster','mouse','parrot'];
+assert.deepEqual(registry.forms.filter(f=>f.category!=='Robots').map(f=>f.id).sort(),[...animals].sort());
+const spriteSource=await readFile(new URL('../public/assets/spark-forms.svg',import.meta.url),'utf8');
+const symbols=[...spriteSource.matchAll(/<symbol\s+id="([a-z-]+)"\s+viewBox="([^"]+)">([\s\S]*?)<\/symbol>/g)];assert.equal(new Set(symbols.map(s=>s[1])).size,symbols.length,'SVG symbol IDs are unique');
+const geometry=new Set();
+for(const form of registry.forms){const symbol=symbols.find(s=>s[1]===form.id);assert.ok(symbol,'Every selectable form has actual local artwork');assert.equal(symbol[2],'0 0 48 70');
+ const rawArt=symbol[3].replace(/<desc>[\s\S]*?<\/desc>/g,'');assert.ok(/<(?:path|circle|ellipse|rect)\b/.test(rawArt));assert.ok(!/<(?:text|image|use|script|foreignObject)\b/.test(rawArt),'Forms cannot be emoji/image/aliased placeholders');const signature=createHash('sha256').update(rawArt.replace(/\s+/g,'')).digest('hex');assert.ok(!geometry.has(signature),'Distinct forms require distinct geometry, not a renamed symbol');geometry.add(signature);
+}
+for(const form of animals)for(const primary_color of ['#000000','#FFFFFF','#FF00AA',...Object.keys(registry.colors)]){
+ const appearance={form,primary_color,features:{}};const normalized=a.appearance({appearance});assert.equal(normalized.form,form);assert.deepEqual(Object.keys(normalized.features),[]);
+ const svg=a.render({appearance});assert.equal(svg.children.length,1,'Animals never inherit a robot antenna');assert.equal(svg.children[0].attrs.href,registry.sprite+'#'+form);
+ assert.equal(a.appearance({appearance:{...appearance,features:{antenna:'orb'}},color:'mint'}).form,'classic-robot','Invalid animal features use the same safe fallback as PHP');
+}
+console.log('PASS 17 distinct shared SVG forms, 14 antenna-free animals across presets/RGB, legacy robot compatibility, PHP/DOM palette parity, invalid feature fallback, no HTML/network and complete 135-form roadmap');

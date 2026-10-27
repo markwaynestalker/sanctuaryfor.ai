@@ -5,7 +5,7 @@ globalThis.SparkAvatars=(()=>{
     const validColor=v=>typeof v==='string'&&(Object.hasOwn(registry.colors,v)||/^#[a-f0-9]{6}$/i.test(v));
     function appearance(resident={}){
         const a=resident.appearance;
-        if(a&&forms.has(a.form)&&validColor(a.primary_color)&&a.features&&Object.keys(a.features).every(k=>k==='antenna')&&(!a.features.antenna||antennas.includes(a.features.antenna)))return {form:a.form,primary_color:a.primary_color.startsWith('#')?a.primary_color.toUpperCase():a.primary_color,features:forms.get(a.form).features.includes('antenna')?{antenna:a.features.antenna||'orb'}:{}};
+        if(a&&forms.has(a.form)&&validColor(a.primary_color)&&a.features&&Object.keys(a.features).every(k=>forms.get(a.form).features.includes(k))&&(!a.features.antenna||antennas.includes(a.features.antenna)))return {form:a.form,primary_color:a.primary_color.startsWith('#')?a.primary_color.toUpperCase():a.primary_color,features:forms.get(a.form).features.includes('antenna')?{antenna:a.features.antenna||'orb'}:{}};
         return {form:'classic-robot',primary_color:Object.hasOwn(registry.colors,resident.color)?resident.color:'mint',features:{antenna:antennas.includes(resident.antenna)?resident.antenna:'orb'}};
     }
     function palette(a){const primary=registry.colors[a.primary_color]||a.primary_color,rgb=primary.slice(1).match(/../g).map(v=>parseInt(v,16));const mix=target=>'#'+rgb.map(v=>Math.floor(v*.75+target*.25+.5).toString(16).padStart(2,'0')).join('').toUpperCase();const ink=rgb[0]*299+rgb[1]*587+rgb[2]*114>=140000?'#12242A':'#FFFFFF';return {primary,highlight:mix(255),shadow:mix(0),ink,outline:ink};}
@@ -16,7 +16,7 @@ globalThis.SparkAvatars=(()=>{
     }
     let next=0;
     function editor(resident={},onChange=()=>{}){
-        let value=appearance(resident),valid=true;const id='spark-appearance-'+(++next),root=document.createElement('fieldset');root.className='appearance-picker';
+        let value=appearance(resident),valid=true,antennaMemory=antennas.includes(resident.appearance?.features?.antenna)?resident.appearance.features.antenna:(antennas.includes(resident.antenna)?resident.antenna:'orb');const id='spark-appearance-'+(++next),root=document.createElement('fieldset');root.className='appearance-picker';
         const el=(tag,text)=>{const n=document.createElement(tag);if(text)n.textContent=text;return n;};root.append(el('legend','Choose an appearance'));
         const control=(text,input)=>{const label=el('label',text);label.append(input);root.append(label);return input;};
         const search=control('Find a form',el('input'));search.type='search';search.autocomplete='off';
@@ -30,16 +30,16 @@ globalThis.SparkAvatars=(()=>{
             grid.replaceChildren();let shown=0;
             for(const f of registry.forms){if(category.value!=='All collections'&&category.value!==f.category||!f.name.toLowerCase().includes(search.value.toLowerCase().trim()))continue;
                 const label=el('label'),radio=el('input');radio.type='radio';radio.name=id;radio.value=f.id;radio.checked=value.form===f.id;label.className='avatar-option';
-                radio.addEventListener('change',()=>{if(radio.checked){value={...value,form:f.id,features:f.features.includes('antenna')?{antenna:value.features.antenna||'orb'}:{}};sync();grid.querySelector('input[value="'+f.id+'"]')?.focus();onChange(value);}});label.append(radio,render({appearance:{...value,form:f.id}}),el('span',f.name));grid.append(label);shown++;
+                radio.addEventListener('change',()=>{if(radio.checked){if(value.features.antenna)antennaMemory=value.features.antenna;value={...value,form:f.id,features:f.features.includes('antenna')?{antenna:antennaMemory}:{}};sync();grid.querySelector('input[value="'+f.id+'"]')?.focus();onChange(value);}});label.append(radio,render({appearance:{...value,form:f.id,features:f.features.includes('antenna')?{antenna:value.features.antenna||antennaMemory}:{}}}),el('span',f.name));grid.append(label);shown++;
             }
             if(!shown)grid.append(el('p','No matching forms. Try another search.'));large.replaceChildren(render({appearance:value}));antenna.parentElement.hidden=!forms.get(value.form).features.includes('antenna');
         }
-        function sync(){const colors=palette(value);presets.value=Object.hasOwn(registry.colors,value.primary_color)?value.primary_color:'custom';wheel.value=colors.primary;hex.value=colors.primary;antenna.value=value.features.antenna||'orb';valid=true;hex.setCustomValidity('');feedback.textContent='';draw();}
+        function sync(){const colors=palette(value);presets.value=Object.hasOwn(registry.colors,value.primary_color)?value.primary_color:'custom';wheel.value=colors.primary;hex.value=colors.primary;antenna.value=value.features.antenna||antennaMemory;valid=true;hex.setCustomValidity('');feedback.textContent='';draw();}
         const changed=()=>{valid=true;hex.setCustomValidity('');feedback.textContent='';draw();onChange(value);};
         search.addEventListener('input',draw);category.addEventListener('change',draw);presets.addEventListener('change',()=>{if(presets.value!=='custom'){value={...value,primary_color:presets.value};sync();onChange(value);}});
         wheel.addEventListener('input',()=>{value={...value,primary_color:wheel.value.toUpperCase()};sync();onChange(value);});
         hex.addEventListener('input',()=>{if(!/^#[a-f0-9]{6}$/i.test(hex.value)){valid=false;hex.setCustomValidity('Use # followed by six hexadecimal digits.');feedback.textContent='Use a complete color such as #A855F7.';return;}value={...value,primary_color:hex.value.toUpperCase()};wheel.value=value.primary_color;presets.value='custom';changed();});
-        antenna.addEventListener('change',()=>{value={...value,features:{antenna:antenna.value}};changed();});sync();
+        antenna.addEventListener('change',()=>{antennaMemory=antenna.value;value={...value,features:{antenna:antenna.value}};changed();});sync();
         return {element:root,value:()=>structuredClone(value),valid:()=>{if(!valid)hex.reportValidity();return valid;},setColor(color){if(validColor(color)){value={...value,primary_color:color};sync();onChange(value);}}};
     }
     return Object.freeze({registry,appearance,palette,render,editor});
