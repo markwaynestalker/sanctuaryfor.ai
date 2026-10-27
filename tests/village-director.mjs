@@ -45,12 +45,45 @@ try{
  const workers=await Promise.all([worker(),worker()]);assert.ok(workers.some(r=>r.status==='completed'));
  const counts=spawnSync(php,['-r','require "app/village.php";$d=LittleSparks\\connect($argv[1]);echo json_encode([$d->query("SELECT COUNT(*) FROM director_runs")->fetchColumn(),$d->query("SELECT SUM(started_requests) FROM director_attempts")->fetchColumn()]);',path],{cwd:root,env,encoding:'utf8'});assert.equal(counts.status,0,counts.stderr);assert.deepEqual(JSON.parse(counts.stdout).map(Number),[1,2]);
  console.log('PASS concurrent V6 workers reserve two requests and save exactly one canonical encounter');
- const budgetPath=join(dir,'metadata-concurrent.sqlite');await copyFile(join(dir,'director-template.sqlite'),budgetPath);
- const today=new Date().toISOString().slice(0,10),evidence={schema:'sanctuary.access-reconciliation.v1',total_requests_reserved:2,receipts:['1','2'].map(d=>({check_id:d.repeat(32),sha256:d.repeat(64),at:today+'T00:00:00Z',day:today,http_requests_reserved:1}))};
- const imported=spawnSync(php,['-r','require "app/village.php";require "app/activity.php";$db=LittleSparks\\connect($argv[1]);LittleSparks\\recordDirectorAccessReservations($db,json_decode($argv[2],true));',budgetPath,JSON.stringify(evidence)],{cwd:root,env,encoding:'utf8'});assert.equal(imported.status,0,imported.stderr);
- const budgetWorker=offset=>new Promise((ok,no)=>{const op=new Date(Date.now()-offset*60000).toISOString().slice(0,16)+':00Z';const p=spawn(php,['tests/director-worker.php',budgetPath,op],{cwd:root,env:{...env,LITTLE_SPARKS_AI_ENABLED:'1',LITTLE_SPARKS_SIMULATION_ENABLED:'1',LITTLE_SPARKS_DIRECTOR_ENABLED:'1',LITTLE_SPARKS_DIRECTOR_RUNTIME:'responses',LITTLE_SPARKS_AI_DAILY_REQUESTS:'4',LITTLE_SPARKS_AI_MODEL:'gpt-6-luna',LITTLE_SPARKS_AI_PRICING_CONFIRMED:'2026-10-24-standard-v1'}});let out='',err='';p.stdout.on('data',s=>out+=s);p.stderr.on('data',s=>err+=s);p.on('error',no);p.on('exit',c=>c===0?ok(JSON.parse(out)):no(new Error(err)));});
- const budgetRace=await Promise.all([budgetWorker(1),budgetWorker(2)]);assert.equal(budgetRace.filter(r=>r.status==='completed').length,1);
- assert.notEqual((await budgetWorker(3)).status,'completed','Two persisted metadata requests plus one two-slot encounter exhaust configured four-slot allowance');
+ const opportunityAt=(anchor,offset)=>new Date(anchor-offset*60000).toISOString().slice(0,16)+':00Z';
+ // Freeze fixture identity once. Re-reading Date.now() after a minute rollover
+ // can alias offset 3 to offset 2, returning a valid completed replay.
+ const budgetAnchor=Date.now(),budgetOpportunities=[1,2,3].map(offset=>opportunityAt(budgetAnchor,offset));
+ assert.equal(new Set(budgetOpportunities).size,3,'Each accounting probe has a distinct persistent opportunity ID');
+ const budgetPath=join(dir,'metadata-concurrent.sqlite');
+ const today=new Date(budgetAnchor).toISOString().slice(0,10),evidence={schema:'sanctuary.access-reconciliation.v1',total_requests_reserved:2,receipts:['1','2'].map(d=>({check_id:d.repeat(32),sha256:d.repeat(64),at:today+'T00:00:00Z',day:today,http_requests_reserved:1}))};
+ const importMetadata=async database=>{await copyFile(join(dir,'director-template.sqlite'),database);const imported=spawnSync(php,['-r','require "app/village.php";require "app/activity.php";$db=LittleSparks\\connect($argv[1]);LittleSparks\\recordDirectorAccessReservations($db,json_decode($argv[2],true));',database,JSON.stringify(evidence)],{cwd:root,env,encoding:'utf8'});assert.equal(imported.status,0,imported.stderr);};
+ const budgetWorker=(op,database=budgetPath)=>new Promise((ok,no)=>{const p=spawn(php,['tests/director-worker.php',database,op],{cwd:root,env:{...env,LITTLE_SPARKS_AI_ENABLED:'1',LITTLE_SPARKS_SIMULATION_ENABLED:'1',LITTLE_SPARKS_DIRECTOR_ENABLED:'1',LITTLE_SPARKS_DIRECTOR_RUNTIME:'responses',LITTLE_SPARKS_AI_DAILY_REQUESTS:'4',LITTLE_SPARKS_AI_MODEL:'gpt-6-luna',LITTLE_SPARKS_AI_PRICING_CONFIRMED:'2026-10-24-standard-v1'}});let out='',err='';p.stdout.on('data',s=>out+=s);p.stderr.on('data',s=>err+=s);p.on('error',no);p.on('exit',c=>c===0?ok(JSON.parse(out)):no(new Error(err)));});
+ const accounting=database=>{const result=spawnSync(php,['-r','require "app/village.php";require "app/activity.php";$d=LittleSparks\\connect($argv[1]);$d->exec("PRAGMA query_only=ON");$d->beginTransaction();$q=$d->prepare("SELECT name,value FROM settings WHERE name LIKE ? ORDER BY name");$q->execute(["director_access_request:%"]);$metadata=$q->fetchAll();$a=$d->query("SELECT * FROM ai_attempts ORDER BY rowid")->fetchAll();$b=$d->query("SELECT * FROM director_attempts ORDER BY rowid")->fetchAll();$day=gmdate("Y-m-d");$currentA=array_filter($a,fn($r)=>$r["day"]===$day);$currentB=array_filter($b,fn($r)=>$r["day"]===$day);$used=LittleSparks\\directorAccessReservedRequests($d,$day)+array_sum(array_column($currentA,"request_slots"));foreach($currentB as $r)$used+=(int)$r["request_slots"]-2;echo json_encode(["metadata"=>$metadata,"attempts"=>$a,"director"=>$b,"used"=>$used,"starts"=>array_sum(array_column($currentB,"started_requests")),"committed"=>LittleSparks\\aiCommittedTotal($d,gmdate("Y-m"))]);',database],{cwd:root,env,encoding:'utf8'});assert.equal(result.status,0,result.stderr);return JSON.parse(result.stdout);};
+ await importMetadata(budgetPath);const priorAccounting=accounting(budgetPath);
+ const budgetRace=await Promise.all([budgetWorker(budgetOpportunities[0]),budgetWorker(budgetOpportunities[1])]);assert.equal(budgetRace.filter(r=>r.status==='completed').length,1);
+ const exhausted=accounting(budgetPath);assert.equal(exhausted.metadata.length,2);assert.equal(exhausted.attempts.length,priorAccounting.attempts.length+1);assert.deepEqual(exhausted.attempts.slice(0,priorAccounting.attempts.length),priorAccounting.attempts);assert.equal(exhausted.used,4);assert.equal(exhausted.starts,2);
+ const denied=await budgetWorker(budgetOpportunities[2]);
+ assert.notEqual(denied.status,'completed','Two persisted metadata requests plus one two-slot encounter exhaust configured four-slot allowance');
+ assert.equal(denied.replayed,false,'Budget exhaustion must be tested using new work, not a saved replay');
+ assert.equal(denied.failure_category,'daily_request_cap');
+ assert.deepEqual(accounting(budgetPath),exhausted,'Denied new work preserves both metadata reservations, paid holds and HTTP starts');
+ // Reproduce the old assertion deterministically, without waiting or changing
+ // PHP's real accounting clock. Force the second-offset worker to win.
+ const boundary=Math.floor(budgetAnchor/60000)*60000-60000,before=boundary-100,after=boundary+100;
+ const legacySecond=opportunityAt(before,2),legacyThird=opportunityAt(after,3);
+ assert.equal(legacySecond,legacyThird,'The old moving clock aliases across a minute boundary');
+ const reproduction=join(dir,'metadata-rollover.sqlite');await importMetadata(reproduction);
+ assert.equal((await budgetWorker(legacySecond,reproduction)).status,'completed');
+ const held=accounting(reproduction);assert.equal(held.used,4);assert.equal(held.starts,2);
+ const replay=await budgetWorker(legacyThird,reproduction);
+ assert.equal(replay.replayed,true);assert.equal(replay.status,'completed');assert.equal(replay.opportunity_id,'op:'+legacySecond);
+ assert.throws(()=>assert.notEqual(replay.status,'completed','Two persisted metadata requests plus one two-slot encounter exhaust configured four-slot allowance'),assert.AssertionError,'Original assertion reproduced on an idempotent replay, not a new API request');
+ assert.deepEqual(accounting(reproduction),held,'Reproduced completed replay dispatches nothing and preserves accounting byte-for-byte');
+ const fixedThird=opportunityAt(before,3),freshDenied=await budgetWorker(fixedThird,reproduction);
+ assert.notEqual(freshDenied.status,'completed','A frozen third opportunity remains blocked at the same four-slot allowance');
+ assert.equal(freshDenied.replayed,false);assert.equal(freshDenied.failure_category,'daily_request_cap');assert.deepEqual(accounting(reproduction),held);
+ for(const edge of [Date.UTC(2026,0,1,12,35),Date.UTC(2026,0,1,13),Date.UTC(2026,0,2)]){
+   const planned=[1,2,3].map(offset=>opportunityAt(edge-100,offset));
+   assert.equal(opportunityAt(edge+100,3),planned[1],'Moving-clock alias reproduced at minute/hour/UTC-day boundaries');
+   assert.equal(new Set(planned).size,3,'Frozen opportunity identities remain distinct at each boundary');
+ }
+ console.log('REPRODUCED minute-rollover assertion: completed replay, zero extra starts, all four slots retained; frozen fresh opportunity rejected with daily_request_cap');
  console.log('PASS concurrent distinct opportunities count persistent metadata reservations under the shared budget lock');
  const sessions=join(dir,'sessions');await mkdir(sessions,{mode:0o700});
  const port=await new Promise(ok=>{const socket=createServer();socket.listen(0,'127.0.0.1',()=>{const p=socket.address().port;socket.close(()=>ok(p));});});
