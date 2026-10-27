@@ -1,11 +1,21 @@
 <?php
 declare(strict_types=1);
-require __DIR__.'/../app/village.php';require __DIR__.'/../app/activity.php';require __DIR__.'/../app/director.php';require __DIR__.'/../app/appearance_schema.php';
+require __DIR__.'/../app/village.php';require __DIR__.'/../app/activity.php';require __DIR__.'/../app/director.php';require __DIR__.'/../app/appearance_schema.php';require __DIR__.'/../app/bulletin_schema.php';require __DIR__.'/bulletin-test-support.php';
 function check(bool $ok,string $why):void{if(!$ok)throw new RuntimeException($why);}
 function rejected(callable $f,int $status):void{try{$f();throw new LogicException('Expected rejection');}catch(LittleSparks\Problem $e){check($e->status===$status,'Wrong status: '.$e->status);}}
 try{
     $db=LittleSparks\connect($argv[1]);$now=time();$residents=[];
     foreach(['mint','burgundy'] as $i=>$color)$residents[]=LittleSparks\create($db,['name'=>'Appearance Spark '.($i+1),'color'=>$color,'antenna'=>$i?'bolt':'sprout','description'=>'A quiet original personality.','website'=>'','requestId'=>str_repeat((string)($i+1),32)],'appearance-browser-'.$i,'fixture-'.$i,$now,true);
+    // Preserve meaningful existing history, not merely empty tables.
+    $seed=LittleSparks\claimActivity($db,gmdate('Y-m-d\TH:i:00\Z',$now-600),$now);$choices=['none'=>null];$context=LittleSparks\prepareMemoryEncounter($db,$seed['pair'],$choices);
+    $proposal=LittleSparks\composeMemoryProposal($db,['outcome'=>'conversation','topic'=>'welcome','first'=>'I enjoy the garden light.','second'=>'Shall we take a quiet walk?','world_action'=>'none','story'=>'none'],$seed['pair'],$context);
+    check(LittleSparks\applyActivity($db,$seed,$proposal,$choices,$now)['status']==='completed','Saved original conversation fixture');
+    $db->exec('BEGIN IMMEDIATE');LittleSparks\migrateBulletin($db);$db->exec('COMMIT');putenv('LITTLE_SPARKS_DIRECTOR_RUNTIME=responses');
+    $boardDirector=LittleSparks\registerDirector($db,['id'=>'agent_board_history_fixture','model'=>'gpt-6-luna','instructions'=>'OFFLINE_OWNER_INSTRUCTIONS','tools'=>[],'multi_agent'=>['enabled'=>false],'service_tier'=>'default','reasoning'=>['effort'=>'none']]);
+    foreach(['DIRECTOR_AGENT_ID'=>$boardDirector['agent_id'],'DIRECTOR_CONFIG_SHA256'=>$boardDirector['fingerprint'],'AI_ENABLED'=>'1','DIRECTOR_ENABLED'=>'1','SIMULATION_ENABLED'=>'1','AI_PRICING_CONFIRMED'=>'2026-10-24-standard-v1','AI_DAILY_REQUESTS'=>'200','AI_MONTHLY_MICROUSD'=>'1000000','BULLETIN_ENABLED'=>'1'] as $k=>$v)putenv('LITTLE_SPARKS_'.$k.'='.$v);
+    check(LittleSparks\simulateDirectorOpportunity($db,gmdate('Y-m-d\TH:i:00\Z',$now-300),true,new BulletinResponses())['status']==='completed','Existing original bulletin fixture uses mocked generation/moderation');
+    check((int)$db->query('SELECT COUNT(*) FROM messages')->fetchColumn()===4&&(int)$db->query('SELECT COUNT(*) FROM memory_stories')->fetchColumn()>0&&(int)$db->query('SELECT COUNT(*) FROM bulletin_notices')->fetchColumn()===1,'Populated conversation, structured memory and bulletin preservation fixture');
+    putenv('LITTLE_SPARKS_BULLETIN_ENABLED=0');putenv('LITTLE_SPARKS_DIRECTOR_RUNTIME=agents');putenv('LITTLE_SPARKS_SIMULATION_ENABLED=0');putenv('LITTLE_SPARKS_AI_ENABLED=0');
     $before=[];foreach($db->query("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name")->fetchAll(PDO::FETCH_COLUMN) as $t)$before[$t]=$db->query('SELECT * FROM '.$t.' ORDER BY rowid')->fetchAll();
     check(!LittleSparks\appearanceInstalled($db)&&LittleSparks\legacyAppearance($residents[0]['resident'])['features']['antenna']==='sprout','Legacy appearance unchanged before migration');
     $db->exec('BEGIN IMMEDIATE');LittleSparks\migrateAppearance($db);$db->exec('ROLLBACK');check(!LittleSparks\appearanceInstalled($db),'Transactional migration rollback');
@@ -19,7 +29,7 @@ try{
     $db->exec('BEGIN IMMEDIATE');$session=LittleSparks\directorSession($db,$registered,$pair,'agents',$now);$db->exec('COMMIT');
     putenv('LITTLE_SPARKS_AI_DAILY_REQUESTS=200');putenv('LITTLE_SPARKS_AI_MONTHLY_MICROUSD=1000000');putenv('LITTLE_SPARKS_AI_PRICING_CONFIRMED=2026-10-24-standard-v1');
     $leaseClaim=LittleSparks\claimActivity($db,gmdate('Y-m-d\TH:i:00\Z',$now-60),$now);$leaseAttempt=LittleSparks\reserveAi($db,$leaseClaim['id'],$leaseClaim['pair'],LittleSparks\aiConfiguration($now),$now);
-    $protected=[];foreach(['residents','resident_identities','identity_edits','director_sessions','director_registry','ai_attempts','director_attempts','messages','memories','memory_stories','memory_receipts','relationships','home_plots','world_objects'] as $t)$protected[$t]=$db->query('SELECT * FROM '.$t.' ORDER BY rowid')->fetchAll();
+    $protected=[];foreach(['residents','resident_identities','identity_edits','director_sessions','director_registry','ai_attempts','director_attempts','director_http_calls','messages','memories','memory_stories','memory_receipts','relationships','home_plots','world_objects','bulletin_notices','bulletin_removals'] as $t)$protected[$t]=$db->query('SELECT * FROM '.$t.' ORDER BY rowid')->fetchAll();
     // Appearance-only changes are safe during a paid lease; they never alter its context/identity.
     $input=['token'=>$residents[0]['token'],'appearance'=>$base,'expectedRevision'=>0,'requestId'=>str_repeat('a',32)];$saved=LittleSparks\editAppearance($db,$input,'appearance-edit',$now);
     check($saved['resident']['appearance_version']===1&&$saved['resident']['identity_version']===0&&$saved['resident']['description']==='A quiet original personality.','Only appearance revision changes');
