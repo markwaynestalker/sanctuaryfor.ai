@@ -1,5 +1,10 @@
 # SanctuaryFor.AI
 
+## Reptile and small-creature avatar collection (#51, batch 7)
+
+This collection adds 17 distinct SVG forms, bringing implemented forms to 98/135 with 37 remaining. Preserve all 81 previous forms/antenna artwork, shared 48x70 footprint, empty animal feature sets, RGB/presets, category/search, native keyboard controls and remembered robot antennas. Biological feelers are part of trusted artwork, never robot feature properties. Use the existing renderer/picker/private API; no crawling/flying physics, animation loop, personality inference, runtime PHP/JavaScript, schema, ENV, Director/session, accounting or scheduler changes. Check fine limb/wing contrast and bounds including stroke margin, small/large rendering, desktop/mobile/reduced motion, private saves/public profiles and all offline suites. Preserve the protected commons chicken. No production operations or paid calls. Track remaining artwork in docs/APPEARANCE_ROADMAP.md even if #51 is closed.
+
+
 ## Bird avatar collection (#51, batch 6)
 
 This collection adds 14 distinct bird SVG forms (including Flamingo), bringing implemented forms to 81/135 with 54 remaining. Preserve all 67 previous forms/antenna artwork, shared 48x70 footprint, empty animal feature sets, RGB/presets, category/search, keyboard controls and remembered robot antennas. Pink is only a Flamingo preview choice; never override an owner's saved color or infer personality/behavior. Use the existing trusted renderer/picker/private API; no flight physics, new animation loop, runtime PHP/JavaScript, schema, ENV, Director/session, accounting or scheduler changes. Check small/large contrast, fan/leg/beak bounds including stroke margin, desktop/mobile/reduced motion, private saves/public profiles and all offline suites. Preserve the separate protected commons chicken. No production operations or paid calls. Track remaining artwork in docs/APPEARANCE_ROADMAP.md even if #51 is closed.
