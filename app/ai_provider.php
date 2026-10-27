@@ -67,11 +67,12 @@ function safeAiDialogue(mixed $text): string
 
 function decodedAiProposal(array $response): array
 {
-    if(($response['status']??null)!=='completed'||!is_array($response['output']??null))throw new AiGuard('invalid_proposal');
+    if(($response['status']??null)!=='completed'||($response['incomplete_details']??null)!==null||!is_array($response['output']??null))throw new AiGuard('invalid_proposal');
     $texts=[];
     foreach($response['output'] as $item){
         if(($item['type']??null)==='reasoning')continue;
-        if(($item['type']??null)!=='message'||($item['role']??null)!=='assistant')throw new AiGuard('invalid_proposal');
+        if(($item['type']??null)!=='message'||($item['role']??null)!=='assistant'
+            ||(array_key_exists('status',$item)&&$item['status']!=='completed'))throw new AiGuard('invalid_proposal');
         foreach($item['content']??[] as $content){
             if(($content['type']??null)!=='output_text'||!is_string($content['text']??null))throw new AiGuard('invalid_proposal');
             $texts[]=$content['text'];

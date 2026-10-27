@@ -10,7 +10,7 @@
       "type": "array", "maxItems": 2,
       "items": {"type": "object", "additionalProperties": false, "required": ["resident_id", "text"], "properties": {
         "resident_id": {"type": "string", "pattern": "^[a-f0-9]{32}$"},
-        "text": {"type": "string", "minLength": 1, "maxLength": 160, "description": "Original dialogue in complete, natural sentences, usually 100–130 characters; shorter is fine. Keep each resident's voice. The 160-character maximum is a safety ceiling, not a target. Plan concise wording so the thought finishes naturally; never stop mid-word or mid-clause to fit, and never pad to the limit."}
+        "text": {"type": "string", "minLength": 1, "maxLength": 160, "description": "Original dialogue in complete, natural sentences, usually 100–130 characters; shorter is fine. Keep each resident's voice. The 160-character maximum is a safety ceiling, not a target. Plan concise wording so the thought finishes naturally; if a thought is too long, rephrase it as a whole shorter sentence before returning it. Never cut a word or clause to fit, and never pad to the limit."}
       }}
     },
     "world_action": {"type": "string", "enum": ["none", "plant_tree", "plant_flowers", "plant_bush", "build_path", "place_decoration", "decorate_house", "adopt_pet", "visit_friend"]},

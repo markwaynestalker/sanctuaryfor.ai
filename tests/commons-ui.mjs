@@ -114,4 +114,13 @@ for(let tick=0;tick<2000;tick++){refreshed.step();assert.ok(refreshed.$('robot-l
 const freshExchange={...exchange,id:'newly-saved',messages:exchange.messages.map(m=>({...m,text:'A new saved thought about moonflowers.'}))};refreshed.setConversation(freshExchange);refreshed.$('refresh-residents').click();await new Promise(setImmediate);await new Promise(setImmediate);
 let foundFresh=false;for(let tick=0;tick<1500;tick++){refreshed.step();if(refreshed.$('robot-layer').children.some(el=>el.children.at(-1).textContent.includes(freshExchange.messages[0].text)))foundFresh=true;}
 assert.ok(foundFresh,'Explicit read-only refresh discovers and replays a new saved ID');assert.equal(refreshed.requests.length,6,'Two requests per explicit refresh, no polling');
-console.log('PASS six compact phone residents, restored wider cottages, all 40 neighbors reachable, stable fold/unfold without refetch, desktop/mobile profile links, shared atmosphere pause, saved objects/speech, literal text and reduced motion');
+for(const mobile of [false,true]){
+    const text='é'.repeat(159)+'🌻',boundary={...exchange,id:'boundary-'+mobile,messages:exchange.messages.map(m=>({...m,text}))};
+    assert.equal(Array.from(text).length,160);
+    assert.equal(h.latestExchanges([boundary],[a,b]).values().next().value.messages[0].text,text);
+    const m=await meadow({mobile,conversation:boundary});let seen=false;
+    for(let tick=0;tick<1500;tick++){m.step();if(m.$('robot-layer').children.some(el=>el.children.at(-1).textContent.includes(text)))seen=true;}
+    assert.ok(seen,'Desktop/mobile playback renders all 160 Unicode characters, including the final emoji');
+    const still=await meadow({mobile,reduced:true,conversation:boundary});assert.ok(still.$('saved-dialogue').textContent.includes(text),'Reduced-motion transcript keeps full boundary speech');
+}
+console.log('PASS six compact phone residents, restored wider cottages, all 40 neighbors reachable, stable fold/unfold without refetch, desktop/mobile profile links, shared atmosphere pause, full Unicode boundary speech, literal text and reduced motion');
