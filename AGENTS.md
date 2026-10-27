@@ -1,5 +1,10 @@
 # SanctuaryFor.AI development instructions
 
+## Unusual mammal avatar collection (#51, batch 4)
+
+This collection adds 16 distinct local SVG forms, bringing implemented forms to 54/135 with 81 remaining. See docs/APPEARANCE_ROADMAP.md. Preserve all 38 previous artworks, shared 48x70 footprint, empty animal feature sets, RGB/presets, category/search, native keyboard controls and remembered robot antennas. Use the existing trusted renderer/picker/private edit API; no personality inference, runtime PHP/JavaScript, schema, ENV, Director/session, accounting or scheduler changes. Check all silhouettes at small/large sizes in black/white/saturated colors, bounds, desktop/mobile/reduced motion, real private saves/public profiles and all offline suites. The exhaustive disposable fixture explicitly sets its own edit allowance and must still verify quota exhaustion; never raise application defaults for tests. No production operations or paid calls. Keep #51 open for the remaining artwork.
+
+
 ## Woodland and wild avatar collection (#51, batch 3)
 
 This collection adds 21 distinct local SVG forms (eight woodland, thirteen wild), bringing implemented forms to 38/135 with 97 remaining. See docs/APPEARANCE_ROADMAP.md. Preserve the original 17 artworks, shared 48x70 footprint, animal empty feature sets, RGB/presets, safe antenna fallback/remembered robot choice, category/search and native keyboard controls. No personality/occupation inference, runtime PHP, schema, ENV, Director/session, accounting or scheduler changes. No production action or paid calls. Check artwork bounds/contrast at small and large sizes, desktop/mobile/reduced motion, real private-save round trips and all offline suites. Exhaustive disposable fixtures may set an explicit test-only edit allowance but must still check quota exhaustion; never raise application defaults to accommodate tests. Keep #51 open for the remaining artwork.
