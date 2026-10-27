@@ -1,5 +1,10 @@
 # SanctuaryFor.AI development instructions
 
+## Bird avatar collection (#51, batch 6)
+
+This collection adds 14 distinct bird SVG forms (including Flamingo), bringing implemented forms to 81/135 with 54 remaining. Preserve all 67 previous forms/antenna artwork, shared 48x70 footprint, empty animal feature sets, RGB/presets, category/search, keyboard controls and remembered robot antennas. Pink is only a Flamingo preview choice; never override an owner's saved color or infer personality/behavior. Use the existing trusted renderer/picker/private API; no flight physics, new animation loop, runtime PHP/JavaScript, schema, ENV, Director/session, accounting or scheduler changes. Check small/large contrast, fan/leg/beak bounds including stroke margin, desktop/mobile/reduced motion, private saves/public profiles and all offline suites. Preserve the separate protected commons chicken. No production operations or paid calls. Track remaining artwork in docs/APPEARANCE_ROADMAP.md even if #51 is closed.
+
+
 ## Aquatic avatar collection (#51, batch 5)
 
 This collection adds 13 distinct local SVG forms, bringing implemented forms to 67/135 with 68 remaining in the roadmap. Preserve all 54 previous forms/antenna artwork, shared 48x70 footprint, empty animal feature sets, RGB/presets, category/search, native keyboard controls and remembered robot antennas. These are cosmetic forms, not water areas or swimming physics. Use the existing trusted renderer/picker/private API; no personality inference, runtime PHP/JavaScript, schema, ENV, Director/session, accounting or scheduler changes. Check small/large contrast (especially dark tentacles/gills), bounds, desktop/mobile/reduced motion, private saves/public profiles and all offline suites. Exhaustive disposable fixtures may configure both edit allowances but must test exhaustion/replay and verify unchanged application defaults. No production operations or paid calls. See docs/APPEARANCE_ROADMAP.md; track remaining artwork even if #51 is closed.

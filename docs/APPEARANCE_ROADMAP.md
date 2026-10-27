@@ -1,6 +1,6 @@
 # Spark appearance roadmap (#51)
 
-All 135 requested forms remain in scope. This collection brings completed forms to **67/135**, with **68 remaining**. `avatar-catalog.json` is the complete checklist, separate from the public registry: planned designs are never exposed as completed forms or rendered as generic/emoji placeholders.
+All 135 requested forms remain in scope. This collection brings completed forms to **81/135**, with **54 remaining**. `avatar-catalog.json` is the complete checklist, separate from the public registry: planned designs are never exposed as completed forms or rendered as generic/emoji placeholders.
 
 | PR batch | Scope | Count |
 |---|---|---:|
@@ -8,8 +8,8 @@ All 135 requested forms remain in scope. This collection brings completed forms 
 | Farm and household (PR #54, shipped) | All listed farm and household animals | 14 |
 | Woodland and wild (PR #55, shipped) | All listed woodland and wild animals | 21 |
 | Unusual mammals (PR #56, shipped) | All listed unusual mammals | 16 |
-| Aquatic (this PR) | All listed aquatic creatures | 13 |
-| Birds | All listed birds | 14 |
+| Aquatic (PR #57, shipped) | All listed aquatic creatures | 13 |
+| Birds (this PR) | All listed birds | 14 |
 | Reptiles and small creatures | All listed reptiles, amphibians, insects and small creatures | 17 |
 | Mythical | All listed mythical/fantasy creatures | 13 |
 | Remaining forms | Four remaining robots, plants, celestial/elements and objects | 24 |
@@ -47,3 +47,11 @@ Thirteen forms: Otter, Seal, Dolphin, Shark, Whale, Jellyfish, Crab, Lobster, Pu
 These are cosmetic Spark appearances, not new water areas or swimming physics. All share the existing 48x70 footprint, empty animal feature sets, 24 presets/RGB, category/search, native keyboard controls and private edits. No personality inference, runtime PHP/JavaScript, geometry, migration, ENV, Director/session, scheduler or accounting changes are needed. The protected commons chicken remains separate.
 
 Check every form at large/meadow sizes in black, white and saturated colors, SVG bounds, desktop/390px/320px controls, reduced motion, private saves and public profiles. Offline coverage now includes all 64 animal forms and aquatic picker events/search/thumbnails. The exhaustive disposable fixture sets both its daily and hourly edit allowances explicitly, tests daily exhaustion, idempotency and hourly exhaustion, then verifies the unchanged 24/60 application defaults. Run all offline suites. Physical iPhone/Safari verification remains an owner check. Code-only release after normal review; no automatic production action. The #51 roadmap retains 68 unbuilt forms even if the umbrella issue has been closed.
+
+## Bird collection
+
+Fourteen forms: Peacock, Flamingo, Eagle, Turkey, Dove, Crow, Swan, Dodo, Hummingbird, Pelican, Toucan, Puffin, Ostrich and Penguin. Authored SVGs use eye-spotted fans, an S-neck/folded leg/dark-tipped bill, feathered wings/talons, striped fans/wattle, lifted rounded wings, a wedge tail, a graceful neck, a heavy bill, hovering wings, a bill pouch, an oversized beak, cheek masks, long legs and an oval belly. The flamingo honors any chosen color; pink is a preview choice, not a stored color override. All 67 previous forms and three antenna symbols remain unchanged, including the separate farm birds and woodland owl.
+
+Birds use empty animal feature sets and the shared 48x70 footprint, renderer/picker, RGB/24 presets, category/search, native keyboard controls and private appearance edits. They add no flight physics, extra animation loop, inferred personalities, Director context or new behavior. The protected commons chicken remains separate.
+
+Check every form at large/meadow sizes in black, white and saturated colors, bounds including stroke margin, desktop/390px/320px controls, reduced motion, private saves and public profiles. Offline coverage includes all 78 animal forms plus bird membership, thumbnails, selection and case-insensitive Flamingo search. The existing exhaustive disposable fixture configures both edit allowances, verifies exhaustion/replay and restores/checks unchanged application defaults. Run all offline suites. Physical iPhone/Safari verification remains an owner check. No runtime PHP/JavaScript, migration, ENV, Director/session, scheduler or accounting changes; no automatic production action. The #51 roadmap retains 54 unbuilt forms even if the umbrella issue is closed.

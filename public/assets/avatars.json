@@ -434,6 +434,90 @@
       "name": "Octopus",
       "category": "Aquatic Creatures",
       "features": []
+    },
+    {
+      "id": "peacock",
+      "name": "Peacock",
+      "category": "Birds",
+      "features": []
+    },
+    {
+      "id": "flamingo",
+      "name": "Flamingo",
+      "category": "Birds",
+      "features": []
+    },
+    {
+      "id": "eagle",
+      "name": "Eagle",
+      "category": "Birds",
+      "features": []
+    },
+    {
+      "id": "turkey",
+      "name": "Turkey",
+      "category": "Birds",
+      "features": []
+    },
+    {
+      "id": "dove",
+      "name": "Dove",
+      "category": "Birds",
+      "features": []
+    },
+    {
+      "id": "crow",
+      "name": "Crow",
+      "category": "Birds",
+      "features": []
+    },
+    {
+      "id": "swan",
+      "name": "Swan",
+      "category": "Birds",
+      "features": []
+    },
+    {
+      "id": "dodo",
+      "name": "Dodo",
+      "category": "Birds",
+      "features": []
+    },
+    {
+      "id": "hummingbird",
+      "name": "Hummingbird",
+      "category": "Birds",
+      "features": []
+    },
+    {
+      "id": "pelican",
+      "name": "Pelican",
+      "category": "Birds",
+      "features": []
+    },
+    {
+      "id": "toucan",
+      "name": "Toucan",
+      "category": "Birds",
+      "features": []
+    },
+    {
+      "id": "puffin",
+      "name": "Puffin",
+      "category": "Birds",
+      "features": []
+    },
+    {
+      "id": "ostrich",
+      "name": "Ostrich",
+      "category": "Birds",
+      "features": []
+    },
+    {
+      "id": "penguin",
+      "name": "Penguin",
+      "category": "Birds",
+      "features": []
     }
   ]
 }

@@ -1,6 +1,6 @@
 # Spark appearance foundation (#51)
 
-The foundation supplies shared rendering and editing with Classic Robot, Round Robot and Box Robot. The shipped farm/household collection adds 14 animal designs; the woodland/wild collection adds 21 more, the unusual mammal collection adds 16 and the aquatic collection adds 13, bringing the registry to 67 forms. All 135 requested forms are tracked in [APPEARANCE_ROADMAP.md](APPEARANCE_ROADMAP.md) and `avatar-catalog.json`; the remaining 68 are future artwork batches, not hidden silhouettes or emoji placeholders. The roadmap remains active even if umbrella issue #51 is closed.
+The foundation supplies shared rendering and editing with Classic Robot, Round Robot and Box Robot. The shipped farm/household collection adds 14 animal designs; the woodland/wild collection adds 21 more, the unusual mammal collection adds 16, the aquatic collection adds 13 and the bird collection adds 14, bringing the registry to 81 forms. All 135 requested forms are tracked in [APPEARANCE_ROADMAP.md](APPEARANCE_ROADMAP.md) and `avatar-catalog.json`; the remaining 54 are future artwork batches, not hidden silhouettes or emoji placeholders. The roadmap remains active even if umbrella issue #51 is closed.
 
 ## Rendering and colors
 
