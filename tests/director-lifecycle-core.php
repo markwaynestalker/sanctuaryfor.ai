@@ -94,6 +94,7 @@ try{
         if($mode==='usage_missing')check($r['usage_uncertain']&&$db->query('SELECT state FROM ai_attempts LIMIT 1')->fetchColumn()==='uncertain','Three-poll completed turn saves without usage at any inspection');
     }
     foreach($originalExecution as $key=>$value)putenv($value===false?$key:$key.'='.$value);
+    require __DIR__.'/director-accepted-core.php';
     // An exhausted scheduler process budget must refuse before any HTTP dispatch.
     define('LITTLE_SPARKS_SCHEDULED_DEADLINE',time()-1);
     $db=$stageFresh();$clock=new LifecycleClock();$now=$clock->now;$claim=LittleSparks\claimActivity($db,$at,$now);$cfg=LittleSparks\directorConfiguration();$registered=LittleSparks\registeredDirector($db,$cfg);

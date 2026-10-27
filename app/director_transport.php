@@ -38,6 +38,20 @@ function managedWireBody(string $method,string $path,?array $body,?string $key):
     $encoded=json_encode($body,JSON_THROW_ON_ERROR|JSON_UNESCAPED_UNICODE);
     if(strlen($encoded)>aiRequestByteLimit())throw new AiGuard('configuration_invalid');return $encoded;
 }
+/** Decode the wire contract; an accepted input is not a completed turn or usage receipt. */
+function managedHttpResponse(string $method,string $path,?array $body,int $status,string $response,?string $requestId):array
+{
+    if($status<200||$status>299||strlen($response)>262144)throw new ManagedHttpFailure($status?:null,$requestId,managedValidationError($status,$response));
+    $events=$body['events']??null;
+    if($status===202&&$response===''&&$method==='POST'&&managedRoute($method,$path)==='submit'
+        &&is_array($events)&&array_is_list($events)&&count($events)===1
+        &&in_array($events[0]['type']??null,['agent.session.input.message','agent.session.input.cancel'],true)){
+        return ['_http'=>['status'=>$status,'request_id'=>$requestId]];
+    }
+    try{$data=json_decode($response,true,32,JSON_THROW_ON_ERROR);}catch(\Throwable){throw new ManagedHttpFailure($status,$requestId);}
+    if(!is_array($data)||array_is_list($data))throw new ManagedHttpFailure($status,$requestId);
+    $data['_http']=['status'=>$status,'request_id'=>$requestId];return $data;
+}
 /** Fixed official HTTPS transport; explicit enable flags and reserved budgets govern egress. */
 final class OpenAiManagedTransport implements DirectorTransport
 {
@@ -79,9 +93,8 @@ final class OpenAiManagedTransport implements DirectorTransport
         if($encoded!==null)curl_setopt($curl,CURLOPT_POSTFIELDS,$encoded);
         $status=null;try{
             $ok=curl_exec($curl);$status=(int)curl_getinfo($curl,CURLINFO_RESPONSE_CODE);
-            if($ok===false||$status<200||$status>299)throw new ManagedHttpFailure($status?:null,$requestId,$ok===false?null:managedValidationError($status,$response));
-            $data=json_decode($response,true,32,JSON_THROW_ON_ERROR);if(!is_array($data)||array_is_list($data))throw new ManagedHttpFailure($status,$requestId);
-            $data['_http']=['status'=>$status,'request_id'=>$requestId];return $data;
+            if($ok===false)throw new ManagedHttpFailure($status?:null,$requestId);
+            return managedHttpResponse($method,$path,$body,$status,$response,$requestId);
         }catch(ManagedHttpFailure $e){throw $e;}catch(\Throwable){throw new ManagedHttpFailure($status?:null,$requestId);}
         finally{curl_close($curl);unset($key,$headers,$response);}
     }
