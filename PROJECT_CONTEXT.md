@@ -1,5 +1,10 @@
 # SanctuaryFor.AI
 
+## Complete Spark avatar catalog (#51, final batch)
+
+All 135 requested forms are implemented: seven robots and 128 feature-free forms. The final batch adds 37 distinct local SVGs, preserving all prior 98 forms and antenna artwork. Keep the 48x70 footprint, RGB/24 presets, shared trusted renderer/picker/private API and native keyboard/search/category controls. Robot forms support orb/sprout/bolt; fantasy horns and other details never become robot feature properties. Preserve saved choices across collection changes, personality/identity/history/session/accounting independence, and the protected commons chicken. No new scene physics/motion, personality inference, runtime PHP/JavaScript, schema, ENV, Director or scheduler changes. Check every new silhouette and dark/light/saturated contrast/bounds, desktop/mobile/reduced motion, private saves/public profiles and all offline suites. Exhaustive fixtures visit all 135 forms, including robots, with explicit test-only allowances and unchanged application defaults. No production operations or paid calls. See docs/APPEARANCE_ROADMAP.md; earlier sections record historical batch counts.
+
+
 ## Reptile and small-creature avatar collection (#51, batch 7)
 
 This collection adds 17 distinct SVG forms, bringing implemented forms to 98/135 with 37 remaining. Preserve all 81 previous forms/antenna artwork, shared 48x70 footprint, empty animal feature sets, RGB/presets, category/search, native keyboard controls and remembered robot antennas. Biological feelers are part of trusted artwork, never robot feature properties. Use the existing renderer/picker/private API; no crawling/flying physics, animation loop, personality inference, runtime PHP/JavaScript, schema, ENV, Director/session, accounting or scheduler changes. Check fine limb/wing contrast and bounds including stroke margin, small/large rendering, desktop/mobile/reduced motion, private saves/public profiles and all offline suites. Preserve the protected commons chicken. No production operations or paid calls. Track remaining artwork in docs/APPEARANCE_ROADMAP.md even if #51 is closed.

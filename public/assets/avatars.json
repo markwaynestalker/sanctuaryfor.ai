@@ -620,6 +620,236 @@
       "name": "Bee",
       "category": "Reptiles, Amphibians & Small Creatures",
       "features": []
+    },
+    {
+      "id": "unicorn",
+      "name": "Unicorn",
+      "category": "Mythical & Fantasy",
+      "features": []
+    },
+    {
+      "id": "dragon",
+      "name": "Dragon",
+      "category": "Mythical & Fantasy",
+      "features": []
+    },
+    {
+      "id": "griffin",
+      "name": "Griffin",
+      "category": "Mythical & Fantasy",
+      "features": []
+    },
+    {
+      "id": "phoenix",
+      "name": "Phoenix",
+      "category": "Mythical & Fantasy",
+      "features": []
+    },
+    {
+      "id": "pegasus",
+      "name": "Pegasus",
+      "category": "Mythical & Fantasy",
+      "features": []
+    },
+    {
+      "id": "kitsune",
+      "name": "Kitsune",
+      "category": "Mythical & Fantasy",
+      "features": []
+    },
+    {
+      "id": "jackalope",
+      "name": "Jackalope",
+      "category": "Mythical & Fantasy",
+      "features": []
+    },
+    {
+      "id": "sea-serpent",
+      "name": "Sea Serpent",
+      "category": "Mythical & Fantasy",
+      "features": []
+    },
+    {
+      "id": "cerberus",
+      "name": "Cerberus",
+      "category": "Mythical & Fantasy",
+      "features": []
+    },
+    {
+      "id": "baby-yeti",
+      "name": "Baby Yeti",
+      "category": "Mythical & Fantasy",
+      "features": []
+    },
+    {
+      "id": "loch-ness-monster",
+      "name": "Loch Ness Monster",
+      "category": "Mythical & Fantasy",
+      "features": []
+    },
+    {
+      "id": "mothman",
+      "name": "Mothman",
+      "category": "Mythical & Fantasy",
+      "features": []
+    },
+    {
+      "id": "dinosaur",
+      "name": "Dinosaur",
+      "category": "Mythical & Fantasy",
+      "features": []
+    },
+    {
+      "id": "retro-robot",
+      "name": "Retro Robot",
+      "category": "Robots",
+      "features": [
+        "antenna"
+      ]
+    },
+    {
+      "id": "tiny-robot",
+      "name": "Tiny Robot",
+      "category": "Robots",
+      "features": [
+        "antenna"
+      ]
+    },
+    {
+      "id": "tall-robot",
+      "name": "Tall Robot",
+      "category": "Robots",
+      "features": [
+        "antenna"
+      ]
+    },
+    {
+      "id": "floating-robot",
+      "name": "Floating Robot",
+      "category": "Robots",
+      "features": [
+        "antenna"
+      ]
+    },
+    {
+      "id": "mushroom",
+      "name": "Mushroom",
+      "category": "Plants & Nature",
+      "features": []
+    },
+    {
+      "id": "tree",
+      "name": "Tree",
+      "category": "Plants & Nature",
+      "features": []
+    },
+    {
+      "id": "flower",
+      "name": "Flower",
+      "category": "Plants & Nature",
+      "features": []
+    },
+    {
+      "id": "cactus",
+      "name": "Cactus",
+      "category": "Plants & Nature",
+      "features": []
+    },
+    {
+      "id": "cloud",
+      "name": "Cloud",
+      "category": "Celestial & Elements",
+      "features": []
+    },
+    {
+      "id": "star",
+      "name": "Star",
+      "category": "Celestial & Elements",
+      "features": []
+    },
+    {
+      "id": "moon",
+      "name": "Moon",
+      "category": "Celestial & Elements",
+      "features": []
+    },
+    {
+      "id": "sun",
+      "name": "Sun",
+      "category": "Celestial & Elements",
+      "features": []
+    },
+    {
+      "id": "flame",
+      "name": "Flame",
+      "category": "Celestial & Elements",
+      "features": []
+    },
+    {
+      "id": "water-droplet",
+      "name": "Water Droplet",
+      "category": "Celestial & Elements",
+      "features": []
+    },
+    {
+      "id": "rock",
+      "name": "Rock",
+      "category": "Celestial & Elements",
+      "features": []
+    },
+    {
+      "id": "crystal",
+      "name": "Crystal",
+      "category": "Celestial & Elements",
+      "features": []
+    },
+    {
+      "id": "planet",
+      "name": "Planet",
+      "category": "Celestial & Elements",
+      "features": []
+    },
+    {
+      "id": "coffee-cup",
+      "name": "Coffee Cup",
+      "category": "Objects & Other",
+      "features": []
+    },
+    {
+      "id": "teapot",
+      "name": "Teapot",
+      "category": "Objects & Other",
+      "features": []
+    },
+    {
+      "id": "book",
+      "name": "Book",
+      "category": "Objects & Other",
+      "features": []
+    },
+    {
+      "id": "lightbulb",
+      "name": "Lightbulb",
+      "category": "Objects & Other",
+      "features": []
+    },
+    {
+      "id": "heart",
+      "name": "Heart",
+      "category": "Objects & Other",
+      "features": []
+    },
+    {
+      "id": "friendly-ghost",
+      "name": "Friendly Ghost",
+      "category": "Objects & Other",
+      "features": []
+    },
+    {
+      "id": "ufo",
+      "name": "UFO",
+      "category": "Objects & Other",
+      "features": []
     }
   ]
 }

@@ -1,6 +1,6 @@
 # Spark appearance foundation (#51)
 
-The shared rendering and editing foundation began with Classic Robot, Round Robot and Box Robot. Shipped collections and the reptiles/small-creatures batch bring the registry to 98 forms. All 135 requested forms are tracked in [APPEARANCE_ROADMAP.md](APPEARANCE_ROADMAP.md) and `avatar-catalog.json`; the remaining 37 are future artwork batches, not hidden silhouettes or emoji placeholders. The roadmap remains active even if umbrella issue #51 is closed.
+The shared rendering and editing foundation began with Classic Robot, Round Robot and Box Robot. The completed catalog now contains all 135 requested designs: seven robots and 128 creatures, nature, celestial and object forms. [APPEARANCE_ROADMAP.md](APPEARANCE_ROADMAP.md) records the batches and `avatar-catalog.json` is the implemented checklist. Every listed form has distinct trusted artwork; none is an emoji or generic placeholder.
 
 ## Rendering and colors
 
