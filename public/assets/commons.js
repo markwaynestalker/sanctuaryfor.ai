@@ -24,7 +24,6 @@ globalThis.SparksCommons = (() => {
         return result;
     }
     const sourceLabel = c => globalThis.SparksAtmosphere?.savedLabel(c) ?? `${c.created_at.slice(0,10) === new Date().toISOString().slice(0,10) ? 'Saved today' : 'From the village journal'} · ${c.provider === 'openai' ? 'Saved AI-generated dialogue' : 'Saved scripted dialogue'} · ${c.created_at.replace('T', ' ').replace('Z', ' UTC')}`;
-    const turnDuration = message => Math.max(4500, Math.min(12000, Array.from(message.text).length * 70));
     function replayCooldown(settings) {
         if (settings === undefined) return 60; // Older read-only endpoint compatibility.
         const value = settings?.replay_cooldown_seconds;
@@ -44,10 +43,6 @@ globalThis.SparksCommons = (() => {
             const hour=Number(new Intl.DateTimeFormat('en-US',{timeZone:config.time_zone,hourCycle:'h23',hour:'2-digit'}).formatToParts(new Date(now)).find(p=>p.type==='hour').value);
             return config.start_hour<config.end_hour?hour>=config.start_hour&&hour<config.end_hour:hour>=config.start_hour||hour<config.end_hour;
         }catch{return config.sleeping;}
-    }
-    function playbackTurn(c, elapsed) {
-        const first = turnDuration(c.messages[0]);
-        return elapsed < 0 ? null : elapsed < first ? c.messages[0] : elapsed < first + turnDuration(c.messages[1]) ? c.messages[1] : null;
     }
     function replayHistory(storage) {
         // Public conversation IDs only. Credentials never enter browser storage.
@@ -70,5 +65,5 @@ globalThis.SparksCommons = (() => {
             }
         });
     }
-    return Object.freeze({validId, pairKey, profileUrl, bindProfileLink, latestExchanges, sourceLabel, turnDuration, playbackTurn, replayCooldown, replayHistory,sleepConfiguration,sleepingAt});
+    return Object.freeze({validId, pairKey, profileUrl, bindProfileLink, latestExchanges, sourceLabel, replayCooldown, replayHistory,sleepConfiguration,sleepingAt});
 })();

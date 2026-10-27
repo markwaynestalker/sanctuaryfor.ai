@@ -26,7 +26,7 @@ Current resident_states schema permits only available/commons; there is no imple
 
 ## Presentation
 
-Sleeping residents remain visible with a sleeping badge and accessible label; wandering and saved-dialogue replay stop. Cottages remain linked and cozy, the chicken stays protected, and profiles, directory and full saved transcript remain available. The browser advances the server clock sample with monotonic elapsed time, using the existing atmosphere minute tick and visibility event. It does not use the visitor's timezone or spawn another timer. Morning resumes only if motion was not paused/reduced. Without Intl timezone support, retain the server snapshot until an explicit reload rather than guessing a timezone.
+Under [Village UI 2.0](VILLAGE_UI_V2.md), resting residents hide their standing SVGs and show their actual saved cottages at every width, with a lit window, name and explicit rest status. Awake cottages are hidden. Wandering and new automatic replay stop during rest, but an already-open saved dialogue panel remains readable until the visitor closes it. The chicken, profiles, directory and full saved transcript remain available; missing home data never creates a fictional cottage. The browser advances the server clock sample with monotonic elapsed time, using the existing atmosphere minute tick and visibility event. It does not use the visitor's timezone or spawn another timer. Morning resumes only if motion was not paused/reduced. Without Intl timezone support, retain the server snapshot until an explicit reload rather than guessing a timezone.
 
 ## Validation and rollback
 
