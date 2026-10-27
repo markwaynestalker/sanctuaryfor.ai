@@ -146,7 +146,7 @@ function stagingManagedEncounter(PDO $db,DirectorTransport $transport,array $att
         }else{
             $body=managedDirectorPrototype(json_decode($registered['configuration'],true,16,JSON_THROW_ON_ERROR),$prepared['context'],$choices);
             if($conversationOnly)$body['agent']['text']['format']['schema']['properties']['outcome']['enum']=['conversation'];
-            $body['metadata']=['sanctuary_attempt_id'=>$attempt['id'],'contract'=>'sanctuary.director.v1'];$submittedAt=$clock();$remote=$request('POST','agents/sessions',$body,$attempt['id']);
+            $body['metadata']=['sanctuary_attempt_id'=>$attempt['id'],'contract'=>$prepared['context']['contract']];$submittedAt=$clock();$remote=$request('POST','agents/sessions',$body,$attempt['id']);
             $sid=$remote['id']??null;if(!is_string($sid)||!preg_match('/\A[a-zA-Z0-9_-]{1,128}\z/',$sid)){$sid=null;throw new AiGuard('transport_uncertain');}
             $db->prepare("UPDATE director_sessions SET provider_session_id=?,state='uncertain' WHERE id=?")->execute([$sid,$session['id']]);assertManagedSession($remote,$registered,$sid,false);
             $remote=$request('GET','agents/sessions/'.$sid);assertManagedSession($remote,$registered,$sid,false);
@@ -182,6 +182,7 @@ function stagingManagedEncounter(PDO $db,DirectorTransport $transport,array $att
         }
         $moderated=$request('POST','moderations',['model'=>'omni-moderation-latest','input'=>json_encode([$prepared['context'],$decoded],JSON_THROW_ON_ERROR|JSON_UNESCAPED_UNICODE)]);
         if(count($moderated['results']??[])!==1||($moderated['results'][0]['flagged']??null)!==false)throw new AiGuard('moderation_rejected');
+        if(($proposal['world_action']??null)==='post_notice')$proposal['bulletin_approved']=true;
         if($calls<8&&$clock()<$finishBy-2){$final=stagingTurn($request('GET','agents/sessions/'.$sid.'/turns?limit=1&order=desc',null,null,'final_turn',true),$sid,$registered,$turnId,$reusing);
             if($final['status']!=='completed'||($final['error']??null)!==null){recordManagedOutcome($db,$attempt,$sid,$turnId,'unresolved');throw new AiGuard('usage_unknown');}
             if(observeManagedUsage($db,$attempt,$turnId,$final['usage']??null,aiConfiguration(time()))===null){

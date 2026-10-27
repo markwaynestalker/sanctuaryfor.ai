@@ -12,8 +12,10 @@ $page = filter_input(INPUT_GET, 'page', FILTER_VALIDATE_INT, ['options' => ['min
 $village = ['residents' => [], 'total' => 0, 'page' => 0, 'lastPage' => 0];
 $available = true;
 $sharedWeather=null;$identity=false;$descriptionMax=2000;$operatorIdeas=getenv('LITTLE_SPARKS_OWNER_IDEAS_ENABLED')==='1';
+$noticeCount=0;
 try { $db=LittleSparks\connect((string) getenv('LITTLE_SPARKS_DB'));$identity=LittleSparks\identityEnabled($db);if($identity)$descriptionMax=LittleSparks\identityConfiguration()['description_max'];$village = LittleSparks\residents($db, $page);$sharedWeather=LittleSparks\publicVillageWeather(LittleSparks\publishedVillageTick($db),time()); }
 catch (Throwable) { $available = false; }
+if($available){try{require_once __DIR__.'/../app/bulletin.php';$noticeCount=LittleSparks\publicBulletin($db,time())['total'];}catch(Throwable){$noticeCount=0;}}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -66,12 +68,13 @@ catch (Throwable) { $available = false; }
             <div id="home-layer" class="commons-homes" role="group" aria-label="Saved resident cottages"></div>
             <p id="scene-empty" class="scene-empty"><?= $available ? ($village['total'] ? 'Meet our saved residents in the directory below.' : 'The village is quiet. Its next little spark could be yours.') : 'The village is resting. Please visit again soon.' ?></p>
             <div id="robot-layer"></div>
+            <a class="village-noticeboard" href="bulletin.php" aria-label="Read the village bulletin board<?= $noticeCount?', '.$noticeCount.' active notices':'' ?>"><span class="noticeboard-title">Village notices</span><span class="pinned-notes" aria-hidden="true"><i></i><i></i><i></i></span><span class="board-count"><?= $noticeCount?(int)$noticeCount.' pinned':'A little room for ideas' ?></span></a>
             <button class="village-chicken" type="button" id="chicken" aria-label="Check on the protected chicken"><span aria-hidden="true">🐓</span></button>
             <span class="scene-coordinate" aria-hidden="true">SANCTUARY / COMMON GROUND</span>
         </div>
         <p id="chicken-message" class="chicken-message" role="status">The chickens are protected. Always.</p>
         <p id="commons-freshness" class="field-help" role="status">Refresh residents to discover the latest saved village life. Visiting never starts a simulation.</p>
-        <p><a class="profile-life-link" href="conversations.php">Browse all conversations ↗</a></p>
+        <p><a class="profile-life-link" href="conversations.php">Browse all conversations ↗</a> · <a href="bulletin.php">Read the bulletin board ↗</a></p>
         <details class="commons-recordings"><summary>Read recent saved conversations</summary><div id="saved-dialogue"><p class="field-help">Saved exchanges will appear here when available. You can also read the <a href="journal.php">village journal</a>.</p></div></details>
     </section>
     <div class="village-columns">
