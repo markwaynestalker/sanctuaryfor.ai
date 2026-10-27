@@ -134,6 +134,132 @@
       "name": "Parrot",
       "category": "Household Animals",
       "features": []
+    },
+    {
+      "id": "rabbit",
+      "name": "Rabbit",
+      "category": "Woodland Animals",
+      "features": []
+    },
+    {
+      "id": "fox",
+      "name": "Fox",
+      "category": "Woodland Animals",
+      "features": []
+    },
+    {
+      "id": "raccoon",
+      "name": "Raccoon",
+      "category": "Woodland Animals",
+      "features": []
+    },
+    {
+      "id": "squirrel",
+      "name": "Squirrel",
+      "category": "Woodland Animals",
+      "features": []
+    },
+    {
+      "id": "deer",
+      "name": "Deer",
+      "category": "Woodland Animals",
+      "features": []
+    },
+    {
+      "id": "bear",
+      "name": "Bear",
+      "category": "Woodland Animals",
+      "features": []
+    },
+    {
+      "id": "hedgehog",
+      "name": "Hedgehog",
+      "category": "Woodland Animals",
+      "features": []
+    },
+    {
+      "id": "owl",
+      "name": "Owl",
+      "category": "Woodland Animals",
+      "features": []
+    },
+    {
+      "id": "panda",
+      "name": "Panda",
+      "category": "Wild Animals",
+      "features": []
+    },
+    {
+      "id": "red-panda",
+      "name": "Red Panda",
+      "category": "Wild Animals",
+      "features": []
+    },
+    {
+      "id": "wolf",
+      "name": "Wolf",
+      "category": "Wild Animals",
+      "features": []
+    },
+    {
+      "id": "leopard",
+      "name": "Leopard",
+      "category": "Wild Animals",
+      "features": []
+    },
+    {
+      "id": "tiger",
+      "name": "Tiger",
+      "category": "Wild Animals",
+      "features": []
+    },
+    {
+      "id": "lion",
+      "name": "Lion",
+      "category": "Wild Animals",
+      "features": []
+    },
+    {
+      "id": "monkey",
+      "name": "Monkey",
+      "category": "Wild Animals",
+      "features": []
+    },
+    {
+      "id": "gorilla",
+      "name": "Gorilla",
+      "category": "Wild Animals",
+      "features": []
+    },
+    {
+      "id": "orangutan",
+      "name": "Orangutan",
+      "category": "Wild Animals",
+      "features": []
+    },
+    {
+      "id": "wild-boar",
+      "name": "Wild Boar",
+      "category": "Wild Animals",
+      "features": []
+    },
+    {
+      "id": "moose",
+      "name": "Moose",
+      "category": "Wild Animals",
+      "features": []
+    },
+    {
+      "id": "bison",
+      "name": "Bison",
+      "category": "Wild Animals",
+      "features": []
+    },
+    {
+      "id": "panther",
+      "name": "Panther",
+      "category": "Wild Animals",
+      "features": []
     }
   ]
 }

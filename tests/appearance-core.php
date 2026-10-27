@@ -55,13 +55,18 @@ try{
     check($db->query('PRAGMA integrity_check')->fetchColumn()==='ok'&&!$db->query('PRAGMA foreign_key_check')->fetch(),'Integrity preserved');
     $animalFile=dirname($argv[1]).'/animal-roundtrip.sqlite';copy($argv[1],$animalFile);chmod($animalFile,0600);$animalDb=LittleSparks\connect($animalFile);$version=1;
     $animalProtected=[];foreach(['residents','resident_identities','identity_edits','messages','memories','memory_stories','memory_receipts','relationships','bulletin_notices','director_sessions','ai_attempts','director_attempts'] as $t)$animalProtected[$t]=$animalDb->query('SELECT * FROM '.$t.' ORDER BY rowid')->fetchAll();
-    foreach(LittleSparks\avatarRegistry()['forms'] as $form)if($form['category']!=='Robots'){
+    $animalForms=array_filter(LittleSparks\avatarRegistry()['forms'],fn($f)=>$f['category']!=='Robots');
+    // This disposable fixture visits every form; do not increase the application's default edit quota.
+    putenv('LITTLE_SPARKS_APPEARANCE_EDITS_PER_DAY='.(count($animalForms)+1));
+    foreach($animalForms as $form){
         $look=['form'=>$form['id'],'primary_color'=>'#A855F7','features'=>[]];$request=substr(hash('sha256','animal-roundtrip:'.$form['id']),0,32);
         $r=LittleSparks\editAppearance($animalDb,['token'=>$residents[0]['token'],'appearance'=>$look,'expectedRevision'=>$version,'requestId'=>$request],'animal-roundtrip',$now);
         check($r['resident']['appearance']===$look&&$r['resident']['appearance_version']===++$version,'Animal appearance persists without inferred traits: '.$form['id']);
         check(!str_contains(LittleSparks\avatarSvg($r['resident']),'#antenna-'),'Animal SVG contains no antenna');
         rejected(fn()=>LittleSparks\validateAppearance(array_replace($look,['features'=>['antenna'=>'orb']])),422);
     }
+    rejected(fn()=>LittleSparks\editAppearance($animalDb,['token'=>$residents[0]['token'],'appearance'=>$look,'expectedRevision'=>$version,'requestId'=>str_repeat('9',32)],'animal-roundtrip',$now),429);
+    putenv('LITTLE_SPARKS_APPEARANCE_EDITS_PER_DAY');
     foreach($animalProtected as $t=>$rows)check($animalDb->query('SELECT * FROM '.$t.' ORDER BY rowid')->fetchAll()===$rows,'Animal transformations preserve '.$t);
     echo json_encode(['id'=>$residents[0]['resident']['id'],'token'=>$residents[0]['token'],'other'=>$residents[1]['resident']['id'],'other_token'=>$residents[1]['token'],'version'=>1,'appearance'=>$valid],JSON_THROW_ON_ERROR);
 }catch(Throwable $e){fwrite(STDERR,$e->getMessage()."\n".$e->getTraceAsString()."\n");exit(1);}

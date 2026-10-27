@@ -1,5 +1,10 @@
 # SanctuaryFor.AI development instructions
 
+## Woodland and wild avatar collection (#51, batch 3)
+
+This collection adds 21 distinct local SVG forms (eight woodland, thirteen wild), bringing implemented forms to 38/135 with 97 remaining. See docs/APPEARANCE_ROADMAP.md. Preserve the original 17 artworks, shared 48x70 footprint, animal empty feature sets, RGB/presets, safe antenna fallback/remembered robot choice, category/search and native keyboard controls. No personality/occupation inference, runtime PHP, schema, ENV, Director/session, accounting or scheduler changes. No production action or paid calls. Check artwork bounds/contrast at small and large sizes, desktop/mobile/reduced motion, real private-save round trips and all offline suites. Exhaustive disposable fixtures may set an explicit test-only edit allowance but must still check quota exhaustion; never raise application defaults to accommodate tests. Keep #51 open for the remaining artwork.
+
+
 ## Farm and household avatar collection (#51, batch 2)
 
 This collection adds 14 distinct local SVG designs (nine farm, five household), bringing implemented forms to 17/135. Read docs/APPEARANCE_ROADMAP.md. Animal forms use empty feature sets: PHP rejects robot antennas and the client must match that fallback. Hide robot-only controls, preserve color and the unsaved robot antenna choice when toggling forms, and keep the same 48x70 viewBox/commons geometry. Use the shared trusted sprite/registry everywhere; no uploaded SVG, emoji placeholders, occupations/personality inference, schema/ENV/Director/accounting/scheduler changes or paid calls. Validate each silhouette and face at small/large sizes in black/white/saturated colors, with keyboard/category/search and private-save round trips. Run avatar-renderer, village-appearance, commons-ui and all offline suites. Code-only release; no migration or production action in development. Keep #51 open for the remaining 118 forms.
