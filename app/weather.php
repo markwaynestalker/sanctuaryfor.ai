@@ -43,7 +43,7 @@ function refreshVillageWeather(PDO $db,int $now,?WeatherTransport $transport=nul
         $q=$db->prepare('SELECT 1 FROM settings WHERE name=?');$q->execute([$key]);if($q->fetchColumn()){$db->exec('COMMIT');return;}
         $q=$db->prepare("SELECT COUNT(*) FROM settings WHERE name LIKE ?");$q->execute(['village_weather:request:'.$day.':%']);
         if((int)$q->fetchColumn()>=$cfg['daily']){$db->exec('COMMIT');return;}
-        $q=$db->prepare('SELECT value FROM settings WHERE name=?');$q->execute(['village_weather:lease']);$raw=$q->fetchColumn();$lease=$raw===false?null:json_decode($raw,true);
+        $q=$db->prepare('SELECT value FROM settings WHERE name=?');$q->execute(['village_weather:lease']);$raw=$q->fetchColumn();$q->closeCursor();$lease=$raw===false?null:json_decode($raw,true);
         if(($lease['expires']??0)>$now){$db->exec('COMMIT');return;}
         $db->prepare('INSERT INTO settings(name,value) VALUES (?,?)')->execute([$key,json_encode(['at'=>$now,'source_id'=>$cfg['source_id']],JSON_THROW_ON_ERROR)]);
         $db->prepare("INSERT INTO settings VALUES ('village_weather:lease',?) ON CONFLICT(name) DO UPDATE SET value=excluded.value")

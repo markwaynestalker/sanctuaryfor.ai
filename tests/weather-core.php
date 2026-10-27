@@ -39,6 +39,21 @@ try{
  putenv('LITTLE_SPARKS_WEATHER_ENABLED=0');check(LittleSparks\commons($db,$ids)['settings']['weather']['kind']==='snowy','FPM reads the saved publication without private CLI configuration');putenv('LITTLE_SPARKS_WEATHER_ENABLED=1');
  foreach(['Could we make a snowman if enough snow settles?','The snowflakes look like tiny stars.'] as $line)check(LittleSparks\expressiveDialogue($line)===$line,'Imaginative speech remains original');foreach(['I built a snowman.','We made a snowman.','We have a snowman.'] as $line)try{LittleSparks\expressiveDialogue($line);throw new LogicException('Unsupported snowman action accepted');}catch(LittleSparks\AiGuard){}
  check($db->query('SELECT name,sql FROM sqlite_master ORDER BY name')->fetchAll()===$schema,'No migration/schema changes');foreach($settings as $row){$q=$db->prepare('SELECT value FROM settings WHERE name=?');$q->execute([$row['name']]);check($q->fetchColumn()===$row['value'],'Original secret/settings preserved');}
+ // A separate writer must be able to commit while the source is being read.
+ // Keeping a fetched lease cursor alive across COMMIT deterministically blocks it.
+ $cursorPath=$dir.'/cursor-source.sqlite';copy($argv[1],$cursorPath);chmod($cursorPath,0600);$cursorDb=LittleSparks\connect($cursorPath);$cursorAt=$now+2*$cfg['refresh'];
+ $interleaved=new class($cursorPath,$cursorAt) implements LittleSparks\WeatherTransport{
+  public bool $writerCommitted=false;
+  public function __construct(private string $path,private int $at){}
+  public function get(array $configuration,int $deadline):array{
+   $other=new PDO('sqlite:'.$this->path);$other->setAttribute(PDO::ATTR_ERRMODE,PDO::ERRMODE_EXCEPTION);$other->exec('PRAGMA busy_timeout=100');
+   $other->exec('BEGIN IMMEDIATE');try{$other->exec("INSERT INTO settings VALUES ('offline_cursor_writer','committed')");$other->exec('COMMIT');}catch(Throwable $e){$other->exec('ROLLBACK');throw $e;}
+   $this->writerCommitted=true;return farmFixture($this->at,'Fog');
+  }
+ };
+ LittleSparks\refreshVillageWeather($cursorDb,$cursorAt,$interleaved,fn()=>$cursorAt);
+ check($interleaved->writerCommitted,'Weather must release its read cursor before source I/O so another SQLite writer can commit');
+ check(LittleSparks\publishedVillageTick($cursorDb)['weather']['kind']==='foggy','Interleaved source still publishes the validated observation exactly once');
  require __DIR__.'/weather-director-core.php';
  echo json_encode(['ids'=>$ids,'source_requests'=>$mock->calls]);
 }catch(Throwable $e){fwrite(STDERR,$e->getMessage()."\n".$e->getTraceAsString()."\n");exit(1);}
