@@ -1,6 +1,6 @@
 # Spark appearance roadmap (#51)
 
-All 135 requested forms remain in scope. This collection brings completed forms to **98/135**, with **37 remaining**. `avatar-catalog.json` is the complete checklist, separate from the public registry: planned designs are never exposed as completed forms or rendered as generic/emoji placeholders.
+The requested catalog is complete: **135/135 forms**, with **zero remaining**. `avatar-catalog.json` is the complete checklist, separate from the public registry: planned designs are never exposed as completed forms or rendered as generic/emoji placeholders.
 
 | PR batch | Scope | Count |
 |---|---|---:|
@@ -10,9 +10,9 @@ All 135 requested forms remain in scope. This collection brings completed forms 
 | Unusual mammals (PR #56, shipped) | All listed unusual mammals | 16 |
 | Aquatic (PR #57, shipped) | All listed aquatic creatures | 13 |
 | Birds (PR #58, shipped) | All listed birds | 14 |
-| Reptiles and small creatures (this PR) | All listed reptiles, amphibians, insects and small creatures | 17 |
-| Mythical | All listed mythical/fantasy creatures | 13 |
-| Remaining forms | Four remaining robots, plants, celestial/elements and objects | 24 |
+| Reptiles and small creatures (PR #59, shipped) | All listed reptiles, amphibians, insects and small creatures | 17 |
+| Mythical (this PR) | All listed mythical/fantasy creatures | 13 |
+| Robots, nature, elements and objects (this PR) | Four remaining robots, plants, celestial/elements and objects | 24 |
 
 These are review-sized starting groups, not a requirement to combine artwork that needs separate review. Every accepted form needs a distinct recognizable SVG symbol, appropriate features, a registry entry and thumbnail, black/white/saturated color and small-size checks, mobile/keyboard tests, and visual review. Adding a form must not change identity, personality, ownership, saved conversations, memories, bulletin records, Director context/session selection, accounting or scheduling. No outside art service, paid generation, external asset library or user SVG is allowed. Do not close #51 when only the foundation lands.
 
@@ -63,3 +63,13 @@ Seventeen forms: Frog, Turtle, Snake, Crocodile, Lizard, Chameleon, Snail, Cater
 These remain cosmetic appearances in the existing 48x70 footprint. Reuse the shared renderer/picker, RGB/24 presets, category/search, native keyboard controls, animal feature restrictions and private appearance edits. No crawling/flying physics, new animation loop, inferred personality or Director behavior. The protected commons chicken remains separate.
 
 Check all forms at large/meadow sizes in black, white and saturated colors, bounds including stroke margin, desktop/390px/320px controls, reduced motion, private saves and public profiles. Offline coverage includes all 95 animal forms, new collection membership/thumbnails/picker events and case-insensitive Chameleon search. The existing exhaustive disposable fixture explicitly configures its edit allowances, verifies exhaustion/replay and restores/checks unchanged application defaults. Run all offline suites; physical iPhone/Safari verification remains an owner check. No runtime PHP/JavaScript, migration, ENV, Director/session, scheduler or accounting changes and no automatic production action. The #51 roadmap retains 37 unbuilt forms even if the umbrella issue is closed.
+
+## Completed catalog: final 37 forms
+
+The final collection adds 13 mythical/fantasy forms (Unicorn, Dragon, Griffin, Phoenix, Pegasus, Kitsune, Jackalope, Sea Serpent, Cerberus, Baby Yeti, Loch Ness Monster, Mothman and Dinosaur), four robots (Retro, Tiny, Tall and Floating), four plants/nature forms (Mushroom, Tree, Flower and Cactus), nine celestial/elements (Cloud, Star, Moon, Sun, Flame, Water Droplet, Rock, Crystal and Planet), and seven objects/other forms (Coffee Cup, Teapot, Book, Lightbulb, Heart, Friendly Ghost and UFO).
+
+Each has distinct locally authored SVG geometry, not an alias or emoji placeholder. The catalog now comprises seven robots and 128 feature-free forms. Robot antennas remain supported; other forms' horns, wings, stems and details are artwork rather than robot features. Tiny/tall/floating designs are cosmetic silhouettes inside the existing 48x70 footprint, not new scene geometry or motion. All 98 previous forms and three antenna symbols are unchanged. All 24 presets and valid RGB values work without form-specific saved-color overrides. No personality, role, memories, weather, flight, fire or new world behavior is inferred from appearance.
+
+Tests cover all 135 trusted symbols, distinct geometry, exact catalog/registry agreement, all categories/search/thumbnails, all seven robots across three antenna styles, 128 feature-free forms across presets/RGB, malformed-feature rejection and robot-choice retention across collection changes. The exhaustive private-save fixture now visits every form, including all robots, verifies protected histories/identities/sessions/accounting and checks quota exhaustion/idempotency without changing application defaults. Review all final designs large/small in black/white/saturated colors, bounds including stroke margin, desktop/390px/320px keyboard controls, private saves/public profiles and reduced motion. Run every offline suite. Physical iPhone/Safari verification remains an owner check.
+
+This completes the original #51 artwork list; earlier batch counts above describe historical checkpoints. No runtime PHP/JavaScript, migration, ENV, Director/session, scheduler or accounting changes; no production access, automatic deployment or paid call. Normal code-only review/deployment controls apply. Future additions should extend the catalog deliberately rather than expose incomplete placeholders.

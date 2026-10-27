@@ -53,26 +53,26 @@ try{
     $creation=['name'=>'Custom Color Spark','color'=>'mint','antenna'=>'orb','description'=>'A separate personality.','website'=>'','requestId'=>str_repeat('d',32),'appearance'=>['form'=>'goat','primary_color'=>'#a855f7','features'=>[]]];$new=LittleSparks\create($db,$creation,'new-appearance-browser','new-fixture',$now,true);check($new['resident']['appearance']===LittleSparks\validateAppearance($creation['appearance']),'Creation saves a custom RGB animal atomically');check(LittleSparks\create($db,$creation,'new-appearance-browser','new-fixture',$now,true)['replayed'],'Custom animal creation is idempotent');
     try{$db->exec("UPDATE appearance_edits SET configuration='rewritten'");throw new LogicException('Mutable audit');}catch(PDOException){}
     check($db->query('PRAGMA integrity_check')->fetchColumn()==='ok'&&!$db->query('PRAGMA foreign_key_check')->fetch(),'Integrity preserved');
-    $animalFile=dirname($argv[1]).'/animal-roundtrip.sqlite';copy($argv[1],$animalFile);chmod($animalFile,0600);$animalDb=LittleSparks\connect($animalFile);$version=1;
-    $animalProtected=[];foreach(['residents','resident_identities','identity_edits','messages','memories','memory_stories','memory_receipts','relationships','bulletin_notices','director_sessions','ai_attempts','director_attempts'] as $t)$animalProtected[$t]=$animalDb->query('SELECT * FROM '.$t.' ORDER BY rowid')->fetchAll();
-    $animalForms=array_filter(LittleSparks\avatarRegistry()['forms'],fn($f)=>$f['category']!=='Robots');
+    $formFile=dirname($argv[1]).'/form-roundtrip.sqlite';copy($argv[1],$formFile);chmod($formFile,0600);$formDb=LittleSparks\connect($formFile);$version=1;
+    $formProtected=[];foreach(['residents','resident_identities','identity_edits','messages','memories','memory_stories','memory_receipts','relationships','bulletin_notices','director_sessions','ai_attempts','director_attempts'] as $t)$formProtected[$t]=$formDb->query('SELECT * FROM '.$t.' ORDER BY rowid')->fetchAll();
+    $allForms=LittleSparks\avatarRegistry()['forms'];
     // This disposable fixture visits every form; do not increase either application quota.
-    putenv('LITTLE_SPARKS_APPEARANCE_EDITS_PER_DAY='.(count($animalForms)+1));
-    putenv('LITTLE_SPARKS_APPEARANCE_REQUESTS_PER_HOUR='.(count($animalForms)+2));
-    foreach($animalForms as $form){
-        $look=['form'=>$form['id'],'primary_color'=>'#A855F7','features'=>[]];$request=substr(hash('sha256','animal-roundtrip:'.$form['id']),0,32);
-        $r=LittleSparks\editAppearance($animalDb,['token'=>$residents[0]['token'],'appearance'=>$look,'expectedRevision'=>$version,'requestId'=>$request],'animal-roundtrip',$now);
-        check($r['resident']['appearance']===$look&&$r['resident']['appearance_version']===++$version,'Animal appearance persists without inferred traits: '.$form['id']);
-        check(!str_contains(LittleSparks\avatarSvg($r['resident']),'#antenna-'),'Animal SVG contains no antenna');
-        rejected(fn()=>LittleSparks\validateAppearance(array_replace($look,['features'=>['antenna'=>'orb']])),422);
+    putenv('LITTLE_SPARKS_APPEARANCE_EDITS_PER_DAY='.(count($allForms)+1));
+    putenv('LITTLE_SPARKS_APPEARANCE_REQUESTS_PER_HOUR='.(count($allForms)+2));
+    foreach($allForms as $form){
+        $look=['form'=>$form['id'],'primary_color'=>'#A855F7','features'=>in_array('antenna',$form['features'],true)?['antenna'=>'sprout']:[]];$request=substr(hash('sha256','form-roundtrip:'.$form['id']),0,32);
+        $r=LittleSparks\editAppearance($formDb,['token'=>$residents[0]['token'],'appearance'=>$look,'expectedRevision'=>$version,'requestId'=>$request],'form-roundtrip',$now);
+        check($r['resident']['appearance']===$look&&$r['resident']['appearance_version']===++$version,'Form appearance persists without inferred traits: '.$form['id']);
+        check(str_contains(LittleSparks\avatarSvg($r['resident']),'#antenna-sprout')===in_array('antenna',$form['features'],true),'Only supported robot forms include an antenna');
+        rejected(fn()=>LittleSparks\validateAppearance(array_replace($look,['features'=>['antenna'=>in_array('antenna',$form['features'],true)?'invalid':'orb']])),422);
     }
-    rejected(fn()=>LittleSparks\editAppearance($animalDb,['token'=>$residents[0]['token'],'appearance'=>$look,'expectedRevision'=>$version,'requestId'=>str_repeat('9',32)],'animal-roundtrip',$now),429);
+    rejected(fn()=>LittleSparks\editAppearance($formDb,['token'=>$residents[0]['token'],'appearance'=>$look,'expectedRevision'=>$version,'requestId'=>str_repeat('9',32)],'form-roundtrip',$now),429);
     $lastEdit=['token'=>$residents[0]['token'],'appearance'=>$look,'expectedRevision'=>$version-1,'requestId'=>$request];
-    check(LittleSparks\editAppearance($animalDb,$lastEdit,'animal-roundtrip',$now)['replayed'],'Last animal save replays at full daily quota while hourly capacity remains');
-    rejected(fn()=>LittleSparks\editAppearance($animalDb,$lastEdit,'animal-roundtrip',$now),429);
+    check(LittleSparks\editAppearance($formDb,$lastEdit,'form-roundtrip',$now)['replayed'],'Last form save replays at full daily quota while hourly capacity remains');
+    rejected(fn()=>LittleSparks\editAppearance($formDb,$lastEdit,'form-roundtrip',$now),429);
     putenv('LITTLE_SPARKS_APPEARANCE_EDITS_PER_DAY');
     putenv('LITTLE_SPARKS_APPEARANCE_REQUESTS_PER_HOUR');
     check(LittleSparks\appearanceConfiguration()===['daily'=>24,'hourly'=>60],'Exhaustive fixture does not change the application defaults');
-    foreach($animalProtected as $t=>$rows)check($animalDb->query('SELECT * FROM '.$t.' ORDER BY rowid')->fetchAll()===$rows,'Animal transformations preserve '.$t);
+    foreach($formProtected as $t=>$rows)check($formDb->query('SELECT * FROM '.$t.' ORDER BY rowid')->fetchAll()===$rows,'Form transformations preserve '.$t);
     echo json_encode(['id'=>$residents[0]['resident']['id'],'token'=>$residents[0]['token'],'other'=>$residents[1]['resident']['id'],'other_token'=>$residents[1]['token'],'version'=>1,'appearance'=>$valid],JSON_THROW_ON_ERROR);
 }catch(Throwable $e){fwrite(STDERR,$e->getMessage()."\n".$e->getTraceAsString()."\n");exit(1);}
