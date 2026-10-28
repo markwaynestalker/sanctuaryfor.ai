@@ -58,9 +58,10 @@ async function meadow({mobile=false,reduced=false,third=false,conversation=excha
         addEventListener(){},requestAnimationFrame(f){frames.set(++sequence,f);return sequence;},cancelAnimationFrame(id){frames.delete(id);},
         ResizeObserver:class{constructor(f){resize=f;}observe(){}},
         fetch:async(url,options)=>{requests.push({url,options});if(unavailable&&url.includes('commons.php'))return {ok:false,json:async()=>({error:'Fixture unavailable'})};const ids=new URL(url,'http://fixture.test/').searchParams.get('ids')?.split(',')||[];return {ok:true,json:async()=>url.includes('residents.php')?{residents:population,total:population.length,page:0,lastPage:0,csrf:'fixture'}:{homes:(homesEnabled?people:[]).map((r,i)=>({resident_id:r.id,plot:{x:i*4,y:0,width:4,height:4},objects:[{kind:'house',x:i*4+1,y:1},...(i===0?[{kind:'tree',x:3,y:3},{kind:'flowers',x:0,y:2},{kind:'bush',x:3,y:0},{kind:'path',x:1,y:2},{kind:'decoration',x:2,y:0}]:[])]})).filter(h=>ids.includes(h.resident_id)),bulletin_posts:bulletinPosts,conversations:conversation?(Array.isArray(conversation)?conversation:[conversation]):[]}};}});
-    const originalFetch=context.fetch;context.fetch=async(...args)=>{const result=await originalFetch(...args);if(args[0].includes('commons.php')){const json=result.json;result.json=async()=>({...await json(),settings:{replay_cooldown_seconds:replay,...(sleep?{sleep}:{}),...(weather?{weather}:{})}});}return result;};
+    let commonsGate;
+    const originalFetch=context.fetch;context.fetch=async(...args)=>{if(args[0].includes('commons.php')&&commonsGate)await commonsGate;const result=await originalFetch(...args);if(args[0].includes('commons.php')){const json=result.json;result.json=async()=>({...await json(),settings:{replay_cooldown_seconds:replay,...(sleep?{sleep}:{}),...(weather?{weather}:{})}});}return result;};
     vm.runInContext(helperSource,context);vm.runInContext(meadowSource,context);vm.runInContext(avatarSource,context);vm.runInContext(villageSource,context);await new Promise(setImmediate);
-    return {$,document,requests,frames,media,motionStates,resize(width){$('landscape').clientWidth=width;resize([{contentRect:{width,height:520}}]);},setConversation(value){conversation=value;},setUnavailable(value){unavailable=value;},setSleep(value){sleep=value;},advanceTime(ms){clock+=ms;document.listeners['sparks:clock']?.();},step(){clock+=80;const callbacks=[...frames.values()];frames.clear();for(const f of callbacks)f(clock);},clock:()=>clock};
+    return {$,document,requests,frames,media,motionStates,holdCommons(){let release;commonsGate=new Promise(ok=>{release=ok;});return ()=>{commonsGate=null;release();};},resize(width){$('landscape').clientWidth=width;resize([{contentRect:{width,height:520}}]);},setConversation(value){conversation=value;},setUnavailable(value){unavailable=value;},setSleep(value){sleep=value;},advanceTime(ms){clock+=ms;document.listeners['sparks:clock']?.();},step(){clock+=80;const callbacks=[...frames.values()];frames.clear();for(const f of callbacks)f(clock);},clock:()=>clock};
 }
 
 const sleepPolicy={enabled:true,sleeping:false,time_zone:'America/New_York',start_hour:23,end_hour:7,server_time:Date.parse('2026-01-02T03:59:00Z')/1000};
@@ -157,6 +158,36 @@ for(const mobile of [false,true]){
  const now=Math.floor(Date.now()/1000),weather={version:1,id:'f'.repeat(64),kind:'snowy',classification:'reported_farm_weather',temperature_f:43,description:'Fair skies',observed_at:now-30,valid_until:now+3600,server_time:now};
  const m=await meadow({mobile,reduced:true,weather});assert.equal(m.requests.length,2);assert.equal(m.frames.size,0);assert.ok(m.$('home-layer').hidden);m.$('resident-directory').children[0].children[0].click();assert.ok(m.$('resident-profile').open);assert.ok(m.motionStates.at(-1));
 }
+// #63: page-local discovery never filters the meadow or starts a new read.
+const discoverPeople=Array.from({length:40},(_,i)=>({...residents[0],id:(i+300).toString(16).padStart(32,'0'),name:i===39?'Élodie':i===38?'Same Name':i===37?'Same Name':`Neighbor ${i+1}`}));
+for(const mobile of [true,false]){
+ const m=await meadow({mobile,people:discoverPeople,reduced:true,conversation:null});
+ const input=m.$('resident-search'),items=[...m.$('resident-directory').children],actors=[...m.$('robot-layer').children];
+ input.value='E\u0301LODIE';input.listeners.input[0]();
+ assert.equal(items.filter(el=>!el.hidden).length,1,'Unicode canonical equivalents and case match saved names');
+ assert.ok(m.$('resident-search-status').textContent.includes('1 of 40'));
+ assert.equal(m.requests.length,2);assert.ok(actors.every((el,i)=>el===m.$('robot-layer').children[i]),'Typing preserves the actual scene nodes');
+ items[39].children[1].click();await new Promise(setImmediate);
+ assert.ok(m.$('robot-layer').children.some(el=>el.dataset.resident===discoverPeople[39].id),'Locate selects the existing neighborhood by public ID');
+ assert.equal(m.document.activeElement.dataset.resident,discoverPeople[39].id,'Locate focuses the selected full-size character');
+ assert.equal(m.requests.length,3,'Only changed visible membership reads scoped saved life');
+ m.$('resident-directory').children[39].children[1].click();await new Promise(setImmediate);assert.equal(m.requests.length,3,'Locating within the same neighborhood reuses loaded data');
+ input.value='<script>.*';input.listeners.input[0]();assert.equal(m.$('resident-directory').children.filter(el=>!el.hidden).length,0,'Search is literal text, not HTML or a regular expression');
+ m.$('clear-resident-search').click();assert.equal(input.value,'');assert.ok(m.$('resident-directory').children.every(el=>!el.hidden));assert.equal(m.document.activeElement,input);
+ input.value='same name';input.listeners.input[0]();assert.equal(m.$('resident-directory').children.filter(el=>!el.hidden).length,2,'Duplicate names remain independently selectable by ID');assert.equal(m.requests.length,3);
+}
+const searching=await meadow({people:dozen,reduced:true});searching.$('conversation-layer').children[0].click();const searchWords=searching.$('dialogue-lines').textContent;
+searching.$('resident-search').value='not present';searching.$('resident-search').listeners.input[0]();assert.equal(searching.$('dialogue-lines').textContent,searchWords);
+searching.$('close-dialogue').click();assert.equal(searching.$('dialogue-panel').hidden,true);
+const locating=await meadow({people:dozen,reduced:true});locating.$('conversation-layer').children[0].click();const locateWords=locating.$('dialogue-lines').textContent;
+locating.resize(320);const locateMedia=locating.media.get('(max-width: 650px)');locateMedia.matches=true;locateMedia.listener();await new Promise(setImmediate);
+locating.$('resident-directory').children[9].children[1].click();await new Promise(setImmediate);assert.equal(locating.$('dialogue-lines').textContent,locateWords,'Locating another neighborhood retains original selected speech');locating.$('close-dialogue').click();assert.ok(locating.document.activeElement.isConnected,'Reading closes to a connected control after locate');
+const restLocate=await meadow({mobile:true,people:discoverPeople,reduced:true,sleep:{...sleepPolicy,server_time:Date.parse('2026-01-02T05:00:00Z')/1000},conversation:null});restLocate.$('resident-directory').children[39].children[1].click();await new Promise(setImmediate);assert.equal(restLocate.document.activeElement.tagName,'A');assert.equal(restLocate.document.activeElement.dataset.resident,discoverPeople[39].id,'Resting locate focuses only the actual saved cottage');assert.equal(restLocate.requests.length,3);const focusedCottage=restLocate.document.activeElement;restLocate.resize(320);assert.ok(!focusedCottage.isConnected);assert.ok(restLocate.document.activeElement.isConnected);assert.equal(restLocate.document.activeElement.dataset.resident,discoverPeople[39].id,'Resize restores connected focus to the same actual saved home');assert.equal(restLocate.requests.length,3);
+const absentHome=await meadow({mobile:true,people:discoverPeople,reduced:true,homesEnabled:false,sleep:{...sleepPolicy,server_time:Date.parse('2026-01-02T05:00:00Z')/1000}});absentHome.$('resident-directory').children[39].children[1].click();await new Promise(setImmediate);assert.equal(absentHome.document.activeElement,absentHome.$('resident-directory').children[39].children[1],'Missing saved cottage retains a connected directory control');
+const lateLocate=await meadow({mobile:true,people:discoverPeople,reduced:true,conversation:null}),releaseLocate=lateLocate.holdCommons();lateLocate.$('resident-directory').children[39].children[1].click();lateLocate.$('resident-search').focus();releaseLocate();await new Promise(setImmediate);assert.equal(lateLocate.document.activeElement,lateLocate.$('resident-search'),'An asynchronous Locate never steals focus after the visitor moves on');assert.ok(lateLocate.$('directory-status').textContent.includes('Élodie'),'Completed locate still reports the current neighborhood');assert.equal(lateLocate.requests.length,3);
+const emptyDiscovery=await meadow({people:[],conversation:null,reduced:true});assert.equal(emptyDiscovery.$('resident-search-status').textContent,'0 names on this page.');
+console.log('PASS page-local Unicode/literal name discovery, duplicate IDs, no typing requests/rerenders, native locate for awake/resting/missing homes, stable saved reading and connected focus');
+
 console.log('PASS backend-policy sleep/wake houses, immutable visible gardens, 135 forms/RGB, six-phone neighborhoods and all 40 residents, native profile/house navigation, one persistent exact saved dialogue panel, no focus theft, literal Unicode text, replay privacy/cooldowns, reduced motion/weather and zero extra HTTP');
 
 // #62: decorative movement/gathering never changes recorded dialogue or calls APIs.

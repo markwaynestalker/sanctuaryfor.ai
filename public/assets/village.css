@@ -179,3 +179,15 @@ textarea{width:100%;min-height:8rem;resize:vertical;font:inherit;color:inherit;b
 .appearance-picker { min-width:0; margin:1rem 0; padding:1rem; border:1px solid #657b7a; border-radius:12px; display:grid; gap:.8rem; }.appearance-picker label { display:grid; gap:.35rem; min-width:0; }.appearance-picker input,.appearance-picker select { max-width:100%; }.appearance-picker input[type=color] { width:100%; min-height:44px; padding:3px; }.appearance-preview { min-height:120px; display:grid; place-items:center; }.appearance-preview .spark-avatar { width:72px; height:105px; }
 .avatar-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(92px,1fr)); gap:.5rem; max-height:290px; overflow:auto; padding:6px; }.avatar-grid .avatar-option { display:grid; justify-items:center; padding:.65rem .3rem; border:1px solid #657b7a; border-radius:10px; text-align:center; font-size:.8rem; cursor:pointer; }.avatar-option:has(input:checked) { border:2px solid var(--mint); background:#203c35; }.avatar-option input { width:20px; height:20px; }.avatar-option .spark-avatar { width:42px; height:61px; }.appearance-picker :focus-visible { outline:3px solid var(--mint); outline-offset:3px; }.appearance-picker [hidden] { display:none; }
 @media(forced-colors:active) { .spark-avatar { --spark-primary:Canvas!important; --spark-highlight:Canvas!important; --spark-shadow:CanvasText!important; --spark-ink:CanvasText!important; --spark-outline:CanvasText!important; --spark-classic-border:CanvasText!important; forced-color-adjust:none; }.avatar-option:has(input:checked) { outline:2px solid Highlight; } }
+
+/* Directory discovery stays outside the bounded meadow and preserves full names. */
+.resident-discovery { margin-block: 12px 18px; }
+.resident-search-controls { display:flex; gap:8px; align-items:center; }
+.resident-search-controls input { min-width:0; width:100%; margin:0; }
+.resident-search-controls button { flex-shrink:0; }
+.resident-directory li[hidden] { display:none; }
+.locate-resident { margin-top:6px; width:100%; }
+.directory-controls { flex-wrap:wrap; }
+.village-resident:focus-visible,.commons-home:focus-visible { outline:3px solid var(--mint); outline-offset:3px; }
+
+.directory-panel { align-self:start; }
