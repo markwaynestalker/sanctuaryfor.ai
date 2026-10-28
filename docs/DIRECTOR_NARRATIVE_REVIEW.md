@@ -1,5 +1,7 @@
 # Director narrative context review (#25)
 
+Historical #25 findings and measurements follow. Issue #70 supersedes the excerpt behavior with full mandatory owner descriptions and adds fresh encounter guidance; see [personality and variety review](DIRECTOR_PERSONALITY_REVIEW.md). The hosted amendment below remains a proposal, not evidence of the current hosted instructions.
+
 ## Findings and scoped changes
 
 The old builder duplicated pair conversations under both participants and loaded an entire UI profile (including unused history/trails) before rebuilding context. Its recent-conversation limit was applied before validating completed public provenance, so a newer failed record could displace valid older dialogue. Byte trimming removed recent dialogue before memories/goals and consistently stripped the second participant first. Owner descriptions also competed with old category/preferences and their retrieval topic boost. These are demonstrated input-quality problems; they do not prove that session reuse caused production repetition.

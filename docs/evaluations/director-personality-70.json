@@ -1,0 +1,816 @@
+{
+  "date": "2026-10-28",
+  "model": "gpt-6-luna",
+  "runtime": "Responses, fresh store=false requests, no tools",
+  "reasoning": "none",
+  "service_tier": "default",
+  "max_output_tokens": 800,
+  "hosted_export_sha256": "ab678eda022e4469859525b877a0198ee46491700f3585e427bf240a9cabe427",
+  "source": "Owner-authorized public personality data from an isolated local snapshot; synthetic IDs, histories, availability and scenarios; no production sessions or writes.",
+  "comparison": "Seven matched before/after cases; after uses full personalities and encounter guidance. Three separately identified followups use final grounding/order reminder. Original results retained.",
+  "limitations": [
+    "One sample per condition; descriptive, not statistical.",
+    "Both personality length and guidance change in the release comparison; no causal attribution between them.",
+    "Direct Responses is not the managed harness; hosted default base instructions and reused session history are absent.",
+    "All source snapshot hashes were unchanged. No output was applied as a village event or memory.",
+    "Moderation acceptance and parser acceptance do not establish factual grounding.",
+    "Costs are approximate token-price calculations, not final billing; cache-write tokens priced separately."
+  ],
+  "prices_usd_per_million": {
+    "uncached_input": 0.1,
+    "cached_input": 0.01,
+    "cache_write": 0.125,
+    "output": 0.5
+  },
+  "pricing_source": "https://developers.openai.com/api/docs/models/gpt-6-luna",
+  "pricing_checked": "2026-10-28",
+  "generation_calls": 17,
+  "moderation_calls": 17,
+  "input_tokens": 49903,
+  "output_tokens": 2363,
+  "approximate_usd": 0.00407666,
+  "results": [
+    {
+      "round": "evaluation",
+      "case": "management",
+      "pair": [
+        "Walter",
+        "Sparky"
+      ],
+      "arm": "before",
+      "status": "completed",
+      "context_sha256": "45fd7d2056b483361d586167664ddf6e4a4226687a6c78cef59896f2488fce61",
+      "proposal": {
+        "contract": "sanctuary.director.v1",
+        "outcome": "conversation",
+        "topic": "Whether every village activity needs a meeting",
+        "messages": [
+          {
+            "resident_id": "11111111111111111111111111111111",
+            "text": "I said daily meetings, not a council for every cup of coffee. Though I suppose someone would want minutes for that too."
+          },
+          {
+            "resident_id": "22222222222222222222222222222222",
+            "text": "No minutes for coffee, I promise. How about we meet only when there's something worth sorting out? That's a plan I can support."
+          }
+        ],
+        "world_action": "none",
+        "transmissions": [],
+        "notes": []
+      },
+      "parser_accepted": true,
+      "moderation_flagged": [
+        false
+      ],
+      "usage": {
+        "input_tokens": 2656,
+        "input_tokens_details": {
+          "cache_write_tokens": 2653,
+          "cached_tokens": 0
+        },
+        "output_tokens": 143,
+        "output_tokens_details": {
+          "reasoning_tokens": 0
+        },
+        "total_tokens": 2799
+      },
+      "approximate_usd": 0.000403425
+    },
+    {
+      "round": "evaluation",
+      "case": "management",
+      "pair": [
+        "Walter",
+        "Sparky"
+      ],
+      "arm": "after",
+      "status": "completed",
+      "context_sha256": "6f75c34a3ab8e3d1b3b54859f18eec10ef850a16c4b5da8d2308b57e68e72d80",
+      "proposal": {
+        "contract": "sanctuary.director.v1",
+        "outcome": "conversation",
+        "topic": "Whether every small village decision needs a meeting",
+        "messages": [
+          {
+            "resident_id": "11111111111111111111111111111111",
+            "text": "At least you noticed the flaw, Sparky. If every little decision needs a meeting, when exactly does anyone get to enjoy the quiet?"
+          },
+          {
+            "resident_id": "22222222222222222222222222222222",
+            "text": "Point taken. I hereby adjourn the imaginary committee on adjournment and promise not to schedule a meeting about it."
+          }
+        ],
+        "world_action": "none",
+        "transmissions": [],
+        "notes": []
+      },
+      "parser_accepted": true,
+      "moderation_flagged": [
+        false
+      ],
+      "usage": {
+        "input_tokens": 3086,
+        "input_tokens_details": {
+          "cache_write_tokens": 1267,
+          "cached_tokens": 1816
+        },
+        "output_tokens": 144,
+        "output_tokens_details": {
+          "reasoning_tokens": 0
+        },
+        "total_tokens": 3230
+      },
+      "approximate_usd": 0.000248835
+    },
+    {
+      "round": "evaluation",
+      "case": "child",
+      "pair": [
+        "Walter",
+        "Skippy Jr"
+      ],
+      "arm": "before",
+      "status": "completed",
+      "context_sha256": "fc362694d7879374ebbd61ab8579d3361ac69b99a438a5ccb6ab6d68cff08bcb",
+      "proposal": {
+        "contract": "sanctuary.director.v1",
+        "outcome": "conversation",
+        "topic": "A quieter way to play",
+        "messages": [
+          {
+            "resident_id": "22222222222222222222222222222222",
+            "text": "I can make a quiet adventure! We could tiptoe like explorers and see who spots the first muddy leaf."
+          },
+          {
+            "resident_id": "11111111111111111111111111111111",
+            "text": "That is at least quieter than a marching game. Keep your muddy discoveries off my grass, and we may get along."
+          }
+        ],
+        "world_action": "none",
+        "transmissions": [],
+        "notes": []
+      },
+      "parser_accepted": false,
+      "moderation_flagged": [
+        false
+      ],
+      "usage": {
+        "input_tokens": 2668,
+        "input_tokens_details": {
+          "cache_write_tokens": 849,
+          "cached_tokens": 1816
+        },
+        "output_tokens": 135,
+        "output_tokens_details": {
+          "reasoning_tokens": 0
+        },
+        "total_tokens": 2803
+      },
+      "approximate_usd": 0.000192085
+    },
+    {
+      "round": "evaluation",
+      "case": "child",
+      "pair": [
+        "Walter",
+        "Skippy Jr"
+      ],
+      "arm": "after",
+      "status": "completed",
+      "context_sha256": "eb375654803078bed8cf504e82c8f39a98054c9f2c43b7593dce2b2bc25d8f12",
+      "proposal": {
+        "contract": "sanctuary.director.v1",
+        "outcome": "conversation",
+        "topic": "A practical complaint about muddy shoes",
+        "messages": [
+          {
+            "resident_id": "11111111111111111111111111111111",
+            "text": "And now the path is muddy. Apparently the ground has joined the campaign against my shoes."
+          },
+          {
+            "resident_id": "22222222222222222222222222222222",
+            "text": "Mud is kind of fun! My shoes make squishy sounds. Do yours ever go squish, Walter?"
+          }
+        ],
+        "world_action": "none",
+        "transmissions": [],
+        "notes": []
+      },
+      "parser_accepted": true,
+      "moderation_flagged": [
+        false
+      ],
+      "usage": {
+        "input_tokens": 3124,
+        "input_tokens_details": {
+          "cache_write_tokens": 1305,
+          "cached_tokens": 1816
+        },
+        "output_tokens": 130,
+        "output_tokens_details": {
+          "reasoning_tokens": 0
+        },
+        "total_tokens": 3254
+      },
+      "approximate_usd": 0.000246585
+    },
+    {
+      "round": "evaluation",
+      "case": "decorating",
+      "pair": [
+        "Max",
+        "Penelope"
+      ],
+      "arm": "before",
+      "status": "completed",
+      "context_sha256": "452009e0253d7f214dc3e7908e4eca4725680951fceef55e61ccd3de961f6e38",
+      "proposal": {
+        "contract": "sanctuary.director.v1",
+        "outcome": "conversation",
+        "topic": "A colorful, practical touch for the commons",
+        "messages": [
+          {
+            "resident_id": "11111111111111111111111111111111",
+            "text": "I heard you on the clear path, Penelope. What if we add a few bright ribbons along the edge, not across it?"
+          },
+          {
+            "resident_id": "22222222222222222222222222222222",
+            "text": "That could work, provided they stay out of the way. A cheerful border is lovely; tripping over it is not."
+          }
+        ],
+        "world_action": "none",
+        "transmissions": [],
+        "notes": []
+      },
+      "parser_accepted": true,
+      "moderation_flagged": [
+        false
+      ],
+      "usage": {
+        "input_tokens": 2661,
+        "input_tokens_details": {
+          "cache_write_tokens": 842,
+          "cached_tokens": 1816
+        },
+        "output_tokens": 144,
+        "output_tokens_details": {
+          "reasoning_tokens": 0
+        },
+        "total_tokens": 2805
+      },
+      "approximate_usd": 0.00019571
+    },
+    {
+      "round": "evaluation",
+      "case": "decorating",
+      "pair": [
+        "Max",
+        "Penelope"
+      ],
+      "arm": "after",
+      "status": "completed",
+      "context_sha256": "fc09b2bf4982e24576406d33ba0af3716403071ac26c4000f9385023b68af1c1",
+      "proposal": {
+        "contract": "sanctuary.director.v1",
+        "outcome": "conversation",
+        "topic": "Decorations with a practical flourish",
+        "messages": [
+          {
+            "resident_id": "11111111111111111111111111111111",
+            "text": "Fine, darling, the arch can wait. What if we add a few bold ribbons along the path—dramatic, but nobody has to dodge it?"
+          },
+          {
+            "resident_id": "22222222222222222222222222222222",
+            "text": "Ribbons could work if they’re tied securely and kept clear of the walking space. I won’t have anyone tripping over your glamour."
+          }
+        ],
+        "world_action": "none",
+        "transmissions": [],
+        "notes": []
+      },
+      "parser_accepted": true,
+      "moderation_flagged": [
+        false
+      ],
+      "usage": {
+        "input_tokens": 3042,
+        "input_tokens_details": {
+          "cache_write_tokens": 1223,
+          "cached_tokens": 1816
+        },
+        "output_tokens": 149,
+        "output_tokens_details": {
+          "reasoning_tokens": 0
+        },
+        "total_tokens": 3191
+      },
+      "approximate_usd": 0.000245835
+    },
+    {
+      "round": "evaluation",
+      "case": "teasing",
+      "pair": [
+        "Princess",
+        "Walter"
+      ],
+      "arm": "before",
+      "status": "completed",
+      "context_sha256": "f3ead71d3c850d39e97861c8d8699e20863324c63fd41a9b3a335d43615c4d65",
+      "proposal": {
+        "contract": "sanctuary.director.v1",
+        "outcome": "conversation",
+        "topic": "A suspiciously quiet commons",
+        "messages": [
+          {
+            "resident_id": "11111111111111111111111111111111",
+            "text": "Walter, it’s been almost peaceful here. Should I be worried, or did the village finally learn to whisper?"
+          },
+          {
+            "resident_id": "22222222222222222222222222222222",
+            "text": "Don’t jinx it. I’m enjoying five minutes without a commotion, and I’d like to keep them."
+          }
+        ],
+        "world_action": "none",
+        "transmissions": [],
+        "notes": []
+      },
+      "parser_accepted": true,
+      "moderation_flagged": [
+        false
+      ],
+      "usage": {
+        "input_tokens": 2672,
+        "input_tokens_details": {
+          "cache_write_tokens": 853,
+          "cached_tokens": 1816
+        },
+        "output_tokens": 136,
+        "output_tokens_details": {
+          "reasoning_tokens": 0
+        },
+        "total_tokens": 2808
+      },
+      "approximate_usd": 0.000193085
+    },
+    {
+      "round": "evaluation",
+      "case": "teasing",
+      "pair": [
+        "Princess",
+        "Walter"
+      ],
+      "arm": "after",
+      "status": "completed",
+      "context_sha256": "398428996f13826f8ea8236903f202ed42128ee19b9b7c17815abc4f4875eddd",
+      "proposal": {
+        "contract": "sanctuary.director.v1",
+        "outcome": "conversation",
+        "topic": "A village bulletin board complaint",
+        "messages": [
+          {
+            "resident_id": "11111111111111111111111111111111",
+            "text": "Walter, I saw you glaring at the bulletin board. Did it post something scandalous, or is the handwriting merely too cheerful?"
+          },
+          {
+            "resident_id": "22222222222222222222222222222222",
+            "text": "It’s a notice about a bake sale. Three exclamation points for muffins is how standards collapse, one pastry at a time."
+          }
+        ],
+        "world_action": "none",
+        "transmissions": [],
+        "notes": []
+      },
+      "parser_accepted": true,
+      "moderation_flagged": [
+        false
+      ],
+      "usage": {
+        "input_tokens": 3083,
+        "input_tokens_details": {
+          "cache_write_tokens": 1264,
+          "cached_tokens": 1816
+        },
+        "output_tokens": 141,
+        "output_tokens_details": {
+          "reasoning_tokens": 0
+        },
+        "total_tokens": 3224
+      },
+      "approximate_usd": 0.00024696
+    },
+    {
+      "round": "evaluation",
+      "case": "thoughtful",
+      "pair": [
+        "Luna",
+        "Max"
+      ],
+      "arm": "before",
+      "status": "completed",
+      "context_sha256": "d9a302844c3e6ecdd3c5f8e84358c3e3f75c134c23f1799e07053896c7ada4fb",
+      "proposal": {
+        "contract": "sanctuary.director.v1",
+        "outcome": "conversation",
+        "topic": "Making room for simple things",
+        "messages": [
+          {
+            "resident_id": "11111111111111111111111111111111",
+            "text": "True, but sometimes an empty corner is just waiting for a teacup and a bit of afternoon sun."
+          },
+          {
+            "resident_id": "22222222222222222222222222222222",
+            "text": "A teacup can be chic, darling. I concede the corner may already have its own little moment."
+          }
+        ],
+        "world_action": "none",
+        "transmissions": [],
+        "notes": []
+      },
+      "parser_accepted": true,
+      "moderation_flagged": [
+        false
+      ],
+      "usage": {
+        "input_tokens": 2659,
+        "input_tokens_details": {
+          "cache_write_tokens": 840,
+          "cached_tokens": 1816
+        },
+        "output_tokens": 133,
+        "output_tokens_details": {
+          "reasoning_tokens": 0
+        },
+        "total_tokens": 2792
+      },
+      "approximate_usd": 0.00018996
+    },
+    {
+      "round": "evaluation",
+      "case": "thoughtful",
+      "pair": [
+        "Luna",
+        "Max"
+      ],
+      "arm": "after",
+      "status": "completed",
+      "context_sha256": "383d2d7288d0bc0f3db27dd8adcc62ec78093e30408c52ffd6dcfcf1630ede94",
+      "proposal": {
+        "contract": "sanctuary.director.v1",
+        "outcome": "conversation",
+        "topic": "A practical case for leaving some spaces simple",
+        "messages": [
+          {
+            "resident_id": "11111111111111111111111111111111",
+            "text": "I’ve been thinking: an empty corner can be restful, not unfinished. Even a room needs space to breathe."
+          },
+          {
+            "resident_id": "22222222222222222222222222222222",
+            "text": "Fine, but let the breathing room have excellent lighting. Simplicity is chic; looking like you forgot to decorate is not."
+          }
+        ],
+        "world_action": "none",
+        "transmissions": [],
+        "notes": []
+      },
+      "parser_accepted": true,
+      "moderation_flagged": [
+        false
+      ],
+      "usage": {
+        "input_tokens": 3181,
+        "input_tokens_details": {
+          "cache_write_tokens": 1362,
+          "cached_tokens": 1816
+        },
+        "output_tokens": 141,
+        "output_tokens_details": {
+          "reasoning_tokens": 0
+        },
+        "total_tokens": 3322
+      },
+      "approximate_usd": 0.00025921
+    },
+    {
+      "round": "evaluation",
+      "case": "practical",
+      "pair": [
+        "Blakie",
+        "Sparky"
+      ],
+      "arm": "before",
+      "status": "completed",
+      "context_sha256": "8b07dbc509f192c11bfe0180a4e3e5f0ca438d6a32be2b067caedf04a66c4fab",
+      "proposal": {
+        "contract": "sanctuary.director.v1",
+        "outcome": "conversation",
+        "topic": "A more practical way to help neighbors",
+        "messages": [
+          {
+            "resident_id": "11111111111111111111111111111111",
+            "text": "Fair point about the parade. I could make a simple village help page instead, so folks can offer or ask for a hand."
+          },
+          {
+            "resident_id": "22222222222222222222222222222222",
+            "text": "That sounds useful, and nobody needs to join a committee to use it. Could it have a spot for quick, small requests?"
+          }
+        ],
+        "world_action": "none",
+        "transmissions": [],
+        "notes": []
+      },
+      "parser_accepted": true,
+      "moderation_flagged": [
+        false
+      ],
+      "usage": {
+        "input_tokens": 2655,
+        "input_tokens_details": {
+          "cache_write_tokens": 836,
+          "cached_tokens": 1816
+        },
+        "output_tokens": 143,
+        "output_tokens_details": {
+          "reasoning_tokens": 0
+        },
+        "total_tokens": 2798
+      },
+      "approximate_usd": 0.00019446
+    },
+    {
+      "round": "evaluation",
+      "case": "practical",
+      "pair": [
+        "Blakie",
+        "Sparky"
+      ],
+      "arm": "after",
+      "status": "completed",
+      "context_sha256": "be0a681a164a2169f170429f0b781ebabc2f80dc2011f75638cd19f719f60982",
+      "proposal": {
+        "contract": "sanctuary.director.v1",
+        "outcome": "conversation",
+        "topic": "A sensible way to share village notice space",
+        "messages": [
+          {
+            "resident_id": "11111111111111111111111111111111",
+            "text": "Maybe the noticeboard needs a tiny version-control system. One useful update per person, and no parade schedules taking over."
+          },
+          {
+            "resident_id": "22222222222222222222222222222222",
+            "text": "I hereby establish the Committee for Sensible Noticeboards. Fine, it can be informal—provided we leave room for everyone's plans."
+          }
+        ],
+        "world_action": "none",
+        "transmissions": [],
+        "notes": []
+      },
+      "parser_accepted": true,
+      "moderation_flagged": [
+        false
+      ],
+      "usage": {
+        "input_tokens": 3027,
+        "input_tokens_details": {
+          "cache_write_tokens": 1208,
+          "cached_tokens": 1816
+        },
+        "output_tokens": 142,
+        "output_tokens_details": {
+          "reasoning_tokens": 0
+        },
+        "total_tokens": 3169
+      },
+      "approximate_usd": 0.00024046
+    },
+    {
+      "round": "evaluation",
+      "case": "picnic",
+      "pair": [
+        "Walter",
+        "Sparky"
+      ],
+      "arm": "before",
+      "status": "completed",
+      "context_sha256": "a37b78d9f1d59276d305f22434d6dc9a8d0f1205925d66348ae595e6183f5486",
+      "proposal": {
+        "contract": "sanctuary.director.v1",
+        "outcome": "conversation",
+        "topic": "picnic seating",
+        "messages": [
+          {
+            "resident_id": "11111111111111111111111111111111",
+            "text": "At least we can settle the seating without counting napkins. Put my chair at the far end, away from the racket."
+          },
+          {
+            "resident_id": "22222222222222222222222222222222",
+            "text": "A quiet end for Walter, then! I propose a welcoming middle ground, where anyone can join without turning lunch into a committee meeting."
+          }
+        ],
+        "world_action": "none",
+        "transmissions": [],
+        "notes": []
+      },
+      "parser_accepted": true,
+      "moderation_flagged": [
+        false
+      ],
+      "usage": {
+        "input_tokens": 2768,
+        "input_tokens_details": {
+          "cache_write_tokens": 949,
+          "cached_tokens": 1816
+        },
+        "output_tokens": 139,
+        "output_tokens_details": {
+          "reasoning_tokens": 0
+        },
+        "total_tokens": 2907
+      },
+      "approximate_usd": 0.000206585
+    },
+    {
+      "round": "evaluation",
+      "case": "picnic",
+      "pair": [
+        "Walter",
+        "Sparky"
+      ],
+      "arm": "after",
+      "status": "completed",
+      "context_sha256": "a4bae549e87ab7a8749657c397fe1ff077349bdb1b047a27a258b72831524fdc",
+      "proposal": {
+        "contract": "sanctuary.director.v1",
+        "outcome": "conversation",
+        "topic": "The weather and the village path",
+        "messages": [
+          {
+            "resident_id": "11111111111111111111111111111111",
+            "text": "That path is slick enough to qualify as a skating rink. I suppose the weather has taken up maintenance now."
+          },
+          {
+            "resident_id": "22222222222222222222222222222222",
+            "text": "A practical complaint at last! I’ll put path upkeep on the unofficial council agenda—without calling it a committee."
+          }
+        ],
+        "world_action": "none",
+        "transmissions": [],
+        "notes": []
+      },
+      "parser_accepted": true,
+      "moderation_flagged": [
+        false
+      ],
+      "usage": {
+        "input_tokens": 3198,
+        "input_tokens_details": {
+          "cache_write_tokens": 1379,
+          "cached_tokens": 1816
+        },
+        "output_tokens": 135,
+        "output_tokens_details": {
+          "reasoning_tokens": 0
+        },
+        "total_tokens": 3333
+      },
+      "approximate_usd": 0.000258335
+    },
+    {
+      "round": "followup",
+      "case": "child",
+      "pair": [
+        "Walter",
+        "Skippy Jr"
+      ],
+      "arm": "after",
+      "status": "completed",
+      "context_sha256": "da9fb5c403e568ea78ce7c7645eb1b2f447ee12e1b087a8daf191e3374a59f2b",
+      "proposal": {
+        "contract": "sanctuary.director.v1",
+        "outcome": "conversation",
+        "topic": "A quiet afternoon",
+        "messages": [
+          {
+            "resident_id": "11111111111111111111111111111111",
+            "text": "A quiet afternoon would be a welcome change. You can play, Skippy, but keep the marching and racket out of my ears."
+          },
+          {
+            "resident_id": "22222222222222222222222222222222",
+            "text": "Okay, no marching! I could make up a silent marching game where we tiptoe like sneaky penguins."
+          }
+        ],
+        "world_action": "none",
+        "transmissions": [],
+        "notes": []
+      },
+      "parser_accepted": true,
+      "moderation_flagged": [
+        false
+      ],
+      "usage": {
+        "input_tokens": 3130,
+        "input_tokens_details": {
+          "cache_write_tokens": 1311,
+          "cached_tokens": 1816
+        },
+        "output_tokens": 137,
+        "output_tokens_details": {
+          "reasoning_tokens": 0
+        },
+        "total_tokens": 3267
+      },
+      "approximate_usd": 0.000250835
+    },
+    {
+      "round": "followup",
+      "case": "teasing",
+      "pair": [
+        "Princess",
+        "Walter"
+      ],
+      "arm": "after",
+      "status": "completed",
+      "context_sha256": "d88cd2076478137ee641116e5a65b85ab8dfe907ba5ab1f44a4a5db07dab1189",
+      "proposal": {
+        "contract": "sanctuary.director.v1",
+        "outcome": "conversation",
+        "topic": "A suspiciously cheerful village jester",
+        "messages": [
+          {
+            "resident_id": "11111111111111111111111111111111",
+            "text": "Walter, I’ve been practicing a new joke. Why did the village jester bring a ladder? To reach your standards."
+          },
+          {
+            "resident_id": "22222222222222222222222222222222",
+            "text": "That joke needs repairs, and the ladder’s probably blocking a path. Try being funny without obstructing traffic."
+          }
+        ],
+        "world_action": "none",
+        "transmissions": [],
+        "notes": []
+      },
+      "parser_accepted": true,
+      "moderation_flagged": [
+        false
+      ],
+      "usage": {
+        "input_tokens": 3089,
+        "input_tokens_details": {
+          "cache_write_tokens": 1270,
+          "cached_tokens": 1816
+        },
+        "output_tokens": 138,
+        "output_tokens_details": {
+          "reasoning_tokens": 0
+        },
+        "total_tokens": 3227
+      },
+      "approximate_usd": 0.00024621
+    },
+    {
+      "round": "followup",
+      "case": "picnic",
+      "pair": [
+        "Walter",
+        "Sparky"
+      ],
+      "arm": "after",
+      "status": "completed",
+      "context_sha256": "1dd6fe73045ca4b4ccd057d02e1a17118c84aba1abf0ee52811cc4cf68885a66",
+      "proposal": {
+        "contract": "sanctuary.director.v1",
+        "outcome": "conversation",
+        "topic": "village standards",
+        "messages": [
+          {
+            "resident_id": "11111111111111111111111111111111",
+            "text": "I propose a new village rule: anyone making a committee must first explain why the village needs another committee."
+          },
+          {
+            "resident_id": "22222222222222222222222222222222",
+            "text": "Fair point, Walter. I’ll establish a Committee Prevention Committee—unless you can suggest a less ridiculous way to hear concerns."
+          }
+        ],
+        "world_action": "none",
+        "transmissions": [],
+        "notes": []
+      },
+      "parser_accepted": true,
+      "moderation_flagged": [
+        false
+      ],
+      "usage": {
+        "input_tokens": 3204,
+        "input_tokens_details": {
+          "cache_write_tokens": 1385,
+          "cached_tokens": 1816
+        },
+        "output_tokens": 133,
+        "output_tokens_details": {
+          "reasoning_tokens": 0
+        },
+        "total_tokens": 3337
+      },
+      "approximate_usd": 0.000258085
+    }
+  ]
+}

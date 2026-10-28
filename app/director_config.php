@@ -10,6 +10,8 @@ function directorConfiguration():array
     if(!in_array($runtime,['responses','agents'],true))throw new AiGuard('configuration_invalid');
     return ['enabled'=>$flag==='1','runtime'=>$runtime,'agent_id'=>(string)getenv('LITTLE_SPARKS_DIRECTOR_AGENT_ID'),
         'fingerprint'=>(string)getenv('LITTLE_SPARKS_DIRECTOR_CONFIG_SHA256'),
+        // Retired excerpt setting: validate old configuration for compatibility,
+        // but full descriptions now use the existing total context byte guard.
         'description_context'=>boundedEnvironmentInteger('LITTLE_SPARKS_DIRECTOR_DESCRIPTION_CONTEXT',800,1,2000),
         'instructions_bytes'=>boundedEnvironmentInteger('LITTLE_SPARKS_DIRECTOR_INSTRUCTIONS_BYTES',4096,1,8192)];
 }

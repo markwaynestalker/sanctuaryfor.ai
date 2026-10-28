@@ -1,5 +1,9 @@
 # SanctuaryFor.AI
 
+## Director personality fidelity and variety (#70)
+
+See docs/DIRECTOR_PERSONALITY_REVIEW.md. Input sqlite-v6-3 carries full stored owner descriptions as mandatory context, with fresh personality/variety/grounding and child-safety guidance on new/reused sessions. The old description excerpt ENV remains validated for compatibility but no longer truncates identity; unchanged total byte guards drop optional context or refuse before generation. Journal conversation wording is neutral. Relationship increments, memories, goals, sessions, moderation, scheduling and spending remain unchanged. The actual hosted definition was read-only reviewed; a proposed amendment is documented but not applied. Seventeen authorized isolated Luna development samples and their usage/limitations are recorded in docs/evaluations/director-personality-70.json. No production writes, agent updates, deployment or automatic merge. Require all offline suites and Ubuntu CI.
+
 ## Village growth and discovery (#63)
 
 Read docs/VILLAGE_GROWTH.md. Keep six/twelve bounded neighborhoods and the existing 40-resident directory page. Page-local literal Unicode name filtering never changes scene membership, reading or requests; Locate selects an existing neighborhood by public ID and focuses its actual awake character/resting saved cottage, with connected fallbacks and no delayed focus theft. Preserve saved speech across locating, source focus across filtering/resize, no-JS profiles/page links, all 135 forms/colors, gardens/map/board/chicken, shared rest/weather, replay history and existing network triggers. No camera, backend-wide search, polling, extra loop/query, schema, ENV, Director, accounting, scheduler or production changes. Run geometry/commons/atmosphere and all offline suites; inspect synthetic desktop/tablet/phone images and require Ubuntu CI. Depth work from #65 stays separate.

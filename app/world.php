@@ -10,7 +10,7 @@ const EVENT_TEXT = [
     'plant_flowers' => 'planted wildflowers', 'plant_bush' => 'planted a berry bush',
     'decorate_house' => 'decorated their cottage with stars', 'build_path' => 'laid a stone path',
     'place_decoration' => 'placed a garden lantern', 'adopt_pet' => 'adopted a virtual cat',
-    'visit_friend' => 'visited a neighbor', 'conversation' => 'shared a friendly conversation',
+    'visit_friend' => 'visited a neighbor', 'conversation' => 'had a conversation',
     'quiet_time' => 'shared a quiet moment, then took some space',
 ];
 
