@@ -25,8 +25,14 @@ try{
  assert.equal((await fetch(origin+'/bulletin.php',{method:'POST',body:'notice=untrusted'})).status,405);
  for(const query of ['?page[]=1','?page=0','?history[]=1','?history=bad','?unknown=1'])assert.equal((await fetch(origin+'/bulletin.php'+query)).status,422);
  const village=await (await fetch(origin+'/village.php')).text();assert.ok(village.includes('class="village-noticeboard" href="bulletin.php"')&&village.includes('1 active notices'),'Physical board uses native accessible no-JS link and saved count');
+ const commonsUrl=origin+'/api/commons.php?ids='+fixture.ids.join(',');
+ const saved=await fetch(commonsUrl);assert.equal(saved.status,200);assert.equal(saved.headers.get('set-cookie'),null);
+ const activity=(await saved.json()).bulletin_posts;assert.equal(activity.length,1,'Completed moderated saved post has one attributable public indicator');
+ assert.equal(activity[0].id,fixture.notice);assert.ok(fixture.ids.includes(activity[0].resident_id));assert.deepEqual(Object.keys(activity[0]).sort(),['created_at','id','name','resident_id']);
+ const other=fixture.ids.find(id=>id!==activity[0].resident_id);assert.deepEqual((await (await fetch(origin+'/api/commons.php?ids='+other)).json()).bulletin_posts,[],'Only visible authors are projected');
  assert.equal(await digest(),before,'Public GET/POST rejection leaves SQLite unchanged');
  const remove=spawnSync(php,['scripts/remove-bulletin-notice.php','--database='+publicDb,'--notice='+fixture.notice,'--confirm='+fixture.notice],{cwd:root,env,encoding:'utf8'});assert.equal(remove.status,0,remove.stderr);
  assert.ok(!(await (await fetch(origin+'/bulletin.php?history=1')).text()).includes('question &amp; a little curiosity'),'Withdrawn text is hidden from all public history');
+ assert.deepEqual((await (await fetch(commonsUrl)).json()).bulletin_posts,[],'Withdrawal removes the saved-post indicator as well');
  console.log('PASS no-JS/keyboard native board, mobile semantic papers, exact escaped text, private projection, GET-only browsing without database writes or cookies, and operator-only CLI withdrawal preserving history');
 }finally{if(server){const exited=new Promise(ok=>server.once('exit',ok));server.kill();await exited;}await rm(dir,{recursive:true,force:true});}

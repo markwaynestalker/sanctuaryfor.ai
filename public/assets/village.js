@@ -8,11 +8,12 @@
     const meadow = globalThis.SparksMeadow;
     const setProfileLink = commons.bindProfileLink($('profile-life-link'), $('resident-profile'));
     $('profile-idea-link')?.addEventListener('click',()=>{if($('resident-profile').open)$('resident-profile').close();});
-    let homes = [], exchanges = new Map(), activeMeeting = null, commonsVersion = 0, dialogueOrigin = null;
+    let homes = [], exchanges = new Map(), posts = new Map(), activeMeeting = null, gathering = null, commonsVersion = 0, dialogueOrigin = null;
     let replayStorage;
     try { replayStorage = sessionStorage; } catch { /* Storage may be disabled. */ }
     const played = commons.replayHistory(replayStorage);
     let replayCooldown = 60;
+    const replayReadyAt=performance.now()+3000;
     let sleepPolicy=null,sleepReceivedAt=0,sleeping=false,commonsReady=false;
     let sceneWidth = 1000, sceneHeight = 520, sceneGeometry;
     if (typeof ResizeObserver !== 'undefined') new ResizeObserver(entries => {
@@ -181,7 +182,7 @@
             const indicator=document.createElement('button');indicator.type='button';indicator.className='conversation-indicator';indicator.textContent='💬';indicator.hidden=true;
             indicator.addEventListener('click',()=>{const saved=latestFor(resident.id);if(saved)showExchange(saved,indicator,true);});$('conversation-layer').append(indicator);
             const old=previousWalkers.get(resident.id);
-            const walker = {resident, element: actor, indicator, x: old?.x??0, y: old?.y??0, target:old?.target, nextDecision:old?.nextDecision, stop: Number.isFinite(old?.stop)?old.stop:performance.now()+Math.random()*2500, hover: false};
+            const walker = {resident, element: actor, indicator, x: old?.x??0, y: old?.y??0, target:old?.target, motion:old?.motion, idleUntil:old?.idleUntil, walkUntil:old?.walkUntil, stop: Number.isFinite(old?.stop)?old.stop:performance.now()+Math.random()*2500, hover: false};
             actor.addEventListener('pointerenter', () => { walker.hover = true; });
             actor.addEventListener('pointerleave', () => { walker.hover = false; });
             for(const control of [actor,indicator]){control.addEventListener('focus',()=>{walker.hover=true;});control.addEventListener('blur',()=>{walker.hover=false;});}
@@ -192,6 +193,7 @@
         frame = 0; lastTick = 0;syncSleep(); schedule();
     }
     function renderHomes() {
+        cancelGathering();
         $('home-layer').replaceChildren();$('garden-layer').replaceChildren();
         const visible = new Map(walkers.map(w => [w.resident.id, w.resident]));
         const actualHomes=homes.filter(home=>visible.has(home.resident_id)&&home.plot&&Array.isArray(home.objects)&&home.objects.some(o=>o.kind==='house'));
@@ -240,8 +242,24 @@
             const saved=latestFor(w.resident.id);
             w.element.hidden=!commonsReady||sleeping;w.indicator.hidden=!commonsReady||sleeping||!saved;
             w.element.dataset.conversation=String(Boolean(activeMeeting?.exchange.messages.some(m=>m.resident_id===w.resident.id)));
+            updateActivity(w);
+            w.element.dataset.notice=String(posts.has(w.resident.id));
+            w.element.title=w.resident.name+(posts.has(w.resident.id)?' · Saved public notice (not a live reading)':'');
+            w.element.setAttribute('aria-label',w.resident.name+(sleeping?' is resting.':'')+' Open resident profile'+(posts.has(w.resident.id)?'. Has a saved public notice.':''));
             w.indicator.setAttribute('aria-pressed',String(activeMeeting?.exchange.id===saved?.id&&Boolean(saved)));
             if(saved)w.indicator.setAttribute('aria-label','Read saved conversation: '+saved.messages.map(m=>m.name).join(' and '));
+        }
+    }
+    function updateActivity(w) {
+        w.element.dataset.activity=sleeping?'resting':activeMeeting&&(activeMeeting.a===w||activeMeeting.b===w)?'saved-conversation':gathering&&(gathering.a===w||gathering.b===w)?'gathering':w.motion==='walking'?'walking':'idle';
+    }
+    function renderPosts() {
+        const panel=$('board-posts');panel.replaceChildren();panel.hidden=!posts.size;
+        if(!posts.size)return;
+        const label=document.createElement('p');label.className='field-help';label.textContent='📌 Saved public posts by these neighbors · not live reading activity';panel.append(label);
+        for(const p of posts.values()){
+            const link=document.createElement('a');link.href='bulletin.php';link.className='saved-post';
+            link.textContent=p.name+' · Saved post · '+(globalThis.SparksAtmosphere?.format(p.created_at)??p.created_at);panel.append(link);
         }
     }
     function renderRecordings() {
@@ -264,12 +282,12 @@
         if(checkedAt)$('commons-freshness').textContent=`Saved life checked ${globalThis.SparksAtmosphere?.format(checkedAt)??checkedAt}. Refresh residents for updates. Automatic replays appear once per tab session; you can read any saved exchange again.`;
     }
     document.addEventListener('sparks:timezone',()=>{
-        renderRecordings();renderFreshness();
+        renderRecordings();renderPosts();renderFreshness();
         if(activeMeeting)$('dialogue-source').textContent=commons.sourceLabel(activeMeeting.exchange);
     });
     async function refreshCommons() {
         const version = ++commonsVersion, ids = walkers.map(w => w.resident.id);
-        homes = []; exchanges = new Map(); renderHomes(); renderRecordings();
+        homes = []; exchanges = new Map();posts=new Map(); renderHomes(); renderRecordings();renderPosts();
         if (!ids.length) return;
         try {
             const response = await fetch(`api/commons.php?ids=${encodeURIComponent(ids.join(','))}`, {credentials:'same-origin', cache:'no-store'});
@@ -280,7 +298,8 @@
             replayCooldown=replay;sleepPolicy=sleep;sleepReceivedAt=performance.now();commonsReady=true;syncSleep();
             homes = Array.isArray(data.homes) ? data.homes.slice(0, 24) : [];
             exchanges = commons.latestExchanges(Array.isArray(data.conversations) ? data.conversations : [], ids);
-            renderHomes(); renderRecordings();
+            posts=commons.bulletinPosts(data.bulletin_posts,ids);
+            renderHomes(); renderRecordings();renderPosts();
             updateIndicators();
             checkedAt=new Date().toISOString();renderFreshness();
         } catch {
@@ -292,7 +311,9 @@
         }
     }
     function stopPlayback() {
+        cancelGathering();
         if(activeMeeting)for(const w of [activeMeeting.a,activeMeeting.b])if(w&&!Number.isFinite(w.stop))w.stop=performance.now()+800;
+        meadow.endGather(activeMeeting,performance.now(),Math.random);
         activeMeeting=null;$('dialogue-panel').hidden=true;$('dialogue-lines').replaceChildren();updateIndicators();
     }
     function showExchange(exchange,source=null,focus=false) {
@@ -323,6 +344,10 @@
         walker.indicator.style.left=Math.max(4,Math.min(sceneWidth-48,walker.x+18))+'px';
         walker.indicator.style.top=Math.max(4,Math.min(sceneHeight-48,walker.y-50))+'px';
     }
+    function cancelGathering() {
+        meadow.endGather(gathering,performance.now(),Math.random);gathering=null;
+        walkers.forEach(updateActivity);
+    }
     function schedule() {
         if (!frame && commonsReady && !sleeping && !document.hidden && !paused && !$('resident-profile').open && walkers.length) frame = requestAnimationFrame(tick);
     }
@@ -337,22 +362,29 @@
         for (const walker of walkers) {
             place(walker);
         }
-        for (let i = 0; !activeMeeting && i < walkers.length; i++) {
+        if(gathering&&(now>=gathering.until||meadow.distance(gathering.a,gathering.b)<=175)){
+            const saved=gathering.exchange;cancelGathering();showExchange(saved);
+        }
+        walkers.forEach(updateActivity);
+        for (let i = 0; !activeMeeting && !gathering && i < walkers.length; i++) {
             const a = walkers[i];
             if (now < a.stop || a.hover) continue;
             for (let j = i + 1; j < walkers.length; j++) {
                 const b = walkers[j];
-                if (now < b.stop || b.hover || meadow.distance(a,b) > 180) continue;
+                if (now < b.stop || b.hover || now<replayReadyAt) continue;
                 const exchange = exchanges.get(commons.pairKey(a.resident.id, b.resident.id));
                 const canReplay = exchange && played.canPlay(exchange.id, Date.now(), replayCooldown);
                 if (!canReplay) continue; // Ordinary wandering/idle pauses; no invented meeting.
-                meadow.separate(a,b,sceneGeometry,Math.random);
-                showExchange(exchange);
+                const group=meadow.gather(a,b,walkers,sceneGeometry,now);
+                if(group&&meadow.distance(a,b)>175)gathering={...group,exchange};
+                else{meadow.endGather(group,now,Math.random);showExchange(exchange);}
+                updateIndicators();
                 break;
             }
         }
     }
     function motionLabel() {
+        if(paused)cancelGathering();
         $('motion-toggle').textContent = paused ? 'Resume wandering' : 'Pause wandering';
         $('motion-toggle').setAttribute('aria-pressed', String(paused));
         syncSceneMotion();
@@ -364,17 +396,17 @@
     function syncSleep() {
         const next=commons.sleepingAt(sleepPolicy,sleepPolicy?sleepPolicy.server_time*1000+performance.now()-sleepReceivedAt:Date.now());
         const changed=next!==sleeping;
-        if(next&&!sleeping){if(frame)cancelAnimationFrame(frame);frame=0;lastTick=0;}
+        if(next&&!sleeping){cancelGathering();if(frame)cancelAnimationFrame(frame);frame=0;lastTick=0;}
         sleeping=next;$('landscape').dataset.sleeping=String(sleeping);
         $('sleep-note').hidden=!commonsReady||!sleeping;$('sleep-note').textContent=sleeping?'The village’s opt-in rest hours are active. Lit cottages show saved homes; profiles and recorded conversations remain available.':'';
-        for(const w of walkers){w.element.dataset.sleeping=String(sleeping);w.element.setAttribute('aria-label',w.resident.name+(sleeping?' is resting.':'')+' Open resident profile');}
+        for(const w of walkers)w.element.dataset.sleeping=String(sleeping);
         for(const item of $('resident-directory').children){const rest=item.children[0]?.children[1]?.children[2];if(rest)rest.hidden=!commonsReady||!sleeping;}
         if($('resident-profile').open)$('profile-rest-status').textContent=restLabel();
         if(changed)renderHomes();else updateIndicators();syncSceneMotion();
         if(!sleeping)schedule();
     }
     document.addEventListener('sparks:clock',syncSleep);
-    document.addEventListener('visibilitychange', () => {syncSleep(); syncSceneMotion(); lastTick = 0; schedule(); });
+    document.addEventListener('visibilitychange', () => {if(document.hidden)cancelGathering();syncSleep(); syncSceneMotion(); lastTick = 0; schedule(); });
     narrow.addEventListener('change', () => {
         const before=walkers.map(w=>w.resident.id).join(','),limit=meadow.capacity(narrow.matches),groups=Math.max(1,Math.ceil(population.length/limit));
         neighborhood=Math.min(neighborhood,groups-1);

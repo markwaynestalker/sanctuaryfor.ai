@@ -36,7 +36,7 @@ try{
         const noResidents=await (await fetch(origin+'/api/commons.php?ids='+Array(32).fill('a').join(''))).json();
         const {server_time,...restPolicy}=noResidents.settings.sleep;assert.ok(Number.isSafeInteger(server_time)&&Math.abs(Date.now()/1000-server_time)<10);
         assert.deepEqual(restPolicy,{enabled:false,start_hour:23,end_hour:7,time_zone:'America/New_York',sleeping:false,next_transition_at:null});
-        assert.deepEqual({...noResidents,settings:{replay_cooldown_seconds:noResidents.settings.replay_cooldown_seconds}},{homes:[],conversations:[],settings:{replay_cooldown_seconds:60}});
+        assert.deepEqual({...noResidents,settings:{replay_cooldown_seconds:noResidents.settings.replay_cooldown_seconds}},{homes:[],conversations:[],bulletin_posts:[],settings:{replay_cooldown_seconds:60}});
         const meadow=await (await fetch(origin+'/village.php')).text();assert.ok(!meadow.includes('class="scene-house"'));assert.ok(meadow.includes('id="home-layer"')&&meadow.includes('assets/commons.js'));assert.ok(!meadow.includes('Its interactions are scripted, not AI conversations.'));
         assert.ok(meadow.includes('href="/resident.php?id='+fixture.residents[0]+'"'),'server-rendered profile link survives disabled JavaScript');
         for(const asset of ['village.js','commons.js','meadow.js','village.css','world.css']){

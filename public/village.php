@@ -87,6 +87,8 @@ if($available)$appearanceReady=LittleSparks\appearanceInstalled($db);
         <p id="chicken-message" class="chicken-message" role="status">The chickens are protected. Always.</p>
         <p id="commons-freshness" class="field-help" role="status">Refresh residents to discover the latest saved village life. Visiting never starts a simulation.</p>
         <p><a class="profile-life-link" href="conversations.php">Browse all conversations ↗</a> · <a href="bulletin.php">Read the bulletin board ↗</a></p>
+        <div id="board-posts" class="board-posts" hidden></div>
+        <p class="field-help">Wandering is decorative. Highlighted pairs replay saved conversations; no new encounter is created by this scene.</p>
         <details class="commons-recordings"><summary>Read recent saved conversations</summary><div id="saved-dialogue"><p class="field-help">Saved exchanges will appear here when available. You can also read the <a href="journal.php">village journal</a>.</p></div></details>
     </section>
     <div class="village-columns">
