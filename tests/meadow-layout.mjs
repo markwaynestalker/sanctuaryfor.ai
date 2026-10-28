@@ -59,4 +59,14 @@ for(const width of [278,388,1000]){
  const focused={...pair[0],hover:true};assert.equal(m.gather(focused,pair[1],[focused,pair[1]],scene,0),null,'Never move a focused/hovered control');
  const blocked={...scene,obstacles:[{left:0,right:width,top:0,bottom:scene.height}]};assert.equal(m.gather(pair[0],pair[1],pair,blocked,20000),null,'No safe gathering means association in place, not invented geometry');
 }
+// #63: population thresholds measured independently of the cosmetic form catalog.
+for(const mobile of [true,false])for(const count of [1,3,6,12,40])for(const width of [120,272,320,600,1000]){
+ const visible=Math.min(count,m.capacity(mobile)),saved=homes(visible),original=JSON.stringify(saved),scene=m.layout(width,saved,mobile,visible),rest=m.layout(width,saved,mobile,visible,true);
+ const walkers=Array.from({length:visible},()=>({resident:{},stop:0}));m.seed(walkers,scene,0,rng(width+count));
+ assert.equal(rest.plots.length,visible);assert.equal(JSON.stringify(saved),original);assert.equal(scene.plots.length,0);
+ for(const w of walkers){assert.ok(m.free(w,scene));assert.ok(w.x-48>=0&&w.x+48<=width,'Full 96px name/avatar footprint fits measured scene');}
+ for(let i=0;i<walkers.length;i++)for(let j=0;j<i;j++)assert.ok(!m.overlaps(walkers[i],walkers[j]),'Population matrix never overlaps full footprints');
+ assert.ok(rest.plots.every(p=>p.left>=0&&p.left+p.width<=width),'Saved resting homes fit at every measured threshold');
+ if(visible<=3&&width>=600)assert.equal(scene.height,535,'Small villages keep the existing compact scene');
+}
 console.log('PASS awake open meadows, resting homes at every width, immutable gardens, house/board/chicken separation, full SVG/name geometry, bounded neighborhoods, natural wandering and stable reading participants');

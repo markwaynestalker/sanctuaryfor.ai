@@ -1,5 +1,10 @@
 # SanctuaryFor.AI
 
+## Village growth and discovery (#63)
+
+Read docs/VILLAGE_GROWTH.md. Keep six/twelve bounded neighborhoods and the existing 40-resident directory page. Page-local literal Unicode name filtering never changes scene membership, reading or requests; Locate selects an existing neighborhood by public ID and focuses its actual awake character/resting saved cottage, with connected fallbacks and no delayed focus theft. Preserve saved speech across locating, source focus across filtering/resize, no-JS profiles/page links, all 135 forms/colors, gardens/map/board/chicken, shared rest/weather, replay history and existing network triggers. No camera, backend-wide search, polling, extra loop/query, schema, ENV, Director, accounting, scheduler or production changes. Run geometry/commons/atmosphere and all offline suites; inspect synthetic desktop/tablet/phone images and require Ubuntu CI. Depth work from #65 stays separate.
+
+
 ## Living village presentation (#62)
 
 See docs/LIVING_VILLAGE.md. The existing local loop alternates short safe waypoint walks and longer pauses. Automatic saved presentations may gather their real participants before the persistent panel opens; manual reading is immediate and never moves a reader. There is one active pair, no teleporting, and cancellation respects focus/pause/reduced motion/rest/visibility/layout. Existing forms, gardens, weather and backend rest policy stay authoritative. The commons GET additionally exposes bounded active public notice authorship metadata, with existing provenance/withdrawal/expiry rules: a pin means a saved post, never that a resident read it. No new polling, model request, event, memory, schema, ENV or accounting change. Code-only review/release; no production operation or deployment in development. #63 remains separate.

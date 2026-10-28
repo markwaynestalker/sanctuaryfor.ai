@@ -42,7 +42,8 @@
     function robot(resident) {return avatars.render(resident,'robot');}
     function returnFocus(source,id) {
         const usable=source?.isConnected&&!source.hidden&&(!source.getClientRects||source.getClientRects().length>0);
-        const index=population.findIndex(r=>r.id===id),fallback=$('resident-directory').children[index]?.children[0];
+        const index=population.findIndex(r=>r.id===id),item=$('resident-directory').children[index];
+        const fallback=item&&!item.hidden?item.children[0]:$('resident-search');
         (usable?source:fallback||$('refresh-residents')).focus();
     }
     async function api(endpoint, body) {
@@ -142,6 +143,39 @@
         const token = takePrivateFragment();
         if (token !== null) { revisitToken = token; openPrivateRevisit(); }
     });
+    function filterDirectory() {
+        const query=($('resident-search').value||'').trim().normalize('NFC').toLowerCase();
+        let matches=0;
+        population.forEach((resident,index)=>{
+            const item=$('resident-directory').children[index];
+            item.hidden=!resident.name.normalize('NFC').toLowerCase().includes(query);
+            if(!item.hidden)matches++;
+        });
+        $('clear-resident-search').disabled=!$('resident-search').value;
+        $('resident-search-status').textContent=query?`${matches} of ${population.length} names match on this page.`:`${population.length} names on this page.`;
+    }
+    $('resident-search').addEventListener('input',filterDirectory);
+    $('clear-resident-search').addEventListener('click',()=>{
+        $('resident-search').value='';filterDirectory();$('resident-search').focus();
+    });
+    async function locateResident(resident,source) {
+        const index=population.findIndex(r=>r.id===resident.id);
+        if(index<0||loading)return;
+        const next=Math.floor(index/meadow.capacity(narrow.matches)),changed=next!==neighborhood;
+        if(changed){neighborhood=next;render(true);}
+        const origin=changed?$('resident-directory').children[index].children[1]:source;
+        origin.focus();
+        // A new neighborhood uses only the existing scoped commons read. Never
+        // move a resident, replace a selected transcript or fetch on search input.
+        if(changed)await refreshCommons();
+        if(!origin.isConnected)return;
+        $('directory-status').textContent=`${resident.name} is in neighborhood ${neighborhood+1}. `+(commonsReady?(sleeping?'Resting; their saved home is shown when available.':'Their character is in view.'):'Saved village state is unavailable; their profile remains available.');
+        if(document.activeElement!==origin)return;
+        const walker=walkers.find(w=>w.resident.id===resident.id);
+        const home=[...$('home-layer').children].find(el=>el.dataset.resident===resident.id);
+        const target=commonsReady?(sleeping?home:walker?.element):null;
+        (target&&!target.hidden?target:origin).focus();
+    }
     function render(keepDialogue=false) {
         const reading=keepDialogue&&activeMeeting?.exchange;
         if(!reading)stopPlayback();
@@ -164,11 +198,13 @@
             button.type = 'button'; button.className = 'directory-resident';
             button.append(robot(resident));
             const caption = document.createElement('span'), name = document.createElement('strong'), detail = document.createElement('span');
-            name.textContent = resident.name; detail.textContent = `${resident.description ? 'Owner-written personality' : resident.personality} · ${avatars.appearance(resident).primary_color}`;
+            name.textContent = resident.name; detail.textContent = `${avatars.registry.forms.find(f=>f.id===avatars.appearance(resident).form).name} · ${resident.description ? 'Owner-written personality' : resident.personality} · ${avatars.appearance(resident).primary_color}`;
             const rest=document.createElement('span');rest.className='directory-rest';rest.textContent='Resting';rest.hidden=!sleeping;
             caption.append(name, detail,rest); button.append(caption);
             button.addEventListener('click', () => showProfile(resident, button));
-            item.append(button); $('resident-directory').append(item);
+            const locate=document.createElement('button');locate.type='button';locate.className='small-button locate-resident';locate.textContent='Locate';locate.setAttribute('aria-label',`Locate ${resident.name} in the village`);
+            locate.addEventListener('click',()=>locateResident(resident,locate));
+            item.append(button,locate); $('resident-directory').append(item);
             // The directory keeps the full page. The landscape stays calm on small screens.
             if (index < first || index >= last) return;
             const actor = document.createElement('button');
@@ -188,11 +224,13 @@
             for(const control of [actor,indicator]){control.addEventListener('focus',()=>{walker.hover=true;});control.addEventListener('blur',()=>{walker.hover=false;});}
             walkers.push(walker); place(walker);
         });
+        $('resident-discovery').hidden=false;filterDirectory();
         if(reading){activeMeeting={exchange:reading,a:walkers.find(w=>w.resident.id===reading.messages[0].resident_id),b:walkers.find(w=>w.resident.id===reading.messages[1].resident_id)};for(const w of [activeMeeting.a,activeMeeting.b])if(w)w.stop=Infinity;}
         renderHomes();
         frame = 0; lastTick = 0;syncSleep(); schedule();
     }
     function renderHomes() {
+        const focusedHome=[...$('home-layer').children].find(el=>el===document.activeElement);
         cancelGathering();
         $('home-layer').replaceChildren();$('garden-layer').replaceChildren();
         const visible = new Map(walkers.map(w => [w.resident.id, w.resident]));
@@ -223,12 +261,19 @@
             });
             shape.className='cottage-shape';shape.setAttribute('aria-hidden','true');
             name.className='cottage-name';name.textContent=resident.name;note.className='cottage-status';note.textContent='Resting';
-            link.append(shape,name,note);$('home-layer').append(link);
+            link.dataset.resident=resident.id;link.append(shape,name,note);$('home-layer').append(link);
         }
         sceneHeight=sceneGeometry.height;$('landscape').style.height=sceneHeight+'px';
         $('landscape').style.setProperty('--commons-width',sceneWidth+'px');
         if(!sleeping)meadow.seed(walkers,sceneGeometry,performance.now(),Math.random,true);
         updateIndicators();walkers.forEach(place);
+        if(focusedHome&&!focusedHome.isConnected){
+            const id=focusedHome.dataset.resident;
+            const home=[...$('home-layer').children].find(el=>el.dataset.resident===id);
+            const actor=walkers.find(w=>w.resident.id===id)?.element;
+            const target=sleeping?home:actor;
+            if(commonsReady&&target&&!target.hidden)target.focus();else returnFocus(null,id);
+        }
     }
     function latestFor(id) {
         return [...exchanges.values()].filter(c=>c.messages.some(m=>m.resident_id===id)).sort((a,b)=>b.created_at.localeCompare(a.created_at)||b.id.localeCompare(a.id))[0];
@@ -447,7 +492,7 @@
             const response = await fetch(`api/residents.php?page=${requestedPage}`, {credentials:'same-origin', cache:'no-store'});
             const data = await response.json();
             if (!response.ok) throw new Error(data.error || 'The village is resting.');
-            if(page!==data.page)neighborhood=0;
+            if(page!==data.page){neighborhood=0;$('resident-search').value='';}
             csrf = data.csrf; population = data.residents; page = data.page; lastPage = data.lastPage;
             $('population').textContent = `${data.total} residents call this village home. Showing ${population.length} at a time.`;
             $('page-status').textContent = `Page ${page + 1} of ${lastPage + 1}`;
