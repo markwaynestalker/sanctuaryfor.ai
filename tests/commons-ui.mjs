@@ -43,7 +43,7 @@ class Element{
     focus(){this.doc.activeElement=this;for(const f of this.listeners.focus??[])f({});}showModal(){this.open=true;}close(){this.open=false;for(const f of this.listeners.close??[])f({});}
     click(overrides={}){const event={button:0,defaultPrevented:false,preventDefault(){this.defaultPrevented=true;},...overrides};for(const f of this.listeners.click??[])f(event);this.onclick?.(event);if(this.href&&!event.defaultPrevented&&!event.ctrlKey&&!event.metaKey)this.doc.location.href=new URL(this.href,this.doc.location.href).href;return event;}
 }
-async function meadow({mobile=false,reduced=false,third=false,conversation=exchange,replay=60,sleep,weather,unavailable=false,homesEnabled=true,people=residents,width=mobile?388:1000}={}){
+async function meadow({mobile=false,reduced=false,third=false,conversation=exchange,replay=60,sleep,weather,unavailable=false,bulletinPosts,homesEnabled=true,people=residents,width=mobile?388:1000}={}){
     const elements=new Map(),requests=[],frames=new Map(),media=new Map(),motionStates=[];let clock=1000,sequence=0;
     const location={href:'http://fixture.test/village.php',pathname:'/village.php',search:'',hash:''};
     const document={elements,location,hidden:false,listeners:{},getElementById(id){if(id==='creation-appearance')return null;if(!elements.has(id))elements.set(id,new Element(id.includes('link')?'a':'div',this));return elements.get(id);},createElement(tag){return new Element(tag,this);},createElementNS(ns,tag){return new Element(tag,this);},addEventListener(type,f){this.listeners[type]=f;}};
@@ -57,7 +57,7 @@ async function meadow({mobile=false,reduced=false,third=false,conversation=excha
         matchMedia(query){const value={matches:query.includes('reduced')?reduced:mobile,addEventListener(type,f){this.listener=f;}};media.set(query,value);return value;},
         addEventListener(){},requestAnimationFrame(f){frames.set(++sequence,f);return sequence;},cancelAnimationFrame(id){frames.delete(id);},
         ResizeObserver:class{constructor(f){resize=f;}observe(){}},
-        fetch:async(url,options)=>{requests.push({url,options});if(unavailable&&url.includes('commons.php'))return {ok:false,json:async()=>({error:'Fixture unavailable'})};const ids=new URL(url,'http://fixture.test/').searchParams.get('ids')?.split(',')||[];return {ok:true,json:async()=>url.includes('residents.php')?{residents:population,total:population.length,page:0,lastPage:0,csrf:'fixture'}:{homes:(homesEnabled?people:[]).map((r,i)=>({resident_id:r.id,plot:{x:i*4,y:0,width:4,height:4},objects:[{kind:'house',x:i*4+1,y:1},...(i===0?[{kind:'tree',x:3,y:3},{kind:'flowers',x:0,y:2},{kind:'bush',x:3,y:0},{kind:'path',x:1,y:2},{kind:'decoration',x:2,y:0}]:[])]})).filter(h=>ids.includes(h.resident_id)),conversations:conversation?(Array.isArray(conversation)?conversation:[conversation]):[]}};}});
+        fetch:async(url,options)=>{requests.push({url,options});if(unavailable&&url.includes('commons.php'))return {ok:false,json:async()=>({error:'Fixture unavailable'})};const ids=new URL(url,'http://fixture.test/').searchParams.get('ids')?.split(',')||[];return {ok:true,json:async()=>url.includes('residents.php')?{residents:population,total:population.length,page:0,lastPage:0,csrf:'fixture'}:{homes:(homesEnabled?people:[]).map((r,i)=>({resident_id:r.id,plot:{x:i*4,y:0,width:4,height:4},objects:[{kind:'house',x:i*4+1,y:1},...(i===0?[{kind:'tree',x:3,y:3},{kind:'flowers',x:0,y:2},{kind:'bush',x:3,y:0},{kind:'path',x:1,y:2},{kind:'decoration',x:2,y:0}]:[])]})).filter(h=>ids.includes(h.resident_id)),bulletin_posts:bulletinPosts,conversations:conversation?(Array.isArray(conversation)?conversation:[conversation]):[]}};}});
     const originalFetch=context.fetch;context.fetch=async(...args)=>{const result=await originalFetch(...args);if(args[0].includes('commons.php')){const json=result.json;result.json=async()=>({...await json(),settings:{replay_cooldown_seconds:replay,...(sleep?{sleep}:{}),...(weather?{weather}:{})}});}return result;};
     vm.runInContext(helperSource,context);vm.runInContext(meadowSource,context);vm.runInContext(avatarSource,context);vm.runInContext(villageSource,context);await new Promise(setImmediate);
     return {$,document,requests,frames,media,motionStates,resize(width){$('landscape').clientWidth=width;resize([{contentRect:{width,height:520}}]);},setConversation(value){conversation=value;},setUnavailable(value){unavailable=value;},setSleep(value){sleep=value;},advanceTime(ms){clock+=ms;document.listeners['sparks:clock']?.();},step(){clock+=80;const callbacks=[...frames.values()];frames.clear();for(const f of callbacks)f(clock);},clock:()=>clock};
@@ -158,3 +158,34 @@ for(const mobile of [false,true]){
  const m=await meadow({mobile,reduced:true,weather});assert.equal(m.requests.length,2);assert.equal(m.frames.size,0);assert.ok(m.$('home-layer').hidden);m.$('resident-directory').children[0].children[0].click();assert.ok(m.$('resident-profile').open);assert.ok(m.motionStates.at(-1));
 }
 console.log('PASS backend-policy sleep/wake houses, immutable visible gardens, 135 forms/RGB, six-phone neighborhoods and all 40 residents, native profile/house navigation, one persistent exact saved dialogue panel, no focus theft, literal Unicode text, replay privacy/cooldowns, reduced motion/weather and zero extra HTTP');
+
+// #62: decorative movement/gathering never changes recorded dialogue or calls APIs.
+const post={id:'d'.repeat(32),resident_id:a,name:'<script>literal author</script>',created_at:'2026-10-24T12:00:00Z'};
+assert.equal(h.bulletinPosts([post],[a]).size,1);
+for(const invalid of [{...post,id:'javascript:bad'},{...post,resident_id:c},{...post,created_at:'bad'},{...post,name:'x'.repeat(65)},null])assert.equal(h.bulletinPosts([invalid],[a]).size,0);
+assert.equal(h.bulletinPosts(undefined,[a]).size,0,'Older endpoint compatibility');
+const notice=await meadow({mobile:true,bulletinPosts:[post]});
+assert.ok(notice.$('board-posts').textContent.includes(post.name),'Author rendered literally, never HTML');assert.ok(notice.$('board-posts').textContent.includes('not live reading'));
+assert.equal(notice.$('board-posts').children[1].href,'bulletin.php');assert.equal(notice.$('robot-layer').children[0].dataset.notice,'true');
+assert.equal(notice.requests.length,2,'Saved posts reuse the commons read');
+for(const interrupted of ['none','pause','reduced','profile','hidden','sleep','manual']){
+ const m=await meadow({mobile:true});let gathered=false;
+ for(let tick=0;tick<100;tick++){m.step();if(m.$('robot-layer').children.some(e=>e.dataset.activity==='gathering')){gathered=true;break;}}
+ assert.ok(gathered,'Compact saved pair begins safe gathering');assert.ok(m.$('dialogue-panel').hidden,'Gathering precedes automatic replay, never fabricates speech');
+ const actors=m.$('robot-layer').children,positions=()=>actors.map(e=>[e.style.left,e.style.top]);
+ if(interrupted==='pause')m.$('motion-toggle').click();
+ if(interrupted==='reduced'){const media=m.media.get('(prefers-reduced-motion: reduce)');media.matches=true;media.listener();}
+ if(interrupted==='profile')m.$('resident-directory').children[0].children[0].click();
+ if(interrupted==='hidden'){m.document.hidden=true;m.document.listeners.visibilitychange();}
+ if(interrupted==='sleep'){m.setSleep({...sleepPolicy,server_time:Date.parse('2026-01-02T04:01:00Z')/1000});m.$('refresh-residents').click();await new Promise(setImmediate);await new Promise(setImmediate);}
+ if(interrupted==='manual')m.$('conversation-layer').children[0].click();
+ if(interrupted==='none'){
+  for(let tick=0;tick<250&&m.$('dialogue-panel').hidden;tick++)m.step();
+  assert.equal(m.$('dialogue-panel').hidden,false,'Bounded approach always yields the actual saved panel even if a route is crowded');
+ }
+ const held=positions();for(let tick=0;tick<50;tick++)m.step();assert.deepEqual(positions(),held,'Pause/rest/hidden or reading holds participants');
+ if(['none','manual'].includes(interrupted)){assert.ok(m.$('dialogue-lines').textContent.includes(exchange.messages[0].text));assert.ok(m.$('dialogue-lines').textContent.includes(exchange.messages[1].text));}
+ assert.ok(actors.every(e=>e.dataset.activity!=='gathering'),'Interrupted/finished gathering has no stale activity badge');
+ assert.equal(m.requests.length,interrupted==='sleep'?4:2,'Only explicit refresh performs more reads');
+}
+console.log('PASS occasional idle/walk states, bounded/cancellable gathering, exact saved replay, honest validated notice authorship and zero new paid/API activity');

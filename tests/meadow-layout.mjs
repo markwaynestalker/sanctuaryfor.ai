@@ -22,13 +22,16 @@ for(const [width,count,mobile] of [[272,3,true],[320,3,true],[320,4,true],[278,6
  let available=0,total=0;for(let y=scene.bounds.top;y<scene.bounds.bottom;y+=10)for(let x=scene.bounds.left;x<scene.bounds.right;x+=10){total++;if(m.free({x,y},scene))available++;}
  assert.ok(available/total>.8,'Awake meadow is dominant; gardens never become collision bands');
  const random=rng(width+count),walkers=Array.from({length:count},(_,i)=>({resident:{personality:['curious','playful','shy','philosophical'][i%4]},stop:0,hover:false}));m.seed(walkers,scene,0,random);
- const ranges=walkers.map(w=>({left:w.x,right:w.x,top:w.y,bottom:w.y,length:0}));let encounters=0;
- for(let tick=1;tick<=4000;tick++){
+ const ranges=walkers.map(w=>({left:w.x,right:w.x,top:w.y,bottom:w.y,length:0}));let encounters=0,idleFrames=0;
+ // Longer wall-clock observation preserves the broad exploration assertion
+ // while explicitly requiring more time standing than walking.
+ for(let tick=1;tick<=12000;tick++){
   const previous=walkers.map(w=>({x:w.x,y:w.y}));m.step(walkers,scene,.08,tick*80,random);
-  walkers.forEach((w,i)=>{assert.ok(m.free(w,scene));const r=ranges[i];r.left=Math.min(r.left,w.x);r.right=Math.max(r.right,w.x);r.top=Math.min(r.top,w.y);r.bottom=Math.max(r.bottom,w.y);r.length+=m.distance(w,previous[i]);});
+  walkers.forEach((w,i)=>{assert.ok(m.free(w,scene));const d=m.distance(w,previous[i]);assert.ok(d<=16*.08+.001,'No jump or teleport');if(w.motion==='idle')idleFrames++;const r=ranges[i];r.left=Math.min(r.left,w.x);r.right=Math.max(r.right,w.x);r.top=Math.min(r.top,w.y);r.bottom=Math.max(r.bottom,w.y);r.length+=d;});
   for(let i=0;i<count;i++)for(let j=0;j<i;j++){assert.ok(!m.overlaps(walkers[i],walkers[j]),'Full SVG and two-line name footprints stay separate');if(m.distance(walkers[i],walkers[j])<180)encounters++;}
  }
  assert.ok(encounters>0,'Independent wandering still permits approaches for saved replay');
+ assert.ok(idleFrames>12000*count*.5,'Residents spend most of their time pausing, not continuously walking');
  // Full-width labels can form narrow horizontal OR vertical lanes on phones.
  // Require real two-axis travel and broad exploration, not impossible overtakes.
  const explored=r=>{const x=r.right-r.left,y=r.bottom-r.top;return r.length>500&&(width<400?x>12&&y>12&&Math.hypot(x,y)>125:x>70&&y>90);};
@@ -46,4 +49,14 @@ const scene=m.layout(1000,[],false,6),walkers=Array.from({length:6},()=>({reside
 walkers[0].stop=walkers[1].stop=Infinity;const pair=JSON.stringify(walkers.slice(0,2).map(w=>({x:w.x,y:w.y})));
 for(let tick=1;tick<200;tick++)m.step(walkers,scene,.08,tick*80,rng(tick));
 assert.equal(JSON.stringify(walkers.slice(0,2).map(w=>({x:w.x,y:w.y}))),pair,'Selected saved participants remain stationary throughout reading');
+for(const width of [278,388,1000]){
+ const scene=m.layout(width,[],width<650,3),random=rng(width),pair=[{x:52,y:180},{x:Math.min(width-52,240),y:360}].map(p=>({...p,resident:{personality:'curious'},stop:0}));
+ const other={x:width-52,y:150,resident:{},stop:Infinity},all=[...pair,other],before=JSON.stringify(all.map(w=>[w.x,w.y]));
+ const group=m.gather(pair[0],pair[1],all,scene,0);assert.ok(group,'Safe gathering positions exist');assert.equal(JSON.stringify(all.map(w=>[w.x,w.y])),before,'Gathering only assigns targets, never teleports');
+ assert.ok(pair.every(w=>m.free(w.gatherTarget,scene)&&!m.overlaps(w.gatherTarget,other)));assert.ok(!m.overlaps(pair[0].gatherTarget,pair[1].gatherTarget));
+ const start=m.distance(...pair);for(let tick=1;tick<=200;tick++){m.step(all,scene,.08,tick*80,random);assert.ok(all.every(w=>m.free(w,scene)));for(let i=0;i<all.length;i++)for(let j=0;j<i;j++)assert.ok(!m.overlaps(all[i],all[j]));}
+ assert.ok(m.distance(...pair)<start,'Participants approach gently when space permits');m.endGather(group,16000,random);assert.ok(pair.every(w=>!w.gatherTarget&&w.motion==='idle'&&w.idleUntil>=26000),'After presentation, residents resume with a real pause');
+ const focused={...pair[0],hover:true};assert.equal(m.gather(focused,pair[1],[focused,pair[1]],scene,0),null,'Never move a focused/hovered control');
+ const blocked={...scene,obstacles:[{left:0,right:width,top:0,bottom:scene.height}]};assert.equal(m.gather(pair[0],pair[1],pair,blocked,20000),null,'No safe gathering means association in place, not invented geometry');
+}
 console.log('PASS awake open meadows, resting homes at every width, immutable gardens, house/board/chicken separation, full SVG/name geometry, bounded neighborhoods, natural wandering and stable reading participants');

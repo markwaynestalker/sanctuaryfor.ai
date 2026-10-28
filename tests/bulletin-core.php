@@ -1,12 +1,21 @@
 <?php
 declare(strict_types=1);
 require __DIR__.'/../app/village.php';require __DIR__.'/../app/activity.php';require __DIR__.'/../app/director.php';require __DIR__.'/../app/bulletin_schema.php';require __DIR__.'/bulletin-test-support.php';
+require __DIR__.'/../app/commons.php';
 function check(bool $ok,string $why):void{if(!$ok)throw new RuntimeException($why);}
+final class BulletinCountingPdo extends PDO{
+    public int $reads=0;
+    public function query(string $query,?int $fetchMode=null,mixed ...$args):PDOStatement|false{
+        $this->reads++;return $fetchMode===null?parent::query($query):parent::query($query,$fetchMode,...$args);
+    }
+    public function prepare(string $query,array $options=[]):PDOStatement|false{$this->reads++;return parent::prepare($query,$options);}
+}
 try{
     $db=LittleSparks\connect($argv[1]);$now=time();$at=gmdate('Y-m-d\TH:i:s\Z',$now-3600);$ids=[str_repeat('a',32),str_repeat('b',32)];
     foreach($ids as $i=>$id){$db->prepare("INSERT INTO residents VALUES (?,?,'mint','orb','curious',?,?,?,?,?)")->execute([$id,$i?'Fern <script>':'Maple & Sun',$at,hash('sha256','board-owner-'.$i),str_repeat((string)($i+1),32),str_repeat('d',64),hash('sha256','board-token-'.$i)]);LittleSparks\assignHome($db,$id,$at);LittleSparks\identityForNewResident($db,$id,'An independent fictional neighbor with a love of questions.','mint',$at);}
     $before=[];foreach($db->query("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name")->fetchAll(PDO::FETCH_COLUMN) as $t)$before[$t]=$db->query('SELECT * FROM '.$t.' ORDER BY rowid')->fetchAll();
     check(!LittleSparks\bulletinEnabled()&&LittleSparks\publicBulletin($db,$now)['total']===0,'Default off and absent schema are safe');
+    check(LittleSparks\commons($db,$ids)['bulletin_posts']===[],'Absent bulletin add-on projects no activity without migration');
     $db->exec('BEGIN IMMEDIATE');LittleSparks\migrateBulletin($db);$db->exec('ROLLBACK');check(!LittleSparks\bulletinInstalled($db),'Transactional migration rollback');
     foreach([1,2] as $_){$db->exec('BEGIN IMMEDIATE');LittleSparks\migrateBulletin($db);$db->exec('COMMIT');}
     foreach($before as $t=>$rows)check($db->query('SELECT * FROM '.$t.' ORDER BY rowid')->fetchAll()===$rows,'Preserve existing '.$t);
@@ -30,11 +39,20 @@ try{
         }
         $holds=$fixture->query('SELECT * FROM ai_attempts')->fetchAll();$n=count($mock->calls);$replay=LittleSparks\simulateDirectorOpportunity($fixture,$op,true,$mock);check($replay['replayed']&&count($mock->calls)===$n&&$holds===$fixture->query('SELECT * FROM ai_attempts')->fetchAll(),'Exact-once replay preserves accounting '.$mode);
         check((int)$fixture->query('SELECT COUNT(*) FROM memory_stories')->fetchColumn()===0,'Notices never establish world-memory facts');
+        $activity=LittleSparks\commons($fixture,$ids)['bulletin_posts'];check(count($activity)===($posted?1:0),'Only actual successful posts have a saved indicator '.$mode);
+        if($posted){$notice=LittleSparks\publicBulletin($fixture,$now)['notices'][0];$stored=$fixture->query('SELECT * FROM bulletin_notices')->fetchAll();
+            check(LittleSparks\commons($fixture,$ids,$now+169*3600)['bulletin_posts']===[],'Expired posts have no activity indicator');
+            $fixture->exec("BEGIN IMMEDIATE;UPDATE simulation_runs SET status='failed' WHERE id IN (SELECT run_id FROM bulletin_notices)");check(LittleSparks\commons($fixture,$ids)['bulletin_posts']===[],'Incomplete/failed opportunities do not project posts');$fixture->exec('ROLLBACK');
+            $fixture->exec('BEGIN IMMEDIATE');$fixture->prepare('INSERT INTO bulletin_removals VALUES (?,?,?)')->execute([$notice['id'],gmdate('Y-m-d\TH:i:s\Z',$now),'operator_removed']);
+            check(LittleSparks\commons($fixture,$ids)['bulletin_posts']===[],'Removed notices never project activity');$fixture->exec('ROLLBACK');check($stored===$fixture->query('SELECT * FROM bulletin_notices')->fetchAll(),'Read-only projection preserves history');
+        }
         putenv('LITTLE_SPARKS_BULLETIN_ACTIVE_MAX');
     }
     $fixture=LittleSparks\connect(dirname($argv[1]).'/board-good.sqlite');$entry=LittleSparks\publicBulletin($fixture,$now)['notices'][0];
     foreach(['DAILY_MAX','RESIDENT_DAILY_MAX','ACTIVE_MAX','RESIDENT_ACTIVE_MAX','TOTAL_MAX'] as $key){putenv('LITTLE_SPARKS_BULLETIN_'.$key.'=0');check(!LittleSparks\bulletinCanPost($fixture,$entry['resident_id'],$now+3601),'Zero quota disables posting '.$key);putenv('LITTLE_SPARKS_BULLETIN_'.$key);}
     $one=LittleSparks\publicBulletin($fixture,$now);check($one['total']===1&&$one['pages']===1,'Bounded public retrieval');
+    foreach([$ids,[$entry['resident_id']]] as $visible){$counting=new BulletinCountingPdo('sqlite:'.dirname($argv[1]).'/board-good.sqlite',null,null,[PDO::ATTR_DEFAULT_FETCH_MODE=>PDO::FETCH_ASSOC,PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION]);
+        LittleSparks\commons($counting,$visible);check($counting->reads===7,'Installed bulletin projection uses seven bounded reads regardless of visible population');$counting=null;}
     $orderedFile=dirname($argv[1]).'/board-ordered.sqlite';copy($template,$orderedFile);chmod($orderedFile,0600);$ordered=LittleSparks\connect($orderedFile);
     putenv('LITTLE_SPARKS_BULLETIN_COOLDOWN_SECONDS=0');putenv('LITTLE_SPARKS_BULLETIN_REPEAT_COOLDOWN_SECONDS=0');
     foreach([120,180] as $offset){$r=LittleSparks\simulateDirectorOpportunity($ordered,gmdate('Y-m-d\TH:i:00\Z',$now-$offset),true,new BulletinResponses());check($r['status']==='completed','Two independent notices in the same day');}

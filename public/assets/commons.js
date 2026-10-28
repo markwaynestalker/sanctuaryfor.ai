@@ -24,6 +24,16 @@ globalThis.SparksCommons = (() => {
         return result;
     }
     const sourceLabel = c => globalThis.SparksAtmosphere?.savedLabel(c) ?? `${c.created_at.slice(0,10) === new Date().toISOString().slice(0,10) ? 'Saved today' : 'From the village journal'} · ${c.provider === 'openai' ? 'Saved AI-generated dialogue' : 'Saved scripted dialogue'} · ${c.created_at.replace('T', ' ').replace('Z', ' UTC')}`;
+    function bulletinPosts(records,ids) {
+        const visible=new Set(ids),posts=new Map();
+        if(!Array.isArray(records))return posts;
+        for(const p of records.slice(0,24)){
+            if(!p||!validId(p.id)||!validId(p.resident_id)||!visible.has(p.resident_id)||typeof p.name!=='string'||!p.name||Array.from(p.name).length>64||typeof p.created_at!=='string'||!Number.isFinite(Date.parse(p.created_at)))continue;
+            const previous=posts.get(p.resident_id);
+            if(!previous||p.created_at>previous.created_at||p.created_at===previous.created_at&&p.id>previous.id)posts.set(p.resident_id,p);
+        }
+        return posts;
+    }
     function replayCooldown(settings) {
         if (settings === undefined) return 60; // Older read-only endpoint compatibility.
         const value = settings?.replay_cooldown_seconds;
@@ -65,5 +75,5 @@ globalThis.SparksCommons = (() => {
             }
         });
     }
-    return Object.freeze({validId, pairKey, profileUrl, bindProfileLink, latestExchanges, sourceLabel, replayCooldown, replayHistory,sleepConfiguration,sleepingAt});
+    return Object.freeze({validId, pairKey, profileUrl, bindProfileLink, latestExchanges, bulletinPosts, sourceLabel, replayCooldown, replayHistory,sleepConfiguration,sleepingAt});
 })();

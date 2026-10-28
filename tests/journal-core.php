@@ -83,7 +83,7 @@ try{
         check($first['messages'][0]['created_at']==='2026-10-24T13:00:00Z','Actual saved timestamp');
         check(!str_contains(json_encode($saved),'PRIVATE_')&&!str_contains(json_encode($saved),'token_hash')&&!str_contains(json_encode($saved),'owner_hash'),'Commons excludes private records/credentials');
         check(LittleSparks\commons($db,[$ids[0],$ids[2]])['conversations']===[],'No unrelated pair dialogue');
-        $counting=new JournalCountingPdo('sqlite:'.$path,null,null,[PDO::ATTR_DEFAULT_FETCH_MODE=>PDO::FETCH_ASSOC,PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION]);LittleSparks\commons($counting,$ids);check($counting->reads===4,'Commons feed uses four bounded reads including shared sleep policy, never one query per resident/exchange');$counting=null;
+        $counting=new JournalCountingPdo('sqlite:'.$path,null,null,[PDO::ATTR_DEFAULT_FETCH_MODE=>PDO::FETCH_ASSOC,PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION]);LittleSparks\commons($counting,$ids);check($counting->reads===5,'Commons feed uses five bounded reads including shared sleep policy and bulletin availability, never one query per resident/exchange');$counting=null;
         check($before===journalDigest($db),'Journal preserves schema and every row');file_put_contents($directory.'/v'.$version.'.digest',$before);
         $manifest[]=['version'=>$version,'database'=>$path,'cursor'=>$page['nextBefore'],'events'=>$events,'residents'=>[...$ids,$noHome]];$db=null;
     }

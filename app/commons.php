@@ -2,6 +2,7 @@
 declare(strict_types=1);
 namespace LittleSparks;
 use PDO;
+require_once __DIR__.'/bulletin.php';
 
 function commonsResidentIds(mixed $value): array
 {
@@ -9,7 +10,7 @@ function commonsResidentIds(mixed $value): array
     return array_values(array_unique(explode(',',$value)));
 }
 
-function commons(PDO $db,array $ids): array
+function commons(PDO $db,array $ids,?int $now=null): array
 {
     $ids=commonsResidentIds(implode(',',$ids));$marks=implode(',',array_fill(0,count($ids),'?'));
     $q=$db->prepare("SELECT h.resident_id,h.slot,w.variant AS house_variant,o.id,o.kind,o.variant,o.x,o.y FROM home_plots h
@@ -51,7 +52,19 @@ function commons(PDO $db,array $ids): array
         ['resident_id'=>$c['first_id'],'name'=>$c['first_name'],'text'=>$c['first_text'],'created_at'=>$c['created_at']],
         ['resident_id'=>$c['second_id'],'name'=>$c['second_name'],'text'=>$c['second_text'],'created_at'=>$c['created_at']]
     ]];
-    $now=time();$tick=publishedVillageTick($db);$settings=['replay_cooldown_seconds'=>replayCooldownSeconds(),'sleep'=>villagePublicSleepState($db,$now,$tick)];
+    $now??=time();$tick=publishedVillageTick($db);$settings=['replay_cooldown_seconds'=>replayCooldownSeconds(),'sleep'=>villagePublicSleepState($db,$now,$tick)];
     if($weather=publicVillageWeather($tick,$now))$settings['weather']=$weather;
-    return ['homes'=>$homes,'conversations'=>$conversations,'settings'=>$settings];
+    // Saved authorship only, never an inferred reading or a live activity claim.
+    // Reuse the board's public provenance/removal rules without exposing body,
+    // provider sessions, private credentials or internal run identifiers.
+    $posts=[];
+    if(bulletinInstalled($db)){
+        $q=$db->prepare("SELECT id,resident_id,name,created_at FROM (
+            SELECT n.id,n.resident_id,r.name,n.created_at,
+                ROW_NUMBER() OVER(PARTITION BY n.resident_id ORDER BY n.created_at DESC,n.id DESC) AS rank"
+            .bulletinPublicSql()." AND n.resident_id IN ($marks) AND (n.expires_at IS NULL OR n.expires_at>?)
+            ) WHERE rank=1 ORDER BY created_at DESC,id DESC LIMIT 24");
+        $q->execute([...$ids,gmdate('Y-m-d\TH:i:s\Z',$now)]);$posts=$q->fetchAll();
+    }
+    return ['homes'=>$homes,'conversations'=>$conversations,'bulletin_posts'=>$posts,'settings'=>$settings];
 }
