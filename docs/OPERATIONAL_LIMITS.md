@@ -85,10 +85,10 @@ These limit retrieval/work, not request allowances. Keep defaults unless reviewi
 | `MEMORY_BACKFILL` | 500 | 0..5000 |
 | `PERSONALITY_MAX_CHARACTERS` | 2000 | 1..4000 |
 | `IDENTITY_EDITS_PER_DAY` | 6 | 0..24 |
-| `DIRECTOR_DESCRIPTION_CONTEXT` | 800 | 1..2000 |
+| `DIRECTOR_DESCRIPTION_CONTEXT` | 800 | 1..2000; retired excerpt setting, validated for compatibility only (#70) |
 | `DIRECTOR_INSTRUCTIONS_BYTES` | 4096 | 1..8192 |
 
-Source validation and bounded retrieval remain mandatory; a shortened context does not delete SQLite memories. Owner text/context sizes can cause explicit validation/admission failure when incompatible with configured body limits. They never authorize extra HTTP requests.
+Source validation and bounded retrieval remain mandatory; a shortened context does not delete SQLite memories. Complete stored owner descriptions are mandatory in Director input; the retired excerpt setting no longer slices them. Optional records are dropped under the unchanged total byte limit. Owner text/context sizes can cause explicit validation/admission failure when incompatible with configured body limits. They never authorize extra HTTP requests.
 
 ## Other hardcoded product and security limits
 
