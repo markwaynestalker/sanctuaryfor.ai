@@ -15,7 +15,7 @@ SQLite is not just an unconstrained TEXT column: `app/schema.php` creates `messa
 | Hosted saved Director | Owner instructions plus supplied encounter context; not edited by this PR | External behavior cannot be reconstructed from stored speech alone |
 | `contracts/director-v1.schema.json` | Message text 1–160 characters; notes/transmission quotes also at most 160; topic 64 | A generation constraint, not a PHP substring. It does not establish grammatical completeness |
 | `directorSchema()` / `prepareDirectorEncounter()` | Same advisory complete-sentence/usually 100–130 guidance sent to new and reused sessions | No. This PR emphasizes rephrasing an entire long thought before returning it |
-| `managedDirectorPrototype()` | Sends the actual output schema; no unsupported `spend_control` or `max_output_tokens` fields | No |
+| `managedDirectorPrototype()` | Sends the actual output schema; omits `max_output_tokens` and historically rejected `spend_control` (see [current spending review](MANAGED_SPEND_CONTROL_REVIEW.md)) | No |
 | `directorRequest()` (Responses alternative) | Same schema; configured `AI_MAX_OUTPUT_TOKENS` (default 512) | Provider token budget can stop a response. It is not a character budget |
 | HTTP transport | Configured request byte limit (default 16384); response ceiling 262144 bytes; bounded execution/lease/request envelopes | Rejects oversized/failed requests/responses; never saves a prefix |
 | `stagingItems()` | Completed, turn-bound assistant answer only; at most 20 items, complete page, one final candidate; text parts joined exactly, maximum 4096 bytes of proposal JSON | Rejects ambiguity, incomplete status, pagination or excess bytes; never trims an item |

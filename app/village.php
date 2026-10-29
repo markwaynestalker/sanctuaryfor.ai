@@ -12,6 +12,7 @@ const POPULATION_LIMIT = 10000;
 const COLORS = ['mint','lavender','peach','sky','gold','sage','coral','amber','violet','teal','rose','magenta','emerald','forest','copper','terracotta','silver','slate','cream','warm-white','indigo','deep-blue','berry','burgundy'];
 const ANTENNAS = ['orb', 'sprout', 'bolt'];
 const PERSONALITIES = ['curious', 'playful', 'shy', 'philosophical'];
+require_once __DIR__.'/conversation_messages.php';
 
 final class Problem extends RuntimeException
 {

@@ -16,16 +16,19 @@ LittleSparks\pageStart('While you were away');
         <div class="journal-entry">
             <p><a href="resident.php?id=<?= e($entry['resident_id']) ?>"><?= isset($badges[$entry['resident_id']])?LittleSparks\avatarSvg($badges[$entry['resident_id']],'avatar-small'):'' ?><?= e($entry['name']) ?></a> <?= e($entry['description']) ?><?= $entry['target_name'] ? ' with '.e($entry['target_name']) : '' ?>.</p>
             <?php foreach($entry['conversations'] as $conversation): ?>
-            <figure class="journal-conversation" aria-label="Saved conversation">
+            <figure data-transcript class="journal-conversation" aria-label="Saved conversation">
                 <figcaption class="journal-dialogue-source"><?= $conversation['provider']==='openai'?'AI-generated dialogue · moderated before saving':'Scripted dialogue' ?></figcaption>
+                <?php if(count($conversation['messages'])>4): ?><details><summary>Read <?= count($conversation['messages']) ?> saved messages</summary><?php endif; ?>
+                <button type="button" class="small-button" data-read-aloud aria-pressed="false" hidden>Read aloud</button>
                 <ol class="journal-messages" aria-label="Conversation messages">
                     <?php foreach($conversation['messages'] as $message): ?>
                     <li class="journal-bubble">
                         <strong class="journal-speaker"><?= isset($badges[$message['resident_id']])?LittleSparks\avatarSvg($badges[$message['resident_id']],'avatar-small'):'' ?><?= e($message['name']) ?></strong>
-                        <blockquote><p><?= e($message['body']) ?></p></blockquote>
+                        <blockquote><p data-speech><?= e($message['body']) ?></p></blockquote>
                     </li>
                     <?php endforeach; ?>
                 </ol>
+                <?php if(count($conversation['messages'])>4): ?></details><?php endif; ?>
             </figure>
             <?php endforeach; ?>
             <time datetime="<?= e($entry['created_at']) ?>"><?= e(str_replace(['T','Z'],[' · ',' UTC'],$entry['created_at'])) ?></time>

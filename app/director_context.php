@@ -53,11 +53,13 @@ function trimDirectorContext(array $context,int $maximum):array
 }
 function prepareDirectorEncounter(PDO $db,array $pair,array $choices,array $claim,array $cfg):array
 {
-    $memory=memoryConfiguration();$sources=[];$shared=[];$pairIds=array_column($pair,'id');$context=['contract'=>directorSchema($choices)['properties']['contract']['enum'][0],'context_version'=>'sqlite-v6-3','opportunity_id'=>$claim['id'],'at'=>$claim['created_at'],
+    $schema=directorSchema($choices,multiMessageInstalled($db));
+    $memory=memoryConfiguration();$sources=[];$shared=[];$pairIds=array_column($pair,'id');$context=['contract'=>$schema['properties']['contract']['enum'][0],'context_version'=>'sqlite-v6-3','opportunity_id'=>$claim['id'],'at'=>$claim['created_at'],
         // Repeat contract guidance in fresh input so existing managed sessions receive it too.
         'dialogue_guidance'=>directorSchema($choices)['properties']['messages']['items']['properties']['text']['description'],
         'encounter_guidance'=>directorEncounterGuidance(),
         'participants'=>[],'shared_recent_conversations'=>[],'allowed_actions'=>array_keys($choices),'world_action_actor_id'=>$pair[0]['id'],'director_continuity_is_not_participant_knowledge'=>true,'director_continuity'=>[]];
+    if(str_ends_with($context['contract'],'.v2'))$context['conversation_guidance']=$schema['properties']['messages']['description'];
     if($weather=encounterVillageWeather($db,$claim))$context['village_weather']=$weather;
     if($notices=bulletinContext($db,strtotime($claim['created_at'])))$context['public_notices']=$notices;
     foreach($pair as $index=>$actor){
@@ -83,11 +85,11 @@ function prepareDirectorEncounter(PDO $db,array $pair,array $choices,array $clai
         $q=$db->prepare('SELECT activity,location FROM resident_states WHERE resident_id=?');$q->execute([$id]);$state=$q->fetch();
         $q=$db->prepare("SELECT description,status,created_at FROM resident_goals WHERE resident_id=? AND status IN ('proposed','active') ORDER BY (status='active') DESC,created_at DESC,id LIMIT 4");$q->execute([$id]);$goals=$q->fetchAll();
         $q=$db->prepare('SELECT r.id,r.name,f.affinity,f.familiarity,f.last_interacted_at FROM relationships f JOIN residents r ON r.id=CASE WHEN f.resident_a=? THEN f.resident_b ELSE f.resident_a END WHERE f.resident_a=? OR f.resident_b=? ORDER BY (r.id=?) DESC,f.affinity DESC,r.id LIMIT 8');$q->execute([$id,$id,$id,$other]);$friends=$q->fetchAll();
-        $q=$db->prepare("SELECT n.* FROM director_notes n JOIN conversations c ON c.id=n.conversation_id AND c.visibility='public' WHERE n.resident_id=? ORDER BY (n.other_resident_id=?) DESC,n.created_at DESC LIMIT ?");$q->bindValue(1,$id);$q->bindValue(2,$other);$q->bindValue(3,$memory['select'],PDO::PARAM_INT);$q->execute();$notes=[];
+        $noteTable=noteRelation($db);$q=$db->prepare("SELECT n.* FROM $noteTable n JOIN conversations c ON c.id=n.conversation_id AND c.visibility='public' WHERE n.resident_id=? ORDER BY (n.other_resident_id=?) DESC,n.created_at DESC,n.id LIMIT ?");$q->bindValue(1,$id);$q->bindValue(2,$other);$q->bindValue(3,$memory['select'],PDO::PARAM_INT);$q->execute();$notes=[];
         foreach($q->fetchAll() as $note)if(publicMemoryConversation($db,$note['conversation_id']))$notes[]=['quote'=>$note['quote'],'classification'=>$note['classification'],'status'=>'unverified','source_conversation_id'=>$note['conversation_id'],'sequence'=>(int)$note['sequence'],'at'=>$note['created_at']];
         $q=$db->prepare("SELECT c.id,c.created_at,COALESCE(d.topic,c.topic) AS topic FROM conversations c JOIN conversation_participants p ON p.conversation_id=c.id LEFT JOIN director_runs d ON d.conversation_id=c.id WHERE p.resident_id=? AND c.visibility='public' ORDER BY c.created_at DESC,c.id DESC LIMIT ?");$q->bindValue(1,$id);$q->bindValue(2,$memory['recent_conversations']?$memory['candidates']:0,PDO::PARAM_INT);$q->execute();$recent=[];$selected=0;
         foreach($q->fetchAll() as $c)if($supported=publicMemoryConversation($db,$c['id'])){
-            $q2=$db->prepare('SELECT resident_id,body AS text FROM messages WHERE conversation_id=? ORDER BY sequence');$q2->execute([$c['id']]);$entry=['id'=>$c['id'],'at'=>$c['created_at'],'topic'=>$c['topic'],'messages'=>$q2->fetchAll()];
+            $table=messageRelation($db);$q2=$db->prepare("SELECT resident_id,body AS text FROM $table WHERE conversation_id=? ORDER BY sequence");$q2->execute([$c['id']]);$entry=['id'=>$c['id'],'at'=>$c['created_at'],'topic'=>$c['topic'],'messages'=>$q2->fetchAll()];
             // Only these two actual participants may share a single canonical history entry.
             if(!array_diff([$supported['speaker_a'],$supported['speaker_b']],$pairIds))$shared[$c['id']]=$entry;else $recent[]=$entry;
             if(++$selected>=$memory['recent_conversations'])break;
@@ -117,6 +119,6 @@ function directorRequest(array $pricing,array $registered,array $prepared,array 
     $body=['model'=>$pricing['model'],'instructions'=>$registered['instructions'],'input'=>json_encode($prepared['context'],JSON_THROW_ON_ERROR|JSON_UNESCAPED_UNICODE),
         'store'=>false,'service_tier'=>'default','max_output_tokens'=>$pricing['max_output'],'reasoning'=>['effort'=>$pricing['effort']],
         'tools'=>[],'truncation'=>'disabled','metadata'=>['director_agent_id'=>$registered['agent_id'],'director_config'=>$registered['fingerprint']],
-        'text'=>['format'=>['type'=>'json_schema','name'=>'sanctuary_director_v1','strict'=>true,'schema'=>directorSchema($choices)]]];
+        'text'=>['format'=>['type'=>'json_schema','name'=>'sanctuary_director','strict'=>true,'schema'=>directorSchema($choices,str_ends_with($prepared['context']['contract'],'.v2'))]]];
     if(strlen(json_encode($body,JSON_THROW_ON_ERROR|JSON_UNESCAPED_UNICODE))>aiRequestByteLimit())throw new AiGuard('configuration_invalid');return $body;
 }

@@ -69,10 +69,11 @@ function memorySource(PDO $db,array $story):?array
 }
 function publicMemoryConversation(PDO $db,string $id):?array
 {
+    $messageTable=messageRelation($db);
     $q=$db->prepare("SELECT c.*,a.resident_id AS speaker_a,b.resident_id AS speaker_b,e.id AS event_id
         FROM conversations c JOIN simulation_runs r ON r.id=c.run_id AND r.status='completed'
-        JOIN messages a ON a.conversation_id=c.id AND a.sequence=0
-        JOIN messages b ON b.conversation_id=c.id AND b.sequence=1 AND b.resident_id<>a.resident_id
+        JOIN $messageTable a ON a.conversation_id=c.id AND a.sequence=0
+        JOIN $messageTable b ON b.conversation_id=c.id AND b.sequence=1 AND b.resident_id<>a.resident_id
         JOIN events e ON e.run_id=c.run_id AND e.visibility='public' AND e.kind IN ('conversation','quiet_time')
         AND ((e.actor_id=a.resident_id AND e.target_id=b.resident_id) OR (e.actor_id=b.resident_id AND e.target_id=a.resident_id))
         AND (substr(e.dedupe_key,1,length('social:'||e.run_id||':'))<>'social:'||e.run_id||':' OR e.dedupe_key='social:'||e.run_id||':'||c.id)

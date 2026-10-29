@@ -20,6 +20,7 @@ function directorSession(PDO $db,array $registered,array $pair,string $runtime,i
     $ids=array_column($pair,'id');sort($ids);$revisions=[];
     foreach($ids as $id){$q=$db->prepare('SELECT revision FROM resident_identities WHERE resident_id=?');$q->execute([$id]);$revisions[$id]=(int)$q->fetchColumn();}
     $scopeParts=[$ids,$revisions,$runtime];if($contract!=='sanctuary.director.v1')$scopeParts[]=$contract;
+    if(str_ends_with($contract,'.v2'))$scopeParts[]=conversationConfiguration();
     $scope=hash('sha256',json_encode($scopeParts,JSON_THROW_ON_ERROR));
     $execution=directorExecutionConfiguration();
     $q=$db->prepare("SELECT * FROM director_sessions WHERE fingerprint=? AND scope=? AND state IN ('new','ready') AND turns<? AND created_at>=? ORDER BY rowid DESC LIMIT 1");
@@ -36,20 +37,22 @@ function directorKeys(array $value,array $keys):void
 }
 function parseDirectorProposal(array $p,array $pair,array $choices):array
 {
-    $bulletin=($p['contract']??null)==='sanctuary.director.bulletin.v1';$keys=['contract','outcome','topic','messages','world_action','transmissions','notes'];if($bulletin)$keys[]='notice';directorKeys($p,$keys);
-    if(($bulletin&&!array_key_exists('post_notice',$choices))||(!$bulletin&&($p['contract']??null)!=='sanctuary.director.v1')||!in_array($p['outcome']??null,['conversation','action','quiet','none'],true)
+    $multi=in_array($p['contract']??null,['sanctuary.director.v2','sanctuary.director.bulletin.v2'],true);
+    $cfg=$multi?conversationConfiguration():['min'=>2,'max'=>2];
+    $bulletin=in_array($p['contract']??null,['sanctuary.director.bulletin.v1','sanctuary.director.bulletin.v2'],true);$keys=['contract','outcome','topic','messages','world_action','transmissions','notes'];if($bulletin)$keys[]='notice';directorKeys($p,$keys);
+    if(($bulletin&&!array_key_exists('post_notice',$choices))||(!$bulletin&&!in_array($p['contract']??null,['sanctuary.director.v1','sanctuary.director.v2'],true))||!in_array($p['outcome']??null,['conversation','action','quiet','none'],true)
         ||!is_string($p['topic']??null)||!is_string($p['world_action']??null)||!array_key_exists($p['world_action'],$choices)
         ||!is_array($p['messages'])||!array_is_list($p['messages'])||!is_array($p['notes'])||!array_is_list($p['notes'])||count($p['notes'])>2
         // V3A does not infer a fact entailment from free prose or model-selected aliases.
         // Existing V5 receipt chains remain intact. New text is retained as unverified notes.
         ||$p['transmissions']!==[])throw new AiGuard('invalid_proposal');
     safeAiText($p['topic'],64);$conversation=$p['outcome']==='conversation';
-    if(count($p['messages'])!==($conversation?2:0)||(!$conversation&&$p['notes']!==[])
+    if(($conversation?(count($p['messages'])<$cfg['min']||count($p['messages'])>$cfg['max']):count($p['messages'])!==0)||(!$conversation&&$p['notes']!==[])
         ||($conversation&&count($pair)!==2)||($p['outcome']==='action'&&$p['world_action']==='none')
         ||(in_array($p['outcome'],['quiet','none'],true)&&$p['world_action']!=='none'))throw new AiGuard('invalid_proposal');
     foreach($p['messages'] as $i=>$m){
         if(!is_array($m))throw new AiGuard('invalid_proposal');directorKeys($m,['resident_id','text']);
-        if(($m['resident_id']??null)!==$pair[$i]['id'])throw new AiGuard('invalid_proposal');
+        if(($m['resident_id']??null)!==$pair[$i%2]['id'])throw new AiGuard('invalid_proposal');
         $text=safeAiText($m['text']??null,160);
         if(trim($text)!==$text||preg_match('/\A(?:[AB]|assistant|user|system|resident|robot)\s*:/iu',$text))throw new AiGuard('invalid_proposal');
         foreach($pair as $actor)if(isset($actor['name'])&&preg_match('/\A'.preg_quote($actor['name'],'/').'\s*:/iu',$text))throw new AiGuard('invalid_proposal');
@@ -57,7 +60,7 @@ function parseDirectorProposal(array $p,array $pair,array $choices):array
     if($conversation&&$p['messages'][0]['text']===$p['messages'][1]['text'])throw new AiGuard('invalid_proposal');
     foreach($p['notes'] as $note){
         if(!is_array($note))throw new AiGuard('invalid_proposal');directorKeys($note,['resident_id','sequence','quote','classification']);
-        if(!in_array($note['resident_id']??null,array_column($pair,'id'),true)||!is_int($note['sequence']??null)||!in_array($note['sequence'],[0,1],true)
+        if(!in_array($note['resident_id']??null,array_column($pair,'id'),true)||!is_int($note['sequence']??null)||$note['sequence']<0||$note['sequence']>=count($p['messages'])
             ||!in_array($note['classification']??null,['preference','interpretation','rumor'],true))throw new AiGuard('invalid_proposal');
         safeAiText($note['quote']??null,160);
         if(!str_contains($p['messages'][$note['sequence']]['text'],$note['quote']))throw new AiGuard('invalid_proposal');
@@ -71,12 +74,13 @@ function saveDirectorMemory(PDO $db,string $conversation,array $proposal,array $
 {
     if(!publicMemoryConversation($db,$conversation))throw new AiGuard('apply_rejected');
     foreach($proposal['notes'] as $note){
-        $q=$db->prepare('SELECT body FROM messages WHERE conversation_id=? AND sequence=?');$q->execute([$conversation,$note['sequence']]);
+        $table=messageRelation($db);$q=$db->prepare("SELECT body FROM $table WHERE conversation_id=? AND sequence=?");$q->execute([$conversation,$note['sequence']]);
         if(!str_contains((string)$q->fetchColumn(),$note['quote']))throw new AiGuard('apply_rejected');
-        $q=$db->prepare('SELECT COUNT(*) FROM director_notes WHERE resident_id=?');$q->execute([$note['resident_id']]);
+        $allNotes=noteRelation($db);$q=$db->prepare("SELECT COUNT(*) FROM $allNotes WHERE resident_id=?");$q->execute([$note['resident_id']]);
         if((int)$q->fetchColumn()>=memoryConfiguration()['per_resident'])continue;
         $other=$pair[0]['id']===$note['resident_id']?$pair[1]['id']:$pair[0]['id'];
-        $db->prepare('INSERT OR IGNORE INTO director_notes VALUES (?,?,?,?,?,?,?,?)')->execute([bin2hex(random_bytes(16)),$note['resident_id'],$other,$conversation,$note['sequence'],$note['quote'],$note['classification'],$time]);
+        $notes=str_ends_with($proposal['contract'],'.v2')?'extended_director_notes':'director_notes';
+        $db->prepare("INSERT OR IGNORE INTO $notes VALUES (?,?,?,?,?,?,?,?)")->execute([bin2hex(random_bytes(16)),$note['resident_id'],$other,$conversation,$note['sequence'],$note['quote'],$note['classification'],$time]);
     }
     // No dialogue-derived world facts, PHP factual openings, or manufactured receipts.
 }
@@ -84,8 +88,8 @@ function saveDirectorMemory(PDO $db,string $conversation,array $proposal,array $
 /** Called inside the conversation transaction: compare, never repair, speech. */
 function verifyDirectorDialogue(PDO $db,string $run,string $conversation,array $proposal):void
 {
-    $q=$db->prepare('SELECT resident_id,body FROM messages WHERE conversation_id=? ORDER BY sequence');$q->execute([$conversation]);$saved=$q->fetchAll();
-    if(count($saved)!==2||count($proposal['messages']??[])!==2)throw new AiGuard('apply_rejected');
+    $table=messageRelation($db);$q=$db->prepare("SELECT resident_id,body FROM $table WHERE conversation_id=? ORDER BY sequence");$q->execute([$conversation]);$saved=$q->fetchAll();
+    if(count($saved)<2||count($saved)!==count($proposal['messages']??[]))throw new AiGuard('apply_rejected');
     $lines=[];
     foreach($saved as $i=>$line){
         $original=$proposal['messages'][$i];
@@ -160,6 +164,7 @@ function simulateDirectorOpportunity(PDO $db,string $at,bool $allowPaid,?AiTrans
         $pricing['director_session']=$session['id'];$pricing['director_runtime']=$cfg['runtime'];
         $pricing['director_once']=$staging!==null;
         $pricing['director_context']=hash('sha256',json_encode($prepared['context'],JSON_THROW_ON_ERROR|JSON_UNESCAPED_UNICODE));
+        $pricing['director_output_contract']=$prepared['context']['contract'];
         if($managed!==null)$pricing['director_slots']=8; // Creation/submission, bounded reads, items, moderation, cleanup.
         if($configuredManaged)$pricing['director_slots']=8; // Bounded wire lifecycle, not a daily ceiling.
         if($stagingContinueAfter!==null)$pricing['staging_continue_after']=$stagingContinueAfter;
@@ -173,7 +178,8 @@ function simulateDirectorOpportunity(PDO $db,string $at,bool $allowPaid,?AiTrans
             $usage=null; // Best-effort observations must remain uncertain even if apply later fails.
         }else{
             $responses??=new OpenAiTransport();startAiRequest($db,$attempt,'responses_started');$result=$responses->post('responses',$body,$attempt['expires']);
-            $usage=recordAiUsage($db,$attempt,$result,$pricing);$proposal=parseDirectorProposal(decodedAiProposal($result),$prepared['context']['participants'],$choices);
+            $usage=recordAiUsage($db,$attempt,$result,$pricing);$proposal=parseDirectorProposal(decodedAiProposal($result,directorProposalByteLimit($prepared['context']['contract'])),$prepared['context']['participants'],$choices);
+            assertDirectorOutputContract($proposal['contract'],$prepared['context']['contract']);
             startAiRequest($db,$attempt,'moderation_started');$moderation=$responses->post('moderations',['model'=>'omni-moderation-latest','input'=>json_encode([$prepared['context'],$proposal],JSON_THROW_ON_ERROR|JSON_UNESCAPED_UNICODE)],$attempt['expires']);
             if(count($moderation['results']??[])!==1||($moderation['results'][0]['flagged']??null)!==false)throw new AiGuard('moderation_rejected');
             if(($proposal['world_action']??null)==='post_notice')$proposal['bulletin_approved']=true;

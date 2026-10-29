@@ -15,8 +15,9 @@ globalThis.SparksCommons = (() => {
     function latestExchanges(conversations, ids) {
         const visible = new Set(ids), result = new Map();
         for (const c of conversations.slice(0, 64)) {
-            if (!c || typeof c.id !== 'string' || !c.id || c.id.length > 64 || typeof c.created_at !== 'string' || !['openai', 'scripted'].includes(c.provider) || !Array.isArray(c.messages) || c.messages.length !== 2 || !Number.isFinite(Date.parse(c.created_at))) continue;
+            if (!c || typeof c.id !== 'string' || !c.id || c.id.length > 64 || typeof c.created_at !== 'string' || !['openai', 'scripted'].includes(c.provider) || !Array.isArray(c.messages) || c.messages.length < 2 || c.messages.length > 64 || !Number.isFinite(Date.parse(c.created_at))) continue;
             const [a, b] = c.messages;
+            if (!c.messages.every((m,i)=>m && m.resident_id===c.messages[i%2]?.resident_id && visible.has(m.resident_id) && validId(m.resident_id) && typeof m.text==='string' && Array.from(m.text).length>0 && Array.from(m.text).length<=160 && typeof m.name==='string' && Array.from(m.name).length>0 && Array.from(m.name).length<=64)) continue;
             if (!a || !b || a.resident_id === b.resident_id || ![a, b].every(m => visible.has(m.resident_id) && validId(m.resident_id) && typeof m.text === 'string' && Array.from(m.text).length > 0 && Array.from(m.text).length <= 160 && typeof m.name === 'string' && Array.from(m.name).length > 0 && Array.from(m.name).length <= 64)) continue;
             const key = pairKey(a.resident_id, b.resident_id), previous = result.get(key);
             if (!previous || c.created_at > previous.created_at || (c.created_at === previous.created_at && c.id > previous.id)) result.set(key, c);

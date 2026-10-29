@@ -1,5 +1,9 @@
 # SanctuaryFor.AI
 
+## Multi-message Director encounters (#74)
+
+See docs/MULTI_MESSAGE_CONVERSATIONS.md. An explicit V6 add-on preserves old history and stores complete, strictly alternating 2–16-message encounters (ENV configurable through 64). One generation, whole-proposal moderation and one encounter's relationship/fairness accounting remain. V2 scopes include message bounds; source notes use actual sequences. Journal/archive/profile/commons/search/recall retain full speech; optional on-device read-aloud is explicitly started. Activation needs a separate migration and reviewed output allowance; legacy 512 tokens is insufficient. No production ENV, data, hosted instructions, accounting reset, scheduler change, automatic merge or deployment. Run all offline suites, synthetic desktop/tablet/phone readers and Ubuntu CI.
+
 ## Director personality fidelity and variety (#70)
 
 See docs/DIRECTOR_PERSONALITY_REVIEW.md. Input sqlite-v6-3 carries full stored owner descriptions as mandatory context, with fresh personality/variety/grounding and child-safety guidance on new/reused sessions. The old description excerpt ENV remains validated for compatibility but no longer truncates identity; unchanged total byte guards drop optional context or refuse before generation. Journal conversation wording is neutral. Relationship increments, memories, goals, sessions, moderation, scheduling and spending remain unchanged. The actual hosted definition was read-only reviewed; a proposed amendment is documented but not applied. Seventeen authorized isolated Luna development samples and their usage/limitations are recorded in docs/evaluations/director-personality-70.json. No production writes, agent updates, deployment or automatic merge. Require all offline suites and Ubuntu CI.

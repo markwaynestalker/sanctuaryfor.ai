@@ -60,6 +60,7 @@ function world(PDO $db, int $sector): array
 
 function journal(PDO $db, int $before = 0): array
 {
+    $messageTable=messageRelation($db);
     $query = $db->prepare("SELECT e.id,e.kind,e.created_at,r.id AS resident_id,r.name,t.name AS target_name
         FROM events e JOIN residents r ON r.id=e.actor_id LEFT JOIN residents t ON t.id=e.target_id
         WHERE e.visibility='public' AND (?=0 OR e.id<?) ORDER BY e.id DESC LIMIT 31");
@@ -80,7 +81,7 @@ function journal(PDO $db, int $before = 0): array
             JOIN conversation_participants a ON a.resident_id=e.actor_id
             JOIN conversations c ON c.id=a.conversation_id AND c.run_id=e.run_id AND c.visibility='public'
             JOIN conversation_participants b ON b.conversation_id=c.id AND b.resident_id=e.target_id
-            JOIN messages m ON m.conversation_id=c.id
+            JOIN $messageTable m ON m.conversation_id=c.id
             JOIN residents r ON r.id=m.resident_id
             $aiJoin
             WHERE e.visibility='public' AND e.kind IN ('conversation','quiet_time')
@@ -126,7 +127,7 @@ function profile(PDO $db, string $id): array
             $source=$db->prepare('SELECT 1 FROM ai_conversations WHERE conversation_id=?');$source->execute([$conversation['id']]);
             if($source->fetchColumn())$conversation['provider']='openai';
         }
-        $messages = $db->prepare('SELECT r.id AS resident_id,r.name,m.body FROM messages m JOIN residents r ON r.id=m.resident_id WHERE m.conversation_id=? ORDER BY m.sequence LIMIT 2');
+        $messageTable=messageRelation($db);$messages = $db->prepare("SELECT r.id AS resident_id,r.name,m.body FROM $messageTable m JOIN residents r ON r.id=m.resident_id WHERE m.conversation_id=? ORDER BY m.sequence LIMIT 64");
         $messages->execute([$conversation['id']]); $conversation['messages'] = $messages->fetchAll();
     }
     $result=['resident'=>$resident,'plot'=>$slot===false ? null : plotCoordinates((int)$slot),'friendships'=>$friends,'memories'=>$memories,'conversations'=>$conversations,'preferences'=>preferences($db,$id)];

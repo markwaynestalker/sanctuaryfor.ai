@@ -10,7 +10,7 @@ try{
     $options=getopt('',['check']);$cfg=LittleSparks\schedulerConfiguration();
     // Reject invalid bounds before any credential access, claim or HTTP dispatch.
     $interval=LittleSparks\simulationInterval();LittleSparks\activityConfiguration();LittleSparks\memoryConfiguration();LittleSparks\aiDailyRequestLimit();LittleSparks\aiMonthlyBudget();LittleSparks\aiOutputTokenLimit();LittleSparks\replayCooldownSeconds();
-    $sleep=LittleSparks\villageSleepState(time());$weather=LittleSparks\villageWeatherConfiguration();
+    LittleSparks\conversationConfiguration();$sleep=LittleSparks\villageSleepState(time());$weather=LittleSparks\villageWeatherConfiguration();
     $enabled=$cfg['enabled']&&$cfg['simulation_enabled'];$paid=$enabled&&$cfg['ai_enabled']&&$cfg['allow_paid'];
     if(array_key_exists('check',$options)){
         if($paid)LittleSparks\aiConfiguration(time());

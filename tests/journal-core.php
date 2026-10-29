@@ -76,14 +76,14 @@ try{
         $older=LittleSparks\journal($db,$page['nextBefore']);check(str_contains(json_encode($older),'OLDER_PAGE_ONLY'),'Older page loads only its own dialogue');
         $all=array_merge(array_column($page['events'],'id'),array_column($older['events'],'id'));check(count($all)===count(array_unique($all))&&count($all)===(int)$db->query("SELECT COUNT(*) FROM events WHERE visibility='public'")->fetchColumn(),'Pagination has no duplicates or skipped events');
         check(LittleSparks\journal($db,1)===['events'=>[],'nextBefore'=>null],'Empty page safe');
-        $counting=new JournalCountingPdo('sqlite:'.$path,null,null,[PDO::ATTR_DEFAULT_FETCH_MODE=>PDO::FETCH_ASSOC,PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION]);LittleSparks\journal($counting);check($counting->reads===3,'Three reads per populated page, no per-event/message queries');$counting=null;
+        $counting=new JournalCountingPdo('sqlite:'.$path,null,null,[PDO::ATTR_DEFAULT_FETCH_MODE=>PDO::FETCH_ASSOC,PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION]);LittleSparks\journal($counting);check($counting->reads===4,'Four reads including capability detection, no per-event/message queries');$counting=null;
         $saved=LittleSparks\commons($db,[...$ids,$noHome]);check(count($saved['homes'])===4&&!in_array($noHome,array_column($saved['homes'],'resident_id'),true),'Only actual assigned houses appear');
         check(count($saved['conversations'])===2,'Newest exchange per visible pair, without old/private event leakage');
         $first=$saved['conversations'][0];check($first['id']==='first'&&$first['messages'][0]['resident_id']===$ids[0]&&$first['provider']===($version>=3?'openai':'scripted'),'Latest saved conversation with exact speakers/source');
         check($first['messages'][0]['created_at']==='2026-10-24T13:00:00Z','Actual saved timestamp');
         check(!str_contains(json_encode($saved),'PRIVATE_')&&!str_contains(json_encode($saved),'token_hash')&&!str_contains(json_encode($saved),'owner_hash'),'Commons excludes private records/credentials');
         check(LittleSparks\commons($db,[$ids[0],$ids[2]])['conversations']===[],'No unrelated pair dialogue');
-        $counting=new JournalCountingPdo('sqlite:'.$path,null,null,[PDO::ATTR_DEFAULT_FETCH_MODE=>PDO::FETCH_ASSOC,PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION]);LittleSparks\commons($counting,$ids);check($counting->reads===5,'Commons feed uses five bounded reads including shared sleep policy and bulletin availability, never one query per resident/exchange');$counting=null;
+        $counting=new JournalCountingPdo('sqlite:'.$path,null,null,[PDO::ATTR_DEFAULT_FETCH_MODE=>PDO::FETCH_ASSOC,PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION]);LittleSparks\commons($counting,$ids);check($counting->reads===8,'Commons uses eight bounded reads including capability detection and one transcript batch, never one query per resident/exchange');$counting=null;
         check($before===journalDigest($db),'Journal preserves schema and every row');file_put_contents($directory.'/v'.$version.'.digest',$before);
         $manifest[]=['version'=>$version,'database'=>$path,'cursor'=>$page['nextBefore'],'events'=>$events,'residents'=>[...$ids,$noHome]];$db=null;
     }

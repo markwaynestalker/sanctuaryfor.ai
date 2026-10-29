@@ -21,6 +21,12 @@ const older={...exchange,id:'older',created_at:'2026-10-23T12:00:00Z'};
 assert.equal(h.latestExchanges([older,exchange],[a,b]).get(h.pairKey(b,a)).id,exchange.id);
 assert.equal(h.latestExchanges([exchange],[a,c]).size,0);
 for(const invalid of [{...exchange,messages:[null,null]},{...exchange,provider:'unknown'},{...exchange,messages:[{...exchange.messages[0],text:'x'.repeat(161)},exchange.messages[1]]}])assert.equal(h.latestExchanges([invalid],[a,b]).size,0);
+for(const count of [3,16,64]){
+ const messages=Array.from({length:count},(_,i)=>({...exchange.messages[i%2],text:`Original saved turn ${i+1}.`}));
+ assert.equal(h.latestExchanges([{...exchange,messages}],[a,b]).get(h.pairKey(a,b)).messages.length,count);
+ for(const bad of [{...messages.at(-1),resident_id:c},{...messages.at(-1),resident_id:messages.at(-2).resident_id},{...messages.at(-1),text:'x'.repeat(161)}])assert.equal(h.latestExchanges([{...exchange,messages:[...messages.slice(0,-1),bad]}],[a,b]).size,0,'Invalid later turns reject the entire exchange');
+}
+assert.equal(h.latestExchanges([{...exchange,messages:Array.from({length:65},(_,i)=>exchange.messages[i%2])}],[a,b]).size,0);
 assert.equal(h.replayCooldown(undefined),60);
 for(const value of [0,15,3600])assert.equal(h.replayCooldown({replay_cooldown_seconds:value}),value);
 for(const value of [-1,3601,'60',null,1.5,Infinity])assert.throws(()=>h.replayCooldown({replay_cooldown_seconds:value}));
