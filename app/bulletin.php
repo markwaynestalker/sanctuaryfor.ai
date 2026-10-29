@@ -61,7 +61,7 @@ function validateBulletinNotice(mixed $notice,array $pair):array
 /** Caller holds the existing encounter write transaction, after proposal moderation. */
 function saveBulletinNotice(PDO $db,array $proposal,array $pair,string $run,int $now):void
 {
-    if(($proposal['bulletin_approved']??false)!==true||!isset($proposal['director'])||($proposal['contract']??null)!=='sanctuary.director.bulletin.v1')throw new AiGuard('apply_rejected');
+    if(($proposal['bulletin_approved']??false)!==true||!isset($proposal['director'])||!in_array($proposal['contract']??null,['sanctuary.director.bulletin.v1','sanctuary.director.bulletin.v2'],true))throw new AiGuard('apply_rejected');
     $notice=validateBulletinNotice($proposal['notice']??null,$pair);
     $q=$db->prepare('SELECT a.resident_a,d.runtime,a.moderation_started FROM ai_attempts a JOIN director_attempts d ON d.id=a.id WHERE a.id=?');$q->execute([$run]);$attempt=$q->fetch();
     if(!$attempt||$attempt['resident_a']!==$notice['resident_id'])throw new AiGuard('apply_rejected');

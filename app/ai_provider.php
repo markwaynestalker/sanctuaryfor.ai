@@ -65,7 +65,7 @@ function safeAiDialogue(mixed $text): string
     return safeAiText($text);
 }
 
-function decodedAiProposal(array $response): array
+function decodedAiProposal(array $response,int $maximumBytes=4096): array
 {
     if(($response['status']??null)!=='completed'||($response['incomplete_details']??null)!==null||!is_array($response['output']??null))throw new AiGuard('invalid_proposal');
     $texts=[];
@@ -78,7 +78,7 @@ function decodedAiProposal(array $response): array
             $texts[]=$content['text'];
         }
     }
-    if(count($texts)!==1||strlen($texts[0])>4096)throw new AiGuard('invalid_proposal');
+    if(count($texts)!==1||strlen($texts[0])>$maximumBytes)throw new AiGuard('invalid_proposal');
     try{$proposal=json_decode($texts[0],true,8,JSON_THROW_ON_ERROR);}catch(\Throwable){throw new AiGuard('invalid_proposal');}
     if(!is_array($proposal))throw new AiGuard('invalid_proposal');
     return $proposal;

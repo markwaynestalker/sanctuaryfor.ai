@@ -36,6 +36,7 @@ if($available)$appearanceReady=LittleSparks\appearanceInstalled($db);
     <script src="<?= escape(LittleSparks\assetUrl('atmosphere.js')) ?>" defer></script>
     <?php LittleSparks\avatarAssets(); ?>
     <script src="<?= escape(LittleSparks\assetUrl('commons.js')) ?>" defer></script>
+    <script src="<?= escape(LittleSparks\assetUrl('read-aloud.js')) ?>" defer></script>
     <script src="<?= escape(LittleSparks\assetUrl('meadow.js')) ?>" defer></script>
     <script src="<?= escape(LittleSparks\assetUrl('village.js')) ?>" defer></script>
 </head>
@@ -79,9 +80,9 @@ if($available)$appearanceReady=LittleSparks\appearanceInstalled($db);
             <button class="village-chicken" type="button" id="chicken" aria-label="Check on the protected chicken"><span aria-hidden="true">🐓</span></button>
             <span class="scene-coordinate" aria-hidden="true">SANCTUARY / COMMON GROUND</span>
         </div>
-        <section id="dialogue-panel" class="dialogue-panel" aria-labelledby="dialogue-title" hidden>
+        <section id="dialogue-panel" data-transcript class="dialogue-panel" aria-labelledby="dialogue-title" hidden>
             <div class="dialogue-heading"><div><p class="eyebrow">A SAVED EXCHANGE</p><h3 id="dialogue-title" tabindex="-1"></h3></div><button id="close-dialogue" type="button" class="small-button" aria-label="Close conversation">Close</button></div>
-            <p id="dialogue-source" class="field-help"></p><div id="dialogue-lines" class="dialogue-lines"></div>
+            <button type="button" class="small-button" data-read-aloud aria-pressed="false" hidden>Read aloud</button><p id="dialogue-source" class="field-help"></p><div id="dialogue-lines" class="dialogue-lines"></div>
             <p class="field-help">Take your time. This exchange stays open until you close it or choose another. <a href="journal.php">Read the village journal ↗</a></p>
         </section>
         <p id="chicken-message" class="chicken-message" role="status">The chickens are protected. Always.</p>

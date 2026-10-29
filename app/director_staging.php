@@ -96,7 +96,7 @@ function stagingTurn(array $page,string $sid,array $registered,?string $prior,bo
         ||!in_array($turn['status']??null,['queued','in_progress','waiting','completed','failed','cancelled'],true))throw new AiGuard('usage_unknown');
     return $turn;
 }
-function stagingItems(array $items,string $turn,?string &$failureStage=null):array
+function stagingItems(array $items,string $turn,?string &$failureStage=null,int $maximumBytes=4096):array
 {
     $failureStage='item_envelope';
     if(($items['has_more']??true)!==false||!is_array($items['data']??null)||!array_is_list($items['data'])||count($items['data'])>20)throw new AiGuard('invalid_proposal');$texts=[];
@@ -112,7 +112,7 @@ function stagingItems(array $items,string $turn,?string &$failureStage=null):arr
         $text='';if(!$item['content'])throw new AiGuard('invalid_proposal');
         foreach($item['content'] as $c){
             if(!is_array($c)||($c['type']??null)!=='output_text'||!is_string($c['text']??null))throw new AiGuard('invalid_proposal');
-            $text.=$c['text'];if(strlen($text)>4096)throw new AiGuard('invalid_proposal');
+            $text.=$c['text'];if(strlen($text)>$maximumBytes)throw new AiGuard('invalid_proposal');
         }
         $texts[]=$text;
     }
@@ -172,8 +172,9 @@ function stagingManagedEncounter(PDO $db,DirectorTransport $transport,array $att
         if($usageUncertain&&($turn['usage']??null)!==null)throw new AiGuard('usage_unknown');
         $items=$request('GET','agents/sessions/'.$sid.'/turns/'.$turnId.'/items?limit=20&order=asc');$proposalStage=null;
         try{
-            $decoded=stagingItems($items,$turnId,$proposalStage);$proposalStage='proposal_content';
+            $decoded=stagingItems($items,$turnId,$proposalStage,directorProposalByteLimit($prepared['context']['contract']));$proposalStage='proposal_content';
             $proposal=parseDirectorProposal($decoded,$prepared['context']['participants'],$choices);
+            assertDirectorOutputContract($proposal['contract'],$prepared['context']['contract']);
             if($conversationOnly&&($proposal['outcome']!=='conversation'||$proposal['world_action']!=='none'))throw new AiGuard('invalid_proposal');
         }catch(\Throwable $e){
             if(($e instanceof AiGuard&&$e->reason==='invalid_proposal')||$e instanceof \JsonException)

@@ -1,0 +1,295 @@
+{
+  "issue": 74,
+  "at": "2026-10-29T12:07:39.276045+00:00",
+  "model": "gpt-6-luna",
+  "runtime": "Fresh Responses store=false; not hosted managed-session equivalence",
+  "fixture": "Only invented adult/child characters, IDs, dialogue and scenes; no production SQLite data",
+  "instruction_source_sha256": "ab678eda022e4469859525b877a0198ee46491700f3585e427bf240a9cabe427",
+  "maximum_generations": 6,
+  "maximum_http_requests": 12,
+  "allocation_microusd": 100000,
+  "max_output_tokens": 14000,
+  "reasoning": "none",
+  "service_tier": "default",
+  "pricing_date": "2026-10-29",
+  "pricing_source": "https://developers.openai.com/api/docs/pricing",
+  "usd_per_million": {
+    "input": 0.1,
+    "cached_input": 0.01,
+    "cache_write": 0.125,
+    "output": 0.5
+  },
+  "calls": [
+    {
+      "endpoint": "responses",
+      "state": "completed",
+      "reserved_microusd": 8815.625,
+      "http_status": 200
+    },
+    {
+      "endpoint": "moderations",
+      "state": "completed",
+      "reserved_microusd": 0,
+      "http_status": 200
+    },
+    {
+      "endpoint": "responses",
+      "state": "completed",
+      "reserved_microusd": 8875.875,
+      "http_status": 200
+    },
+    {
+      "endpoint": "moderations",
+      "state": "completed",
+      "reserved_microusd": 0,
+      "http_status": 200
+    },
+    {
+      "endpoint": "responses",
+      "state": "completed",
+      "reserved_microusd": 8818.25,
+      "http_status": 200
+    },
+    {
+      "endpoint": "moderations",
+      "state": "completed",
+      "reserved_microusd": 0,
+      "http_status": 200
+    },
+    {
+      "endpoint": "responses",
+      "state": "completed",
+      "reserved_microusd": 8878.5,
+      "http_status": 200
+    },
+    {
+      "endpoint": "moderations",
+      "state": "completed",
+      "reserved_microusd": 0,
+      "http_status": 200
+    },
+    {
+      "endpoint": "responses",
+      "state": "completed",
+      "reserved_microusd": 8815.5,
+      "http_status": 200
+    },
+    {
+      "endpoint": "moderations",
+      "state": "completed",
+      "reserved_microusd": 0,
+      "http_status": 200
+    },
+    {
+      "endpoint": "responses",
+      "state": "completed",
+      "reserved_microusd": 8875.75,
+      "http_status": 200
+    },
+    {
+      "endpoint": "moderations",
+      "state": "completed",
+      "reserved_microusd": 0,
+      "http_status": 200
+    }
+  ],
+  "results": [
+    {
+      "case": "disagreement",
+      "arm": "v1",
+      "status": "completed",
+      "usage": {
+        "input_tokens": 2528,
+        "input_tokens_details": {
+          "cache_write_tokens": 2525,
+          "cached_tokens": 0
+        },
+        "output_tokens": 134,
+        "output_tokens_details": {
+          "reasoning_tokens": 0
+        },
+        "total_tokens": 2662
+      },
+      "context_sha256": "85c4081c1020b0b6f977661a95775b91270de9e97e640a2a2725ce3d9eda590b",
+      "output_text": "{\"contract\":\"sanctuary.director.v1\",\"outcome\":\"conversation\",\"topic\":\"A fresh disagreement about whether labels should be decorative\",\"messages\":[{\"resident_id\":\"11111111111111111111111111111111\",\"text\":\"Labels should be bright enough to notice from across the commons. If they blend in, what’s the point?\"},{\"resident_id\":\"22222222222222222222222222222222\",\"text\":\"The point is reading them, not spotting them from another village. A clear board beats a colorful distraction.\"}],\"world_action\":\"none\",\"transmissions\":[],\"notes\":[]}",
+      "approximate_usd": 0.000382925,
+      "application_valid": true,
+      "message_count": 2,
+      "moderation_flagged": [
+        false
+      ]
+    },
+    {
+      "case": "disagreement",
+      "arm": "v2",
+      "status": "completed",
+      "usage": {
+        "input_tokens": 2612,
+        "input_tokens_details": {
+          "cache_write_tokens": 2609,
+          "cached_tokens": 0
+        },
+        "output_tokens": 224,
+        "output_tokens_details": {
+          "reasoning_tokens": 0
+        },
+        "total_tokens": 2836
+      },
+      "context_sha256": "578170a3946712b30211a7b41ca67d30d0829804331a78ac9da09b323959f171",
+      "output_text": "{\"contract\":\"sanctuary.director.v2\",\"outcome\":\"conversation\",\"topic\":\"A fresh disagreement about whether shared spaces need decoration\",\"messages\":[{\"resident_id\":\"11111111111111111111111111111111\",\"text\":\"Not every shared space needs to look like a toolbox, Rowan. A painted bench could make the commons feel less severe.\"},{\"resident_id\":\"22222222222222222222222222222222\",\"text\":\"Paint peels, and benches belong beside paths, not in them. Put color somewhere it won't become everyone's obstacle.\"},{\"resident_id\":\"11111111111111111111111111111111\",\"text\":\"Fair point about the path. I still think you mistake plainness for practicality, but I can work around your precious clear route.\"},{\"resident_id\":\"22222222222222222222222222222222\",\"text\":\"And you mistake color for a plan. Put your bright idea off the walking line; then I won't complain about it.\"}],\"world_action\":\"none\",\"transmissions\":[],\"notes\":[]}",
+      "approximate_usd": 0.000438425,
+      "application_valid": true,
+      "message_count": 4,
+      "moderation_flagged": [
+        false
+      ]
+    },
+    {
+      "case": "child",
+      "arm": "v1",
+      "status": "completed",
+      "usage": {
+        "input_tokens": 2533,
+        "input_tokens_details": {
+          "cache_write_tokens": 716,
+          "cached_tokens": 1814
+        },
+        "output_tokens": 145,
+        "output_tokens_details": {
+          "reasoning_tokens": 0
+        },
+        "total_tokens": 2678
+      },
+      "context_sha256": "2fde6c398f455d3174eb8026ca857e60c99edbbf0f710a70eb56b203ffa4528d",
+      "output_text": "{\"contract\":\"sanctuary.director.v1\",\"outcome\":\"conversation\",\"topic\":\"choosing a quieter way to play\",\"messages\":[{\"resident_id\":\"11111111111111111111111111111111\",\"text\":\"Oh, right, your puzzle. I don't want to make it hard to think. I could invent a tiny marching game with silent feet.\"},{\"resident_id\":\"22222222222222222222222222222222\",\"text\":\"That sounds considerate, Mira. I still need quiet for now, though. You don't have to wait for me; choose whatever feels fun.\"}],\"world_action\":\"none\",\"transmissions\":[],\"notes\":[]}",
+      "approximate_usd": 0.00018044,
+      "application_valid": true,
+      "message_count": 2,
+      "moderation_flagged": [
+        false
+      ]
+    },
+    {
+      "case": "child",
+      "arm": "v2",
+      "status": "completed",
+      "usage": {
+        "input_tokens": 2617,
+        "input_tokens_details": {
+          "cache_write_tokens": 760,
+          "cached_tokens": 1854
+        },
+        "output_tokens": 175,
+        "output_tokens_details": {
+          "reasoning_tokens": 0
+        },
+        "total_tokens": 2792
+      },
+      "context_sha256": "560df5f9e99376eb0ee8f022cd8e339fb7d2e161d6bd82d2096cb2ebb2feee5c",
+      "output_text": "{\"contract\":\"sanctuary.director.v2\",\"outcome\":\"conversation\",\"topic\":\"Different ways to enjoy the commons\",\"messages\":[{\"resident_id\":\"11111111111111111111111111111111\",\"text\":\"We don't have to play a noisy game. I could make up a tiny creature that lives in a quiet puzzle.\"},{\"resident_id\":\"22222222222222222222222222222222\",\"text\":\"That sounds fun, as long as I can keep working while you imagine it. What does the creature look like?\"},{\"resident_id\":\"11111111111111111111111111111111\",\"text\":\"A button-sized dragon with paper wings. It only roars when someone asks it to, so it won't interrupt.\"}],\"world_action\":\"none\",\"transmissions\":[],\"notes\":[]}",
+      "approximate_usd": 0.00020134,
+      "application_valid": true,
+      "message_count": 3,
+      "moderation_flagged": [
+        false
+      ]
+    },
+    {
+      "case": "topic_repetition",
+      "arm": "v1",
+      "status": "completed",
+      "usage": {
+        "input_tokens": 2528,
+        "input_tokens_details": {
+          "cache_write_tokens": 711,
+          "cached_tokens": 1814
+        },
+        "output_tokens": 142,
+        "output_tokens_details": {
+          "reasoning_tokens": 0
+        },
+        "total_tokens": 2670
+      },
+      "context_sha256": "6f225e5c1ef39515ff243d53d1d6f5b70db7c07ef9188603fbb256ff7e71c693",
+      "output_text": "{\"contract\":\"sanctuary.director.v1\",\"outcome\":\"conversation\",\"topic\":\"An odd joke about practical repairs\",\"messages\":[{\"resident_id\":\"11111111111111111111111111111111\",\"text\":\"Good, no more cups, signs, or napkins. I saw a cloud shaped like a very damp wrench—would that fix anything?\"},{\"resident_id\":\"22222222222222222222222222222222\",\"text\":\"Only if it came with a handle. Still, a damp wrench sounds less useful than a dry afternoon and a properly labeled toolbox.\"}],\"world_action\":\"none\",\"transmissions\":[],\"notes\":[]}",
+      "approximate_usd": 0.000178315,
+      "application_valid": true,
+      "message_count": 2,
+      "moderation_flagged": [
+        false
+      ]
+    },
+    {
+      "case": "topic_repetition",
+      "arm": "v2",
+      "status": "completed",
+      "usage": {
+        "input_tokens": 2612,
+        "input_tokens_details": {
+          "cache_write_tokens": 755,
+          "cached_tokens": 1854
+        },
+        "output_tokens": 132,
+        "output_tokens_details": {
+          "reasoning_tokens": 0
+        },
+        "total_tokens": 2744
+      },
+      "context_sha256": "eb6077e85db86a3a21168faabf868ba5276aaed4d1c032e01436d4af85ebfd92",
+      "output_text": "{\"contract\":\"sanctuary.director.v2\",\"outcome\":\"conversation\",\"topic\":\"A fresh discussion about oddly specific inventions\",\"messages\":[{\"resident_id\":\"11111111111111111111111111111111\",\"text\":\"I propose a tiny umbrella for spoons. It can protect them from soup, which is famously difficult weather.\"},{\"resident_id\":\"22222222222222222222222222222222\",\"text\":\"That’s an impressive solution to a problem nobody has. At least the handle could double as a screwdriver.\"}],\"world_action\":\"none\",\"transmissions\":[],\"notes\":[]}",
+      "approximate_usd": 0.000179215,
+      "application_valid": true,
+      "message_count": 2,
+      "moderation_flagged": [
+        false
+      ]
+    }
+  ],
+  "completed": true,
+  "total_approximate_usd": 0.00156066,
+  "limitations": [
+    "Three scenarios, one sample per arm: directional evidence, not a statistically reliable quality score.",
+    "Fresh Responses requests with the read-only instruction export; managed session reuse, deadlines and larger output need separately approved live staging.",
+    "Observed variable lengths 4,3,2 validate no padding toward sixteen; maximum length is tested offline, not proven by these six calls.",
+    "All six application validations passed and all six whole-proposal moderation checks were unflagged.",
+    "Naturalness assessment is qualitative: disagreement has room for response and counter-response; child play develops one idea; repetition changes topic and remains brief. No claimed memory-quality percentage.",
+    "Approximate pricing from observed token details, including cache writes; provider invoice remains authoritative.",
+    "All six generated proposals contained zero memory notes. These samples do not demonstrate better long-term memory or relationship continuity; offline tests establish later-sequence attribution and one-encounter accounting only."
+  ],
+  "totals": {
+    "input_tokens": 15430,
+    "output_tokens": 952,
+    "total_tokens": 16382,
+    "cached_input_tokens": 7336,
+    "cache_write_tokens": 8076
+  },
+  "scenarios": [
+    {
+      "name": "disagreement",
+      "synthetic_mira_description": "Mira enjoys bold, colorful designs and playful argument. She listens but does not agree just to be nice.",
+      "synthetic_rowan_description": "Rowan prefers practical wooden structures, dry humor and leaving paths clear.",
+      "prior_synthetic_messages": [
+        "Could the gate be bright blue?",
+        "A wooden arch seems more useful."
+      ]
+    },
+    {
+      "name": "child",
+      "synthetic_mira_description": "Mira is nine, curious, imaginative and allowed to say no. Child safety and age-appropriate speech are essential.",
+      "synthetic_rowan_description": "Rowan is a patient adult who enjoys quiet tinkering and respects children's boundaries.",
+      "prior_synthetic_messages": [
+        "Could we invent a noisy marching game?",
+        "I was hoping to finish this quiet puzzle."
+      ]
+    },
+    {
+      "name": "topic_repetition",
+      "synthetic_mira_description": "Mira enjoys odd jokes, noticing the sky and changing subjects when bored.",
+      "synthetic_rowan_description": "Rowan enjoys practical projects and gentle sarcasm.",
+      "prior_synthetic_messages": [
+        "We have discussed picnic cups, signs and napkins three times.",
+        "I would rather find something else to talk about."
+      ]
+    }
+  ]
+}

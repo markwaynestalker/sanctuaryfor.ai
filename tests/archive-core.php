@@ -64,7 +64,7 @@ try{
   foreach([['size'=>'101'],['size'=>'0'],['size'=>'0010'],['page'=>'0'],['page'=>'-1'],['page'=>'999999999999999999999999'],['q'=>str_repeat('é',129)],['q'=>str_repeat(' ',129)],['q'=>"\0"],['q'=>"bad\0text"],['q'=>"\xff"],['q'=>[]],['resident'=>'javascript:bad'],['source'=>'model'],['order'=>'DESC;DROP TABLE residents'],['from'=>'2026-02-29'],['from'=>'0000-01-01'],['from'=>'2026-10-02','until'=>'2026-10-01'],['sort'=>'body']] as $invalid){
    try{LittleSparks\conversationArchive($db,$invalid);throw new LogicException('Invalid filter accepted');}catch(LittleSparks\Problem $e){check($e->status===422,'Invalid filter fails safely');}
   }
-  $counting=new ArchiveCountingPdo('sqlite:'.$path,null,null,[PDO::ATTR_DEFAULT_FETCH_MODE=>PDO::FETCH_ASSOC,PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION]);$counting->exec('PRAGMA query_only=ON');LittleSparks\conversationArchive($counting,['size'=>'100']);check($counting->reads===3,'Three bounded reads, never one per exchange/speaker');$counting=null;
+  $counting=new ArchiveCountingPdo('sqlite:'.$path,null,null,[PDO::ATTR_DEFAULT_FETCH_MODE=>PDO::FETCH_ASSOC,PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION]);$counting->exec('PRAGMA query_only=ON');LittleSparks\conversationArchive($counting,['size'=>'100']);check($counting->reads===6,'Six bounded reads including capability detection and transcript batch, never one per exchange/speaker');$counting=null;
   check(hash_file('sha256',$path)===$before,'Every archive/commons read preserves file bytes and schema');
   $manifest[]=['version'=>$version,'database'=>$path,'sha256'=>$before,'ids'=>$all];$db=null;
  }

@@ -12,6 +12,7 @@ function commonsResidentIds(mixed $value): array
 
 function commons(PDO $db,array $ids,?int $now=null): array
 {
+    $messageTable=messageRelation($db);
     $ids=commonsResidentIds(implode(',',$ids));$marks=implode(',',array_fill(0,count($ids),'?'));
     $q=$db->prepare("SELECT h.resident_id,h.slot,w.variant AS house_variant,o.id,o.kind,o.variant,o.x,o.y FROM home_plots h
         JOIN world_objects w ON w.resident_id=h.resident_id AND w.kind='house'
@@ -37,8 +38,8 @@ function commons(PDO $db,array $ids,?int $now=null): array
         FROM conversation_participants visible
         JOIN conversations c ON c.id=visible.conversation_id
         JOIN simulation_runs run ON run.id=c.run_id AND run.status='completed'
-        JOIN messages a ON a.conversation_id=c.id AND a.sequence=0 AND a.resident_id=visible.resident_id
-        JOIN messages b ON b.conversation_id=c.id AND b.sequence=1 AND b.resident_id<>a.resident_id
+        JOIN $messageTable a ON a.conversation_id=c.id AND a.sequence=0 AND a.resident_id=visible.resident_id
+        JOIN $messageTable b ON b.conversation_id=c.id AND b.sequence=1 AND b.resident_id<>a.resident_id
         JOIN residents ra ON ra.id=a.resident_id JOIN residents rb ON rb.id=b.resident_id $join
         WHERE c.visibility='public' AND visible.resident_id IN ($marks) AND b.resident_id IN ($marks)
             AND length(a.body) BETWEEN 1 AND 160 AND length(b.body) BETWEEN 1 AND 160
@@ -52,6 +53,8 @@ function commons(PDO $db,array $ids,?int $now=null): array
         ['resident_id'=>$c['first_id'],'name'=>$c['first_name'],'text'=>$c['first_text'],'created_at'=>$c['created_at']],
         ['resident_id'=>$c['second_id'],'name'=>$c['second_name'],'text'=>$c['second_text'],'created_at'=>$c['created_at']]
     ]];
+    $transcripts=conversationMessageBatch($db,array_column($conversations,'id'));
+    foreach($conversations as &$conversation){$conversation['messages']=array_map(static function($m)use($conversation){unset($m['sequence']);$m['created_at']=$conversation['created_at'];return $m;},$transcripts[$conversation['id']]??[]);}unset($conversation);
     $now??=time();$tick=publishedVillageTick($db);$settings=['replay_cooldown_seconds'=>replayCooldownSeconds(),'sleep'=>villagePublicSleepState($db,$now,$tick)];
     if($weather=publicVillageWeather($tick,$now))$settings['weather']=$weather;
     // Saved authorship only, never an inferred reading or a live activity claim.

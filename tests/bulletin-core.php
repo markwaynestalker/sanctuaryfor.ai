@@ -52,7 +52,7 @@ try{
     foreach(['DAILY_MAX','RESIDENT_DAILY_MAX','ACTIVE_MAX','RESIDENT_ACTIVE_MAX','TOTAL_MAX'] as $key){putenv('LITTLE_SPARKS_BULLETIN_'.$key.'=0');check(!LittleSparks\bulletinCanPost($fixture,$entry['resident_id'],$now+3601),'Zero quota disables posting '.$key);putenv('LITTLE_SPARKS_BULLETIN_'.$key);}
     $one=LittleSparks\publicBulletin($fixture,$now);check($one['total']===1&&$one['pages']===1,'Bounded public retrieval');
     foreach([$ids,[$entry['resident_id']]] as $visible){$counting=new BulletinCountingPdo('sqlite:'.dirname($argv[1]).'/board-good.sqlite',null,null,[PDO::ATTR_DEFAULT_FETCH_MODE=>PDO::FETCH_ASSOC,PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION]);
-        LittleSparks\commons($counting,$visible);check($counting->reads===7,'Installed bulletin projection uses seven bounded reads regardless of visible population');$counting=null;}
+        LittleSparks\commons($counting,$visible);check($counting->reads===(count($visible)===2?10:8),'Installed bulletin projection uses a bounded transcript batch, never a query per exchange/message');$counting=null;}
     $orderedFile=dirname($argv[1]).'/board-ordered.sqlite';copy($template,$orderedFile);chmod($orderedFile,0600);$ordered=LittleSparks\connect($orderedFile);
     putenv('LITTLE_SPARKS_BULLETIN_COOLDOWN_SECONDS=0');putenv('LITTLE_SPARKS_BULLETIN_REPEAT_COOLDOWN_SECONDS=0');
     foreach([120,180] as $offset){$r=LittleSparks\simulateDirectorOpportunity($ordered,gmdate('Y-m-d\TH:i:00\Z',$now-$offset),true,new BulletinResponses());check($r['status']==='completed','Two independent notices in the same day');}

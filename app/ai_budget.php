@@ -141,6 +141,7 @@ function reserveAi(PDO $db,string $period,array $pair,array $config,int $now): a
         $db->prepare('UPDATE ai_lease SET owner=?,expires_at=? WHERE singleton=1')->execute([$id,$expires]);
         if(isset($config['director_session']))$db->prepare("INSERT INTO director_attempts(id,period,session_id,day,month,runtime,context_sha256,contract_version,request_slots,reserved_microusd,state,created_at) VALUES (?,?,?,?,?,?,?,'sanctuary.director.v1',?,?,'reserved',?)")
             ->execute([$id,$period,$config['director_session'],$day,$month,$config['director_runtime'],$config['director_context'],$slots,$reserved,gmdate('Y-m-d\TH:i:s\Z',$now)]);
+        if(isset($config['director_output_contract'])&&str_ends_with($config['director_output_contract'],'.v2'))$db->prepare('INSERT INTO conversation_attempt_contracts VALUES (?,?)')->execute([$id,$config['director_output_contract']]);
         if($continuation!==null)$db->prepare('INSERT INTO settings(name,value) VALUES (?,?)')->execute(['director_rejected_create_continuation:'.$continuation,$id]);
         $db->exec('COMMIT');return ['id'=>$id,'day'=>$day,'month'=>$month,'expires'=>$expires,'reserved'=>$reserved];
     }catch(\Throwable $error){$db->exec('ROLLBACK');throw $error;}

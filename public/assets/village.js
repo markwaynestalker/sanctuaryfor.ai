@@ -292,7 +292,7 @@
             w.element.title=w.resident.name+(posts.has(w.resident.id)?' · Saved public notice (not a live reading)':'');
             w.element.setAttribute('aria-label',w.resident.name+(sleeping?' is resting.':'')+' Open resident profile'+(posts.has(w.resident.id)?'. Has a saved public notice.':''));
             w.indicator.setAttribute('aria-pressed',String(activeMeeting?.exchange.id===saved?.id&&Boolean(saved)));
-            if(saved)w.indicator.setAttribute('aria-label','Read saved conversation: '+saved.messages.map(m=>m.name).join(' and '));
+            if(saved)w.indicator.setAttribute('aria-label','Read saved conversation: '+saved.messages.slice(0,2).map(m=>m.name).join(' and '));
         }
     }
     function updateActivity(w) {
@@ -317,7 +317,7 @@
                 const line = document.createElement('p'), name = document.createElement('strong'), text = document.createElement('span');
                 name.textContent = `${message.name}: `; text.textContent = message.text; line.append(name, text); article.append(line);
             }
-            const read=document.createElement('button');read.type='button';read.className='small-button';read.textContent='Read together';read.setAttribute('aria-label','Read saved conversation: '+c.messages.map(m=>m.name).join(' and '));read.addEventListener('click',()=>showExchange(c,read,true));article.append(read);
+            const read=document.createElement('button');read.type='button';read.className='small-button';read.textContent='Read together';read.setAttribute('aria-label','Read saved conversation: '+c.messages.slice(0,2).map(m=>m.name).join(' and '));read.addEventListener('click',()=>showExchange(c,read,true));article.append(read);
             panel.append(article);
         }
         if (!recent.length) { const p = document.createElement('p'); p.className = 'field-help'; p.textContent = 'No recent saved exchange for these neighbors is available. They can enjoy a little quiet; more history is in the village journal.'; panel.append(p); }
@@ -356,24 +356,25 @@
         }
     }
     function stopPlayback() {
+        globalThis.SparksReadAloud?.stop();
         cancelGathering();
         if(activeMeeting)for(const w of [activeMeeting.a,activeMeeting.b])if(w&&!Number.isFinite(w.stop))w.stop=performance.now()+800;
         meadow.endGather(activeMeeting,performance.now(),Math.random);
         activeMeeting=null;$('dialogue-panel').hidden=true;$('dialogue-lines').replaceChildren();updateIndicators();
     }
     function showExchange(exchange,source=null,focus=false) {
-        const pair=exchange.messages.map(m=>walkers.find(w=>w.resident.id===m.resident_id));
+        const pair=exchange.messages.slice(0,2).map(m=>walkers.find(w=>w.resident.id===m.resident_id));
         if(pair.some(w=>!w))return;
         stopPlayback();activeMeeting={a:pair[0],b:pair[1],exchange};dialogueOrigin=source;
         for(const w of pair)w.stop=Infinity;
         played.record(exchange.id,Date.now());
-        $('dialogue-title').textContent=exchange.messages.map(m=>m.name).join(' & ');
+        $('dialogue-title').textContent=exchange.messages.slice(0,2).map(m=>m.name).join(' & ');
         $('dialogue-source').textContent=commons.sourceLabel(exchange);
         const lines=$('dialogue-lines');lines.replaceChildren();
         for(const message of exchange.messages){
             const line=document.createElement('article'),name=document.createElement('strong'),text=document.createElement('p'),resident=pair.find(w=>w.resident.id===message.resident_id).resident;
             line.className='saved-speech';line.style.setProperty('--speech-color',avatars.palette(avatars.appearance(resident)).primary);
-            line.append(avatars.render(resident,'avatar-small'));name.textContent=message.name;text.textContent=message.text;line.append(name,text);lines.append(line);
+            line.append(avatars.render(resident,'avatar-small'));name.textContent=message.name;text.textContent=message.text;text.setAttribute('data-speech','');line.append(name,text);lines.append(line);
         }
         $('dialogue-panel').hidden=false;updateIndicators();
         if(focus)$('dialogue-title').focus();
