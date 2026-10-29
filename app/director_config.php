@@ -70,6 +70,9 @@ function directorSchema(array $choices,bool $multi=false):array
     if($multi){
         $cfg=conversationConfiguration();
         if(aiOutputTokenLimit()<$cfg['max']*768+1024)throw new AiGuard('configuration_invalid');
+        // Moderation includes the entire fresh context and proposal inside a JSON
+        // string. Reserve for worst-case context escaping and four-byte text.
+        if(aiRequestByteLimit()<2*memoryConfiguration()['context_bytes']+$cfg['max']*768+4096)throw new AiGuard('configuration_invalid');
         $schema['properties']['contract']['enum']=[array_key_exists('post_notice',$choices)?'sanctuary.director.bulletin.v2':'sanctuary.director.v2'];
         $schema['properties']['messages']['maxItems']=$cfg['max'];
         $schema['properties']['messages']['description']='For conversation, choose '.$cfg['min'].' to '.$cfg['max'].' original messages. Alternate participants strictly, beginning with the first supplied participant; either may finish. End naturally without padding. Other outcomes have no messages.';

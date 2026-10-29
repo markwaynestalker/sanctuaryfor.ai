@@ -34,7 +34,7 @@ final class MultiMessageResponses implements LittleSparks\AiTransport
             'output'=>[['type'=>'message','role'=>'assistant','status'=>'completed','content'=>[['type'=>'output_text','text'=>json_encode($this->proposal,JSON_UNESCAPED_UNICODE)]]]]];
     }
 }
-$multiVariables=['LITTLE_SPARKS_CONVERSATION_MIN_MESSAGES','LITTLE_SPARKS_CONVERSATION_MAX_MESSAGES','LITTLE_SPARKS_AI_MAX_OUTPUT_TOKENS','LITTLE_SPARKS_AI_DAILY_REQUESTS','LITTLE_SPARKS_AI_MONTHLY_MICROUSD','LITTLE_SPARKS_DIRECTOR_CONFIG_SHA256','LITTLE_SPARKS_DIRECTOR_AGENT_ID','LITTLE_SPARKS_DIRECTOR_RUNTIME','LITTLE_SPARKS_AI_ENABLED','LITTLE_SPARKS_SIMULATION_ENABLED','LITTLE_SPARKS_DIRECTOR_ENABLED'];
+$multiVariables=['LITTLE_SPARKS_CONVERSATION_MIN_MESSAGES','LITTLE_SPARKS_CONVERSATION_MAX_MESSAGES','LITTLE_SPARKS_AI_MAX_OUTPUT_TOKENS','LITTLE_SPARKS_AI_MAX_REQUEST_BYTES','LITTLE_SPARKS_AI_DAILY_REQUESTS','LITTLE_SPARKS_AI_MONTHLY_MICROUSD','LITTLE_SPARKS_DIRECTOR_CONFIG_SHA256','LITTLE_SPARKS_DIRECTOR_AGENT_ID','LITTLE_SPARKS_DIRECTOR_RUNTIME','LITTLE_SPARKS_AI_ENABLED','LITTLE_SPARKS_SIMULATION_ENABLED','LITTLE_SPARKS_DIRECTOR_ENABLED'];
 $multiPrevious=[];foreach($multiVariables as $name)$multiPrevious[$name]=getenv($name);
 try{
     foreach(['MIN','MAX'] as $setting){
@@ -46,6 +46,7 @@ try{
     try{LittleSparks\conversationConfiguration();throw new LogicException('Inverted message range accepted');}catch(LittleSparks\AiGuard){}
     putenv('LITTLE_SPARKS_CONVERSATION_MIN_MESSAGES');putenv('LITTLE_SPARKS_CONVERSATION_MAX_MESSAGES');
     putenv('LITTLE_SPARKS_AI_MAX_OUTPUT_TOKENS=14000');putenv('LITTLE_SPARKS_AI_DAILY_REQUESTS=1000');putenv('LITTLE_SPARKS_AI_MONTHLY_MICROUSD=25000000');
+    putenv('LITTLE_SPARKS_AI_MAX_REQUEST_BYTES=32768');
     putenv('LITTLE_SPARKS_AI_ENABLED=1');putenv('LITTLE_SPARKS_SIMULATION_ENABLED=1');putenv('LITTLE_SPARKS_DIRECTOR_ENABLED=1');putenv('LITTLE_SPARKS_DIRECTOR_RUNTIME=agents');
     foreach([['sanctuary.director.v1','sanctuary.director.v2'],['sanctuary.director.v2','sanctuary.director.v1'],['sanctuary.director.bulletin.v2','sanctuary.director.v2']] as [$actual,$expected]){
         try{LittleSparks\assertDirectorOutputContract($actual,$expected);throw new LogicException('Unrequested output contract accepted');}catch(LittleSparks\AiGuard){}
@@ -80,6 +81,7 @@ try{
         try{LittleSparks\parseDirectorProposal($p,$pair,['none'=>null]);throw new LogicException('Invalid proposal accepted: '.$mode);}catch(LittleSparks\AiGuard){}
     }
     putenv('LITTLE_SPARKS_AI_MAX_OUTPUT_TOKENS=512');try{LittleSparks\directorSchema(['none'=>null],true);throw new LogicException('Insufficient output budget accepted');}catch(LittleSparks\AiGuard){}putenv('LITTLE_SPARKS_AI_MAX_OUTPUT_TOKENS=14000');
+    putenv('LITTLE_SPARKS_AI_MAX_REQUEST_BYTES=16384');try{LittleSparks\directorSchema(['none'=>null],true);throw new LogicException('Insufficient moderation capacity accepted');}catch(LittleSparks\AiGuard){}putenv('LITTLE_SPARKS_AI_MAX_REQUEST_BYTES=32768');
     foreach([2,3,8,16] as $length){
         $path=$dir.'/multi-'.$length.'.sqlite';copy($itemsBase,$path);$d=LittleSparks\connect($path);
         $old=[];foreach($d->query("SELECT name,sql FROM sqlite_master WHERE type='table'")->fetchAll() as $table)$old[$table['name']]=[$table['sql'],$d->query('SELECT * FROM "'.$table['name'].'" ORDER BY rowid')->fetchAll()];
@@ -97,6 +99,8 @@ try{
         check(count($mock->moderated)===1&&$mock->moderated[0][1]['messages']===$mock->proposal['messages'],'Moderation covers the complete exchange');
         $relationship=$d->query('SELECT affinity,familiarity FROM relationships')->fetch();check((int)$relationship['affinity']===2&&(int)$relationship['familiarity']===1,'One relationship increment per encounter');
         check((int)$d->query('SELECT interaction_count FROM simulation_runs ORDER BY rowid DESC LIMIT 1')->fetchColumn()===1,'One simulation encounter regardless of message count');
+        check((int)$d->query('SELECT count(*) FROM ai_attempts')->fetchColumn()===1&&(int)$d->query('SELECT request_slots FROM director_attempts')->fetchColumn()===8,'One reservation retains the existing eight-slot managed envelope');
+        check($d->query('SELECT output_contract FROM conversation_attempt_contracts')->fetchColumn()==='sanctuary.director.v2','Additive attempt provenance records the requested v2 contract');
         check((int)$d->query('SELECT sequence FROM extended_director_notes')->fetchColumn()===$length-1,'Later-message note references its actual sequence');
         foreach(["UPDATE extended_messages SET body='changed'","DELETE FROM extended_messages","UPDATE extended_conversations SET message_count=2","DELETE FROM extended_director_notes"] as $sql){try{$d->exec($sql);throw new LogicException('Extended history mutation accepted');}catch(PDOException){}}
         check(count(LittleSparks\commons($d,$ids)['conversations'][0]['messages'])===$length,'Commons returns complete transcript');
