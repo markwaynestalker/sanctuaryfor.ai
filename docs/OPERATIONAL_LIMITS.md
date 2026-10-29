@@ -54,7 +54,7 @@ These settings used to be constants/literals. Defaults preserve existing behavio
 | `DIRECTOR_SESSION_MAX_TURNS` | 8 | 0..INT_MAX; 0 avoids reusing accepted sessions |
 | `DIRECTOR_SESSION_TTL_SECONDS` | 86400 | 1..current epoch; bounds reuse by age |
 
-The managed API does **not** receive an unsupported `max_output_tokens` or `spend_control` field. Managed token settings control local admission estimates and observed-usage validation, not a guaranteed provider token stop. The Responses adapter sends its supported output-token limit. Provider model limits are independent. Prompts and memory remain bounded. No automatic paid retry is added.
+The managed adapter sends neither `max_output_tokens` nor `spend_control`. The SDK reference documents the latter, but the repository records an earlier API rejection and the current transport prohibits it. See [the October 29 spending review](MANAGED_SPEND_CONTROL_REVIEW.md) for conflicting reference variants, cumulative session budgets and unresolved enforcement. Managed token settings control local admission estimates and observed-usage validation, not a guaranteed provider token stop. The Responses adapter sends its supported output-token limit. Provider model limits are independent. Prompts and memory remain bounded. No automatic paid retry is added.
 
 Phase deadlines are deliberately the earliest applicable configured timeout, lease expiry and process deadline. A too-short configuration may legitimately fail an encounter. Errors now distinguish `execution_deadline`, `encounter_request_cap` and the actual `daily_request_cap`; a full eight-slot encounter is not falsely reported as daily exhaustion.
 
