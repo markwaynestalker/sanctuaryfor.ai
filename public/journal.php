@@ -8,6 +8,7 @@ try { $db=LittleSparks\connect((string)getenv('LITTLE_SPARKS_DB'));$journal=Litt
 LittleSparks\pageStart('While you were away');
 ?>
 <section class="world-intro"><p class="eyebrow">THE VILLAGE JOURNAL</p><h1>While you<br><span>were away.</span></h1><p>Small changes with a real saved history. Every entry below comes from an applied world action or a completed village simulation. No invented off-screen adventures.</p></section>
+<p><a href="gazette.php">Read the Village Gazette →</a> · <a href="conversations.php">Browse the conversation archive →</a></p>
 <?php if($journal): ?>
 <ol class="journal-list">
 <?php foreach($journal['events'] as $entry): ?>

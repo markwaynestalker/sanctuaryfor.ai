@@ -1,5 +1,9 @@
 # SanctuaryFor.AI
 
+## Village Gazette, compiled first phase (#76)
+
+See docs/VILLAGE_GAZETTE.md. The public newspaper groups authorized complete transcripts, with exact diverse quotes, citations, factual day totals, native Eastern-date navigation and quiet-day handling. Public reads are query-only and never publish/generate. Explicit CLI publication freezes finished days in bounded immutable private JSON files, not SQLite. Missing historical snapshots are labeled previews; unavailable cited sources withhold a published edition. No migration, ENV, timer or Director change. Optional AI journalism is proposed separately with budget, accounting/migration, moderation, provenance and owner editorial approval review. Run all offline suites, synthetic desktop/tablet/phone no-JS readers and Ubuntu CI. No production access, paid calls, automatic merge, deployment or activation.
+
 ## Multi-message Director encounters (#74)
 
 See docs/MULTI_MESSAGE_CONVERSATIONS.md. An explicit V6 add-on preserves old history and stores complete, strictly alternating 2–16-message encounters (ENV configurable through 64). One generation, whole-proposal moderation and one encounter's relationship/fairness accounting remain. V2 scopes include message bounds; source notes use actual sequences. Journal/archive/profile/commons/search/recall retain full speech; optional on-device read-aloud is explicitly started. Activation needs a separate migration and reviewed output allowance; legacy 512 tokens is insufficient. No production ENV, data, hosted instructions, accounting reset, scheduler change, automatic merge or deployment. Run all offline suites, synthetic desktop/tablet/phone readers and Ubuntu CI.

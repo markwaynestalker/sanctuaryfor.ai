@@ -5,7 +5,7 @@ namespace LittleSparks;
 function e(string $value): string { return htmlspecialchars($value,ENT_QUOTES|ENT_SUBSTITUTE,'UTF-8'); }
 function assetUrl(string $name): string
 {
-    if(!in_array($name,['sanctuary.css','village.css','world.css','world.js','village.js','commons.js','meadow.js','atmosphere.js','atmosphere.css','archive.js','archive.css','avatars.js','read-aloud.js'],true))throw new \InvalidArgumentException('Unsupported asset.');
+    if(!in_array($name,['sanctuary.css','village.css','world.css','world.js','village.js','commons.js','meadow.js','atmosphere.js','atmosphere.css','archive.js','archive.css','avatars.js','read-aloud.js','gazette.css'],true))throw new \InvalidArgumentException('Unsupported asset.');
     return 'assets/'.$name.'?v='.substr(hash_file('sha256',__DIR__.'/../public/assets/'.$name),0,12);
 }
 function pageStart(string $title, bool $script=false): void
