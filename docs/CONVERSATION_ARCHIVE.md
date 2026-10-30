@@ -12,6 +12,8 @@ There are three SELECT/PRAGMA reads for a page, independent of page population. 
 
 ## GET parameters
 
+The Gazette adds an optional `conversation` filter: one exact 1–64-character ASCII letter/digit/underscore/hyphen ID, bound as SQL data and subject to the same public authorization. Combined with `open=ID`, it supplies a permanent native citation independent of page position. The shared source helper preserves the archive policy; no Director or history data is rewritten.
+
 | Parameter | Default | Validation / meaning |
 | --- | --- | --- |
 | q | empty | Up to 128 Unicode characters/512 UTF-8 bytes; literal case-insensitive substring across either name, either complete message and available public topic. Invalid UTF-8/control characters rejected. Quoted Unicode PCRE, not SQL or regex input; `%`, `_`, quotes and punctuation stay literal. No mbstring/ICU dependency. |

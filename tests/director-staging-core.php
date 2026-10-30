@@ -135,8 +135,9 @@ try{
     // Routine mode uses the same bounded lifecycle, with no one-shot permit or per-encounter approval.
     $stage=$stageFresh();LittleSparks\recordDirectorAccessReservations($stage,$evidence);
     putenv('LITTLE_SPARKS_AI_DAILY_REQUESTS=18');putenv('LITTLE_SPARKS_AI_MONTHLY_MICROUSD=20000');
+    $routineNow=time();
     foreach([60,120] as $offset){
-        $mock=new StagingMock('good');$op=gmdate('Y-m-d\TH:i:00\Z',time()-$offset);
+        $mock=new StagingMock('good');$op=gmdate('Y-m-d\TH:i:00\Z',$routineNow-$offset);
         $r=LittleSparks\simulateDirectorOpportunity($stage,$op,true,null,$mock,null,null,false,null,true);
         check($r['status']==='completed'&&count($mock->calls)<=8,'Configured routine conversations proceed without manual permits/reconciliation');
         $n=count($mock->calls);LittleSparks\simulateDirectorOpportunity($stage,$op,true,null,$mock,null,null,false,null,true);check(count($mock->calls)===$n,'No duplicate generation on replay');

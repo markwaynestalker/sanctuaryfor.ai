@@ -5,13 +5,15 @@ use PDO;
 
 function archiveParameters(array $input):array
 {
-    if(array_diff(array_keys($input),['q','resident','source','from','until','order','size','page']))throw new Problem(422,'Unknown archive filter.');
+    if(array_diff(array_keys($input),['q','resident','conversation','source','from','until','order','size','page']))throw new Problem(422,'Unknown archive filter.');
     foreach($input as $value)if(!is_string($value))throw new Problem(422,'Use one text value for each archive filter.');
     $q=$input['q']??'';
     if(strlen($q)>512||!preg_match('//u',$q)||preg_match_all('/./us',$q)>128||preg_match('/[\x00-\x1F\x7F]/u',$q))throw new Problem(422,'Search with up to 128 ordinary text characters.');
     $q=trim($q);
     $resident=$input['resident']??'';
     if($resident!==''&&!preg_match('/\A[a-f0-9]{32}\z/',$resident))throw new Problem(422,'Choose a valid resident.');
+    $conversation=$input['conversation']??'';
+    if($conversation!==''&&!preg_match('/\A[a-zA-Z0-9_-]{1,64}\z/',$conversation))throw new Problem(422,'Choose a valid conversation.');
     $source=$input['source']??'all';$order=$input['order']??'newest';$size=$input['size']??'25';$page=$input['page']??'1';
     if(!in_array($source,['all','openai','scripted'],true)||!in_array($order,['newest','oldest'],true)||!in_array($size,['10','25','50','100'],true))throw new Problem(422,'Choose an available source, ordering and page size.');
     if(!preg_match('/\A[1-9][0-9]*\z/',$page)||filter_var($page,FILTER_VALIDATE_INT)===false||(int)$page>intdiv(PHP_INT_MAX,100))throw new Problem(422,'Choose a valid page number.');
@@ -26,14 +28,14 @@ function archiveParameters(array $input):array
         $dates[$field]=$value;
     }
     if($dates['from']!==''&&$dates['until']!==''&&$dates['from']>$dates['until'])throw new Problem(422,'The start date must not follow the end date.');
-    return ['q'=>$q,'resident'=>$resident,'source'=>$source,'from'=>$dates['from'],'until'=>$dates['until'],'order'=>$order,'size'=>(int)$size,'page'=>(int)$page];
+    return ['q'=>$q,'resident'=>$resident,'conversation'=>$conversation,'source'=>$source,'from'=>$dates['from'],'until'=>$dates['until'],'order'=>$order,'size'=>(int)$size,'page'=>(int)$page];
 }
 
-/** Bounded public projection only. Never call a provider, session, writer or migration. */
-function conversationArchive(PDO $db,array $input):array
+/** Shared source authorization; callers add bound filters inside a read snapshot. */
+function conversationPublicSource(PDO $db):array
 {
     $messageTable=messageRelation($db);
-    $filters=archiveParameters($input);$version=(int)$db->query('PRAGMA user_version')->fetchColumn();
+    $version=(int)$db->query('PRAGMA user_version')->fetchColumn();
     $source=$version>=3?"CASE WHEN ai.conversation_id IS NOT NULL THEN 'openai' ELSE 'scripted' END":"'scripted'";
     $joins=$version>=3?' LEFT JOIN ai_conversations ai ON ai.conversation_id=c.id':'';
     $topic=$version===6?'COALESCE(d.topic,c.topic)':'c.topic';
@@ -52,7 +54,15 @@ function conversationArchive(PDO $db,array $input):array
     // Materialize public event authorization once per query. SQLite can build a
     // transient run-id lookup instead of rescanning the full event log per row.
     $prefix="WITH archive_events AS MATERIALIZED (SELECT run_id,actor_id,target_id,dedupe_key FROM events WHERE visibility='public' AND kind IN ('conversation','quiet_time') AND target_id IS NOT NULL) ";
+    return compact('prefix','sql','source','topic','messageTable');
+}
+/** Bounded public projection only. Never call a provider, session, writer or migration. */
+function conversationArchive(PDO $db,array $input):array
+{
+    $filters=archiveParameters($input);
+    ['prefix'=>$prefix,'sql'=>$sql,'source'=>$source,'topic'=>$topic,'messageTable'=>$messageTable]=conversationPublicSource($db);
     $values=[];
+    if($filters['conversation']!==''){$sql.=' AND c.id=:conversation';$values[':conversation']=$filters['conversation'];}
     if($filters['resident']!==''){$sql.=' AND (a.resident_id=:resident OR b.resident_id=:resident)';$values[':resident']=$filters['resident'];}
     if($filters['source']!=='all'){$sql.=" AND ($source)=:source";$values[':source']=$filters['source'];}
     if($filters['from']!==''){$sql.=' AND c.created_at>=:from';$values[':from']=$filters['from'].'T00:00:00';}
