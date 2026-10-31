@@ -207,6 +207,14 @@ def main():
             (writer_state / 'release').write_text('1');wait_for(lambda: property_value(writer, 'ActiveState') in ['inactive', 'failed'], 'Writer not drained')
             assert info() == [1, 1, 0, 30000, 0] and (state / 'calls').read_text() == '1'
             start();assert info() == [1, 1, 0, 30000, 0]
+            # Explicit worker restart during a dispatched mock call: new invocation, no regeneration.
+            reset();configure(barrier=True);start(wait=False)
+            wait_for(lambda: (state / 'dispatched').exists(), 'No worker-restart dispatch')
+            previous=property_value(worker, 'InvocationID')
+            run(['systemctl', 'restart', '--no-block', worker])
+            wait_for(lambda: property_value(worker, 'InvocationID') not in ['', previous], 'Worker restart did not create a new invocation')
+            wait_for(lambda: property_value(worker, 'ActiveState') in ['inactive', 'failed'], 'Restarted worker did not finish')
+            assert info() == [1, 1, 0, 30000, 0] and (state / 'calls').read_text() == '1'
             # Stopping a required socket fences an in-flight worker; restarting never replays it.
             reset();configure(barrier=True);start(wait=False)
             wait_for(lambda: (state / 'dispatched').exists(), 'No restart-case dispatch')
