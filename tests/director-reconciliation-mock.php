@@ -3,11 +3,12 @@ declare(strict_types=1);
 final class ReconciliationMock implements LittleSparks\DirectorTransport
 {
     public array $calls=[];
-    public function __construct(public array $local,public string $mode='good'){}
+    public function __construct(public array $local,public string $mode='good',public ?Closure $onRequest=null){}
     public function request(string $method,string $path,?array $body,int $deadline,?string $key=null):array
     {
         if($method!=='GET'||$body!==null||$key!==null)throw new LogicException('Reconciliation must never generate or cancel');
         $this->calls[]=$path;$a=$this->local['records']['ai_attempts'][0];$s=$this->local['records']['session'];$sid=$s['provider_session_id'];
+        if($this->onRequest!==null)($this->onRequest)(count($this->calls));
         if($this->mode==='http')throw new LittleSparks\ManagedHttpFailure(503,'req_reconciliation');
         $usage=['input_tokens'=>2200,'output_tokens'=>100,'total_tokens'=>2300];
         if($this->mode==='unknown')$usage=null;

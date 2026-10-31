@@ -50,6 +50,7 @@ try{
         catch(LittleSparks\AiGuard $e){check($mode!=='budget','Budget overrun must durably retain its actual commitment');}
         check($d->query("SELECT state FROM ai_attempts WHERE id='$id'")->fetchColumn()==='uncertain','Unsafe review never clears hold: '.$mode);putenv('LITTLE_SPARKS_AI_MONTHLY_MICROUSD=1000000');
     }
+    require __DIR__.'/director-reconciliation-contention.php';
     [$d,$id]=$uncertain();$path=$d->query('PRAGMA database_list')->fetch()['file'];$slots=(int)$d->query('SELECT SUM(request_slots) FROM ai_attempts')->fetchColumn()+(int)$d->query('SELECT SUM(request_slots-2) FROM director_attempts')->fetchColumn();
     putenv('LITTLE_SPARKS_AI_DAILY_REQUESTS='.($slots+3));$workers=[];
     foreach(['7','8'] as $digit){$p=proc_open([PHP_BINARY,__DIR__.'/director-reconciliation-worker.php',$path,$id,str_repeat($digit,32)],[1=>['pipe','w'],2=>['pipe','w']],$pipes);$workers[]=[$p,$pipes];}
