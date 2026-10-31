@@ -116,7 +116,7 @@ def main():
                       'SANCTUARY_CI_MODE': mode, 'SANCTUARY_CI_BARRIER': '1' if barrier else '0', 'SANCTUARY_CI_SYSTEMD_TEST': '1'}
             worker_env.write_text('\n'.join(key + '=' + value for key, value in values.items()) + '\n');worker_env.chmod(0o600)
         configure('disabled', enabled=False, helper_enabled=False)
-        common = '\nRootDirectory=' + str(jail) + '\nMountAPIVFS=true\nTemporaryFileSystem=/run:mode=0755\nBindReadOnlyPaths=/usr /lib /lib64 /bin /etc/php /etc/ssl /etc/ld.so.cache ' + str(runtime) + ':/run/sanctuary-gazette-db\nEnvironment=MIBS=\n'
+        common = '\nRootDirectory=' + str(jail) + '\nMountAPIVFS=true\nBindPaths=' + str(inside('/run')) + ':/run\nBindReadOnlyPaths=/usr /lib /lib64 /bin /etc/php /etc/ssl /etc/ld.so.cache\nEnvironment=MIBS=\n'
         helper = (ROOT / 'ops/systemd/sanctuary-gazette-db@.service').read_text()
         helper = helper.replace('sanctuary-gazette-db.socket', helper_socket).replace('REVIEWED_DATABASE_OWNER', str(DB_UID)).replace('REVIEWED_DATABASE_GROUP', str(DB_UID))
         helper = helper.replace('/usr/local/lib/sanctuary-gazette/db_helper.py', release_path + '/ops/gazette/db_helper.py')
