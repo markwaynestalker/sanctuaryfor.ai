@@ -1,0 +1,42 @@
+# Template: replace REVIEWED_DATABASE_OWNER with the existing non-root DB owner.
+# No credential, Director ENV, network transport, publication or root execution.
+[Unit]
+Description=One authenticated Gazette database operation
+Requires=sanctuary-gazette-db.socket
+After=sanctuary-gazette-db.socket
+StartLimitIntervalSec=60
+StartLimitBurst=12
+CollectMode=inactive-or-failed
+
+[Service]
+Type=exec
+User=REVIEWED_DATABASE_OWNER
+Group=REVIEWED_DATABASE_GROUP
+ExecStart=/usr/bin/python3 -I /usr/local/lib/sanctuary-gazette/db_helper.py
+StandardInput=socket
+StandardOutput=socket
+StandardError=journal
+Restart=no
+RuntimeMaxSec=15s
+TimeoutStopSec=2s
+UMask=0077
+NoNewPrivileges=true
+PrivateNetwork=true
+RestrictAddressFamilies=AF_UNIX
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/sanctuaryfor-ai
+InaccessiblePaths=-/etc/sanctuary-gazette -/etc/sanctuaryfor-ai -/var/lib/sanctuaryfor-ai/village.sqlite.gazette -/var/lib/sanctuaryfor-ai-deploy/private
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectKernelLogs=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+RestrictRealtime=true
+CapabilityBoundingSet=
+LockPersonality=true
+LimitCORE=0
+MemoryMax=128M
+TasksMax=8

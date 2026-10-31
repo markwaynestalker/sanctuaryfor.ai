@@ -1,0 +1,19 @@
+# Owner-installed only after separate review. Never enable automatically.
+[Unit]
+Description=Private fixed-operation Gazette database socket
+
+[Socket]
+ListenStream=/run/sanctuary-gazette-db/editor.sock
+SocketUser=root
+SocketGroup=sanctuarygazette
+SocketMode=0660
+# Root-owned 0710 parent must be separately provisioned; do not let systemd create it broadly.
+DirectoryMode=0710
+Accept=yes
+MaxConnections=2
+Backlog=2
+TriggerLimitIntervalSec=60
+TriggerLimitBurst=12
+RemoveOnStop=true
+
+# No [Install]: owner explicitly starts only after isolation validation.
