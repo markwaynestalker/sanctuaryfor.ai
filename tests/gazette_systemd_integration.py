@@ -140,6 +140,9 @@ def main():
             # All services must be drained before replacing only this disposable test-case DB.
             run(['systemctl', 'stop', worker, writer], check=False)
             run(['systemctl', 'reset-failed', worker, writer], check=False)
+            # Each cloned case has a fresh independent activation-rate window.
+            # Keep the production socket limits intact inside each case.
+            run(['systemctl', 'reset-failed', helper_socket], check=False)
             for suffix in ['', '-wal', '-shm', '-journal']:
                 Path(str(database) + suffix).unlink(missing_ok=True)
             shutil.copyfile(seed / 'v6.sqlite', database);os.chown(database, DB_UID, DB_UID);database.chmod(0o600)
