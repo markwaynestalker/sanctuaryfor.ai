@@ -103,3 +103,5 @@ Disable new Gazette admissions/timer, allow in-flight work to finish or retain u
 
 Offline suites cover the integrated launcher, disabled mode, pins/calendar/argv and no DB fallback, plus helper lifecycle/protocol and real Linux UID/socket/PHP mock generation/moderation. They install no service and consume no paid tokens. Actual installed systemd activation/sandbox/credential mounts, intended project/API availability, quality and production operational setup still require the separate approvals above. No UI change requires new screenshots.
 
+The additional [actual-systemd CI suite](GAZETTE_SYSTEMD_TESTS.md) exercises temporary runtime-linked units and a real readonly LoadCredential stand-in mount inside a disposable root tree, including concurrency and worker/socket restarts. No production service is installed or activated. Toronto's actual setup, credentials, API acceptance and paid operation remain separately gated. Stop/restart of the required socket propagates to an in-flight worker; drain the worker first during planned maintenance, and never treat restart as permission to replay an uncertain call.
+
