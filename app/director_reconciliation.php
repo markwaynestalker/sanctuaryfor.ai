@@ -8,6 +8,16 @@ function reconciliationId(string $id):void
 {
     if(!preg_match('/\A[a-f0-9]{32}\z/',$id))throw new AiGuard('configuration_invalid');
 }
+/** SQLite primary/extended BUSY or LOCKED codes only; never inspect vendor text. */
+function reconciliationFailure(\Throwable $e):\Throwable
+{
+    return $e instanceof \PDOException&&in_array(((int)($e->errorInfo[1]??0))&255,[5,6],true)?new AiGuard('simulation_busy'):$e;
+}
+function beginReconciliation(PDO $db):void
+{
+    // A refused BEGIN owns no transaction: do not roll back somebody else's work.
+    try{$db->exec('BEGIN IMMEDIATE');}catch(\Throwable $e){throw reconciliationFailure($e);}
+}
 function reconciliationIdle(PDO $db):void
 {
     if($db->query('SELECT owner FROM ai_lease WHERE singleton=1')->fetchColumn()!==null
@@ -20,7 +30,8 @@ function reconciliationValue(PDO $db,string $name):?array
 }
 function appendReconciliation(PDO $db,string $name,array $value):void
 {
-    $db->prepare('INSERT INTO settings(name,value) VALUES (?,?)')->execute([$name,json_encode($value,JSON_THROW_ON_ERROR|JSON_UNESCAPED_UNICODE)]);
+    try{$db->prepare('INSERT INTO settings(name,value) VALUES (?,?)')->execute([$name,json_encode($value,JSON_THROW_ON_ERROR|JSON_UNESCAPED_UNICODE)]);}
+    catch(\Throwable $e){throw reconciliationFailure($e);}
 }
 function directorAttemptInspection(PDO $db,string $id):array
 {
@@ -46,22 +57,22 @@ function reconciliationUsage(mixed $usage,array $a):?array
 /** Three bound metadata GETs. Never requests dialogue items or submits an input/cancel. */
 function inspectDirectorProvider(PDO $db,string $id,string $inspection,?DirectorTransport $transport=null):array
 {
-    reconciliationId($inspection);$prefix='director_inspection:'.$inspection;$db->exec('BEGIN IMMEDIATE');
+    reconciliationId($inspection);$prefix='director_inspection:'.$inspection;beginReconciliation($db);
     try{
         reconciliationIdle($db);$local=directorAttemptInspection($db,$id);$a=$local['records']['ai_attempts'][0];$s=$local['records']['session'];$sid=$s['provider_session_id'];
         if($a['state']!=='uncertain'||$local['records']['simulation_runs'][0]['status']!=='failed'||!is_string($sid)||!preg_match('/\A[a-zA-Z0-9_-]{1,128}\z/',$sid))throw new AiGuard('accounting_unresolved');
         if(reconciliationValue($db,$prefix.':started')!==null)throw new AiGuard('request_already_started');
         // A latest-turn lookup cannot safely identify an unrecorded old turn in a reused session.
         $q=$db->prepare('SELECT COUNT(*) FROM director_attempts d JOIN director_sessions s ON s.id=d.session_id WHERE s.provider_session_id=?');$q->execute([$sid]);
-        if((int)$q->fetchColumn()!==1)throw new AiGuard('session_ambiguous');
-        $day=gmdate('Y-m-d');$q=$db->prepare('SELECT COALESCE(SUM(request_slots),0) FROM ai_attempts WHERE day=?');$q->execute([$day]);$used=(int)$q->fetchColumn();
-        $q=$db->prepare('SELECT COALESCE(SUM(request_slots-2),0) FROM director_attempts WHERE day=?');$q->execute([$day]);$used+=(int)$q->fetchColumn()+directorAccessReservedRequests($db,$day);
+        $sessions=(int)$q->fetchColumn();$q->closeCursor();if($sessions!==1)throw new AiGuard('session_ambiguous');
+        $day=gmdate('Y-m-d');$q=$db->prepare('SELECT COALESCE(SUM(request_slots),0) FROM ai_attempts WHERE day=?');$q->execute([$day]);$used=(int)$q->fetchColumn();$q->closeCursor();
+        $q=$db->prepare('SELECT COALESCE(SUM(request_slots-2),0) FROM director_attempts WHERE day=?');$q->execute([$day]);$used+=(int)$q->fetchColumn();$q->closeCursor();$used+=directorAccessReservedRequests($db,$day);
         if($used>aiDailyRequestLimit()-3)throw new AiGuard('daily_request_cap');
         for($n=1;$n<=3;$n++){$key=substr(hash('sha256',$inspection.':'.$n),0,32);appendReconciliation($db,'director_access_request:'.$key,
             ['check_id'=>$key,'day'=>$day,'http_requests_reserved'=>1,'purpose'=>'director_reconciliation','method'=>'GET','attempt_id'=>$id,'inspection_id'=>$inspection]);}
         appendReconciliation($db,$prefix.':started',['attempt_id'=>$id,'session_id'=>$sid,'snapshot_sha256'=>$local['snapshot_sha256'],'day'=>$day,'http_requests_reserved'=>3,'generation_requests'=>0,'at'=>time()]);
         $db->exec('COMMIT');
-    }catch(\Throwable $e){$db->exec('ROLLBACK');throw $e;}
+    }catch(\Throwable $e){$db->exec('ROLLBACK');throw reconciliationFailure($e);}
     $transport??=new OpenAiManagedTransport(null,$sid);$calls=[];$deadline=time()+24;
     $get=function(string $path,int $n)use($db,$transport,$prefix,$deadline,$day,&$calls):array{
         if(gmdate('Y-m-d')!==$day||time()>=$deadline)throw new AiGuard('day_boundary');
@@ -94,12 +105,12 @@ function inspectDirectorProvider(PDO $db,string $id,string $inspection,?Director
         $report+=['turn_id'=>$turn['id'],'provider_status'=>$after['status'],'turn_status'=>$turn['status'],'before_session_usage'=>$beforeUsage,'session_usage'=>$sessionUsage,'turn_usage'=>$turnUsage,
             'observed_estimate_microusd'=>max($beforeUsage['estimated_microusd'],$sessionUsage['estimated_microusd'],$turnUsage['estimated_microusd'])];
         $report['ready_for_billing_review']=true;$report['reason']='terminal_usage_observed';
-    }catch(\Throwable $e){$report['reason']=$e instanceof AiGuard?$e->reason:'provider_response_invalid';}
-    $db->exec('BEGIN IMMEDIATE');try{
+    }catch(\Throwable $e){$e=reconciliationFailure($e);$report['reason']=$e instanceof AiGuard?$e->reason:'provider_response_invalid';}
+    beginReconciliation($db);try{
         if(directorAttemptInspection($db,$id)['snapshot_sha256']!==$local['snapshot_sha256']){$report['ready_for_billing_review']=false;$report['reason']='local_state_changed';}
         $report['http']=$calls;$report['inspected_at']=time();$report['inspection_sha256']=hash('sha256',json_encode($report,JSON_THROW_ON_ERROR|JSON_UNESCAPED_UNICODE));
         appendReconciliation($db,$prefix.':report',$report);$db->exec('COMMIT');return $report;
-    }catch(\Throwable $e){$db->exec('ROLLBACK');throw $e;}
+    }catch(\Throwable $e){$db->exec('ROLLBACK');throw reconciliationFailure($e);}
 }
 
 /** Operator-attested final cost; no network, world changes, refund or replay. */
