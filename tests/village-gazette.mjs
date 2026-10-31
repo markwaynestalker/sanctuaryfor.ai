@@ -14,6 +14,14 @@ try{
  for(const s of ['memory','identity','director'])run(['scripts/migrate-'+s+'.php','--database='+join(dir,'v6.sqlite')]);
  const fixtures=JSON.parse(run(['tests/gazette-core.php',dir]));
  console.log(run(['tests/gazette-editor-core.php',dir]).trim());
+ const ledger=JSON.parse(run(['tests/gazette-ledger-core.php',dir]));
+ const guardHash=await digest(ledger.race);const guard=spawnSync(php,['scripts/migrate-gazette-editor.php','--database='+ledger.race],{cwd:root,env,encoding:'utf8'});
+ assert.equal(guard.status,1);assert.equal(await digest(ledger.race),guardHash,'Migration requires explicit drained-writer acknowledgement');
+ run(['scripts/migrate-gazette-editor.php','--database='+ledger.race,'--confirm-drained=yes']);
+ const reserve=()=>new Promise((ok,no)=>{const p=spawn(php,['tests/gazette-ledger-worker.php',ledger.job],{cwd:root,env});p.on('error',no);p.on('exit',ok);});
+ const outcomes=await Promise.all([reserve(),reserve()]);assert.deepEqual(outcomes.sort((a,b)=>a-b),[0,42]);
+ assert.deepEqual(JSON.parse(run(['tests/gazette-ledger-worker.php',ledger.job,'audit'])),{attempts:1,commitment:2100,slots:2});
+ console.log('PASS additive/rollback V6 editorial ledger, immutable drafts/reviews, exact-source approval, separate daily/monthly spending and request holds, one-shot revisions, crash fences and two-process generation admission');
  console.log('PASS source authorization/privacy, full legacy/16-message history, topic-independent grouping, fair exact quotes, 23/25-hour DST, quiet days, frozen publication/idempotency and unchanged SQLite (offline)');
  for(const fixture of fixtures){
   const socket=createServer();await new Promise(ok=>socket.listen(0,'127.0.0.1',ok));const port=socket.address().port;await new Promise(ok=>socket.close(ok));const origin='http://127.0.0.1:'+port;

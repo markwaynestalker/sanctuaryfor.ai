@@ -1,5 +1,9 @@
 # SanctuaryFor.AI
 
+## Gazette editorial ledger (#78, second PR)
+
+Read docs/GAZETTE_EDITOR_LEDGER.md. An explicit transactional V6 add-on adds separate editorial reservations, a fenced lease, unique request dispatch, immutable drafts/moderation/local-owner review evidence and one-shot revision permits. No old tables or user_version change; all conservative holds remain charged. Trusted CLI helpers have no active job/public/API caller, provider transport, ENV integration or publication path. Production migration requires separate backup/drained-writer approval and is never automatic on deploy. Source authorization is rechecked; approvals do not prove factual entailment or publish editions. Keep the existing Gazette, Director accounting/sessions and scheduler unchanged. Run Gazette and all offline suites; require Ubuntu CI. Paid activation and the API/owner-tooling/versioned-reader PR remain separate.
+
 ## Gazette editor foundation (#78, first PR)
 
 Read docs/GAZETTE_EDITOR.md. Isolated query-only source packs supply bounded complete public transcripts and attributable notices, chronological earlier context, deterministic totals and exact snapshot bindings. Draft contracts require message-level references and resolve original quotes locally. Structural checks always return needs_moderation_and_owner_review; citation existence cannot establish factual entailment. No public/scheduler call site, provider call, credentials, ENV, schema, ledger, publication or UI change. Preserve the Phase 1 Gazette and immutable v1 files. Accounting/storage, Responses integration/approval/versioned reader and production activation require later separate reviews. Run Gazette/bulletin and all offline suites, with Ubuntu CI required.
