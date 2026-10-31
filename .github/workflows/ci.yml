@@ -30,6 +30,11 @@ jobs:
         run: |
           # Only temporary fixtures and numeric process UIDs; no useradd/systemctl/credentials.
           sudo unshare --net -- /usr/bin/python3 -B tests/gazette_broker_identity.py
+      - name: Actual isolated systemd Gazette integration (nonsecret stand-in, mock provider)
+        shell: bash
+        run: |
+          # Ephemeral CI-VM runtime units/root tree only; no production, enabled timer or real key.
+          sudo env GITHUB_ACTIONS=true SANCTUARY_CI_SYSTEMD_TEST=1 /usr/bin/python3 -B tests/gazette_systemd_integration.py
       - name: Syntax and all offline suites (loopback only)
         shell: bash
         run: |

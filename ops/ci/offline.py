@@ -22,6 +22,7 @@ def main():
     if not php or not node:
         raise RuntimeError('PHP and Node are required')
     env['PHP_BINARY'] = php
+    env['PYTHON_BINARY'] = sys.executable
 
     def run(args):
         subprocess.run(args, env=env, check=True, timeout=600)

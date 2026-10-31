@@ -76,16 +76,45 @@ try{
     putenv('LITTLE_SPARKS_AI_PRICING_CONFIRMED=2026-10-24-standard-v1');putenv('LITTLE_SPARKS_AI_MODEL=gpt-6-luna');putenv('LITTLE_SPARKS_AI_DAILY_REQUESTS=200');putenv('LITTLE_SPARKS_AI_MONTHLY_MICROUSD=1000000');putenv('LITTLE_SPARKS_AI_ENABLED=1');putenv('LITTLE_SPARKS_DIRECTOR_ENABLED=1');putenv('LITTLE_SPARKS_SIMULATION_ENABLED=1');
     $base=$dir.'/director-template.sqlite';copy($path,$base);$n=0;
     $directorFresh=function()use($base,$dir,&$n){$p=$dir.'/director-'.(++$n).'.sqlite';copy($base,$p);return LittleSparks\connect($p);};
-    $at=gmdate('Y-m-d\TH:i:00\Z',time()-60);
-    $db=$directorFresh();$mock=new DirectorMock();$result=LittleSparks\simulateOpportunity($db,$at,true,$mock);
+    // Plan once: reading time() again after a minute rollover can make offset
+    // two equal offset one, testing a completed replay instead of the cap.
+    $fixtureNow=time();
+    $opportunityTimes=static fn(int $anchor):array=>array_map(static fn(int $offset):string=>gmdate('Y-m-d\TH:i:00\Z',$anchor-$offset*60),[1,2,3]);
+    [$at,$secondAt,$thirdAt]=$opportunityTimes($fixtureNow);
+    check(count(array_unique(array_map('LittleSparks\\opportunityId',[$at,$secondAt,$thirdAt])))===3,'Daily cap probes have distinct opportunity IDs');
+    $db=$directorFresh();$mock=new DirectorMock();$result=LittleSparks\simulateOpportunity($db,$at,true,$mock,$fixtureNow);
     check($result['status']==='completed'&&$mock->calls===['responses','moderations'],'Exact externally authored dialogue is moderated and committed');
     $run=$result['id'];$q=$db->prepare('SELECT body FROM messages m JOIN conversations c ON c.id=m.conversation_id WHERE c.run_id=? ORDER BY sequence');$q->execute([$run]);check($q->fetchAll(PDO::FETCH_COLUMN)===$mock->lines,'No PHP prefix, template or rewriting');
     check((int)$db->query('SELECT COUNT(*) FROM director_notes')->fetchColumn()===1,'Literal unverified memory persisted');
     $status=proc_open([PHP_BINARY,__DIR__.'/../scripts/ai-status.php','--database='.$db->query('PRAGMA database_list')->fetch()['file']],[1=>['pipe','w'],2=>['pipe','w']],$pipes);$report=json_decode(stream_get_contents($pipes[1]),true);stream_get_contents($pipes[2]);fclose($pipes[1]);fclose($pipes[2]);check(proc_close($status)===0&&$report['daily']['reserved_requests']===2,'V6 CLI status preserves request accounting');
     check((int)$db->query('SELECT COUNT(*) FROM memory_stories')->fetchColumn()===count($memoryBefore['memory_stories']),'Dialogue cannot create confirmed facts');
     $count=count($mock->calls);LittleSparks\simulateOpportunity($db,$at,true,$mock);check(count($mock->calls)===$count,'Opportunity replay never redispatches');
-    putenv('LITTLE_SPARKS_AI_DAILY_REQUESTS=2');$secondAt=gmdate('Y-m-d\TH:i:00\Z',time()-120);$capMock=new DirectorMock();check(LittleSparks\simulateOpportunity($db,$secondAt,true,$capMock)['status']==='failed'&&!$capMock->calls,'Saved ledger enforces daily cap');
-    putenv('LITTLE_SPARKS_AI_DAILY_REQUESTS=4');$thirdAt=gmdate('Y-m-d\TH:i:00\Z',time()-180);check(LittleSparks\simulateOpportunity($db,$thirdAt,true,new DirectorMock())['status']==='completed','Changing limit admits another same-day encounter without code changes');putenv('LITTLE_SPARKS_AI_DAILY_REQUESTS=200');
+    putenv('LITTLE_SPARKS_AI_DAILY_REQUESTS=2');$capMock=new DirectorMock();$denied=LittleSparks\simulateOpportunity($db,$secondAt,true,$capMock,$fixtureNow);check($denied['status']==='failed'&&!$capMock->calls,'Saved ledger enforces daily cap');
+    check($denied['replayed']===false&&$denied['failure_category']==='daily_request_cap','Cap refusal tests fresh work, not a completed replay');
+    putenv('LITTLE_SPARKS_AI_DAILY_REQUESTS=4');check(LittleSparks\simulateOpportunity($db,$thirdAt,true,new DirectorMock(),$fixtureNow)['status']==='completed','Changing limit admits another same-day encounter without code changes');
+    check($db->query('SELECT DISTINCT day FROM simulation_opportunities')->fetchAll(PDO::FETCH_COLUMN)===[gmdate('Y-m-d',$fixtureNow)],'All three opportunities share the processing UTC accounting day');
+    $days=$db->prepare('SELECT day FROM ai_attempts WHERE period IN (?,?,?) ORDER BY period');$days->execute(array_map('LittleSparks\\opportunityId',[$at,$secondAt,$thirdAt]));
+    check($days->fetchAll(PDO::FETCH_COLUMN)===array_fill(0,2,gmdate('Y-m-d',$fixtureNow)),'Both admitted attempts share the same UTC accounting day');
+
+    // Reproduce the original time()-60/time()-120 collision without waiting.
+    // The scheduled date may be yesterday; accounting uses processing time.
+    foreach(['2026-01-01T12:35:00Z','2026-01-01T13:00:00Z','2026-01-02T00:00:00Z'] as $edge){
+        $boundary=strtotime($edge);$planned=$opportunityTimes($boundary-1);
+        check($planned[0]===$opportunityTimes($boundary)[1]&&$planned[1]===$opportunityTimes($boundary)[2],'Moving clock aliases first/second and second/third at minute, hour and UTC-day rollover');
+        check(count(array_unique(array_map('LittleSparks\\opportunityId',$planned)))===3,'Frozen fixture IDs stay distinct at every rollover');
+    }
+    $replayDb=$directorFresh();$replayMock=new DirectorMock();putenv('LITTLE_SPARKS_AI_DAILY_REQUESTS=2');
+    $boundary=intdiv($fixtureNow,60)*60;
+    $legacyFirst=$opportunityTimes($boundary-1)[0];$legacySecond=$opportunityTimes($boundary)[1];
+    check(LittleSparks\simulateOpportunity($replayDb,$legacyFirst,true,$replayMock,$fixtureNow)['status']==='completed','Rollover regression admits first mocked encounter');
+    $ledger=originalRows($replayDb);$calls=$replayMock->calls;
+    $replay=LittleSparks\simulateOpportunity($replayDb,$legacySecond,true,$replayMock,$fixtureNow);
+    check($replay['status']==='completed'&&$replay['replayed']===true&&$replayMock->calls===$calls&&originalRows($replayDb)===$ledger,'Old colliding cap probe replays completed work without dispatch or ledger changes');
+    $freshAt=$opportunityTimes($boundary-1)[1];$freshDenied=LittleSparks\simulateOpportunity($replayDb,$freshAt,true,$replayMock,$fixtureNow);
+    check($freshDenied['status']==='failed'&&$freshDenied['replayed']===false&&$freshDenied['failure_category']==='daily_request_cap'&&$replayMock->calls===$calls,'Distinct frozen cap probe refuses new work at the unchanged two-request cap');
+    check($replayDb->query('SELECT * FROM ai_attempts ORDER BY rowid')->fetchAll()===$ledger['ai_attempts'],'Fresh cap refusal retains prior reservations exactly');
+    putenv('LITTLE_SPARKS_AI_DAILY_REQUESTS=200');
+    echo "PASS frozen distinct daily-cap fixtures, shared UTC accounting day, minute/hour/day rollover replay reproduction and unchanged two-request cap\n";
     $budgetDb=$directorFresh();putenv('LITTLE_SPARKS_AI_MONTHLY_MICROUSD=0');$budgetMock=new DirectorMock();check(LittleSparks\simulateOpportunity($budgetDb,$at,true,$budgetMock)['status']==='failed'&&!$budgetMock->calls,'Zero monthly allowance blocks before dispatch');putenv('LITTLE_SPARKS_AI_MONTHLY_MICROUSD=1000000');
     foreach(['prefix','html','wrong_id','receipt','false_quote','action','flagged','unknown'] as $mode){$db=$directorFresh();$old=(int)$db->query('SELECT COUNT(*) FROM messages')->fetchColumn();$result=LittleSparks\simulateOpportunity($db,$at,true,new DirectorMock($mode));check($result['status']==='failed','Rejected '.$mode);check((int)$db->query('SELECT COUNT(*) FROM messages')->fetchColumn()===$old&&(int)$db->query('SELECT COUNT(*) FROM director_notes')->fetchColumn()===0,'Failure rollback without fabricated history: '.$mode);}
     foreach(['quiet','none'] as $mode){$db=$directorFresh();$old=(int)$db->query('SELECT COUNT(*) FROM conversations')->fetchColumn();$result=LittleSparks\simulateOpportunity($db,$at,true,new DirectorMock($mode));check($result['outcome']===$mode&&(int)$db->query('SELECT COUNT(*) FROM conversations')->fetchColumn()===$old,'Silent '.$mode.' outcome');}
