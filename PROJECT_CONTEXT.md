@@ -2,7 +2,11 @@
 
 ## Gazette operations preparation (#82)
 
-Read docs/GAZETTE_OPERATIONS.md. Dedicated-account systemd service/timer templates, a pinned physical-release launcher, explicit disabled budget example and metadata-only/read-only preflight prepare independent 05:15 Eastern draft generation. No backfill, retry, publication, installation or automatic pin update. **Owner chose to keep activation blocked pending separate shared-database access review**: current 0700/0600 guards prevent a different UID, and this PR must not relax them, grant ACLs, substitute the DB owner or change production permissions. Keep the PR draft and document outstanding Linux credential/access and separately authorized paid evaluation gates. Preserve Director state/config/schedule and all ledger/publication evidence. Run all offline suites and final Ubuntu CI. No production access, migration, credentials, service/timer/ENV change, paid call, merge or deployment.
+Read docs/GAZETTE_OPERATIONS.md. The worker now uses #84's keyless helper with no SQLite path, writable DB directory or direct-PDO fallback. Preserve 0700/0600 and authoritative helper policy/date/release. Keep #83 draft through security/integration review; production setup, credential delivery, paid evaluation, installation and timer activation remain separately gated. No automatic merge/deploy/migration/paid calls or Director change.
+
+## Keyless Gazette database helper (#84)
+
+Read docs/GAZETTE_DATABASE_HELPER.md. A socket-activated keyless helper under the existing non-root database owner exposes three stage-bound operations plus readonly readiness to a distinct API-worker UID. Preserve 0700/0600, existing permission guards/schema/holds and Director configuration. Root-controlled socket/config, kernel peer UID, derived lease-secret capabilities, authoritative policy/time/source collection and dispatch-before-payload are mandatory; never expose SQL, private rows, owner tokens, approval/publication/refund or a direct-DB fallback to the worker. Provider results are forwarded observations, not authenticated billing evidence. No new migration/secret. Keep #83 draft through security/integration review; paid production activation remains separately blocked. Run all offline suites, Linux distinct-UID socket/DB/credential-standin tests and final Ubuntu CI. No production installation, permissions/credential/ENV changes, migrations, paid calls, merge, deployment or service activation.
 
 ## Gazette editor integration (#78, third PR)
 

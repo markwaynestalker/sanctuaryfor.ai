@@ -23,6 +23,7 @@ try{
  assert.deepEqual(JSON.parse(run(['tests/gazette-ledger-worker.php',ledger.job,'audit'])),{attempts:1,commitment:2100,slots:2});
  console.log('PASS additive/rollback V6 editorial ledger, immutable drafts/reviews, exact-source approval, separate daily/monthly spending and request holds, one-shot revisions, crash fences and two-process generation admission');
  const editorialFixture=JSON.parse(run(['tests/gazette-integration-core.php',dir]));
+ console.log(run(['tests/gazette-broker-core.php',dir]).trim());
  const inactiveHash=await digest(editorialFixture.database);
  const inactive=spawnSync(php,['scripts/generate-gazette.php','--database='+editorialFixture.database,'--date=2026-10-29','--allow-paid=yes'],{cwd:root,env,encoding:'utf8'});assert.equal(inactive.status,1);assert.equal(await digest(editorialFixture.database),inactiveHash);
  const pubHash=await digest(editorialFixture.publication_database);

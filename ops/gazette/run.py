@@ -12,7 +12,6 @@ from zoneinfo import ZoneInfo
 
 RELEASES = Path('/var/lib/sanctuaryfor-ai-deploy/releases')
 CURRENT = Path('/var/lib/sanctuaryfor-ai-deploy/current')
-DATABASE = '/var/lib/sanctuaryfor-ai/village.sqlite'
 PHP = '/usr/bin/php8.3'
 SHA = re.compile(r'[a-f0-9]{40}')
 
@@ -47,12 +46,10 @@ def release(sha):
     return path
 
 
-def command(path, date=None, check=False):
-    script = 'check-gazette-editor.php' if check else 'generate-gazette.php'
-    args = [PHP, '-d', 'display_errors=0', '-d', 'log_errors=0', str(path / 'scripts' / script),
-            '--database=' + DATABASE]
-    if not check:
-        args += ['--date=' + date, '--allow-paid=yes']
+def command(path, check=False):
+    args = [PHP, '-d', 'display_errors=0', '-d', 'log_errors=0',
+            str(path / 'scripts/generate-gazette-brokered.php')]
+    args += ['--check'] if check else ['--allow-paid=yes']
     return args
 
 
@@ -77,7 +74,7 @@ def main():
     parser = argparse.ArgumentParser()
     mode = parser.add_mutually_exclusive_group(required=True)
     mode.add_argument('--scheduled', action='store_true')
-    mode.add_argument('--date')  # Separate explicit owner-approved one-off invocation.
+    mode.add_argument('--once', action='store_true')  # Helper root config authorizes any one-off date.
     mode.add_argument('--check', action='store_true')  # No credential content/network/writes.
     args = parser.parse_args()
     if not args.check and os.environ.get('LITTLE_SPARKS_GAZETTE_EDITOR_ENABLED') != '1':
@@ -86,10 +83,11 @@ def main():
     try:
         if sys.platform != 'linux' or os.geteuid() == 0:
             raise ValueError('nonroot_linux_service_required')
-        date = None if args.check else edition(datetime.now(timezone.utc), args.scheduled, args.date)
+        if args.scheduled:
+            edition(datetime.now(timezone.utc), True)
         path = release(os.environ.get('LITTLE_SPARKS_GAZETTE_EDITOR_RELEASE_SHA', ''))
         # No shell, no selected executable/environment path, no automatic second invocation.
-        result = subprocess.run(command(path, date, args.check), stdin=subprocess.DEVNULL,
+        result = subprocess.run(command(path, args.check), stdin=subprocess.DEVNULL,
                                 stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
                                 timeout=135, check=False)
         print(json.dumps(safe_result(result.stdout)))

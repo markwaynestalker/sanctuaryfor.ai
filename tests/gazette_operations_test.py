@@ -48,9 +48,9 @@ class GazetteOperations(unittest.TestCase):
             # Use the physical directory as CURRENT; symlinks aren't needed on Windows tests.
             with patch.object(job, 'RELEASES', base), patch.object(job, 'CURRENT', release), patch.object(job.os, 'access', return_value=False):
                 self.assertEqual(job.release(sha), release)
-                self.assertEqual(job.command(release, '2026-10-30')[-2:],
-                                 ['--date=2026-10-30', '--allow-paid=yes'])
-                self.assertIn(str(release / 'scripts/generate-gazette.php'), job.command(release, '2026-10-30'))
+                self.assertEqual(job.command(release)[-1], '--allow-paid=yes')
+                self.assertIn(str(release / 'scripts/generate-gazette-brokered.php'), job.command(release))
+                self.assertFalse(any('--database' in arg or '--date=' in arg for arg in job.command(release)))
                 self.assertNotIn('--allow-paid=yes', job.command(release, check=True))
                 for invalid in ['main', 'A' * 40, sha + '/..', '']:
                     with self.assertRaises(ValueError):
@@ -85,7 +85,7 @@ class GazetteOperations(unittest.TestCase):
                'LITTLE_SPARKS_GAZETTE_EDITOR_RELEASE_SHA': 'a' * 40}
         for outcome in [SimpleNamespace(returncode=0, stdout=b'{"status":"awaiting_owner_review","input_tokens":123}'),
                         SimpleNamespace(returncode=1, stdout=b'{"status":"rejected_or_uncertain","attempt_id":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}')]:
-            with patch.object(sys, 'argv', ['run.py', '--date=2001-01-01']), \
+            with patch.object(sys, 'argv', ['run.py', '--once']), \
                     patch.dict(os.environ, env, clear=True), patch.object(sys, 'platform', 'linux'), \
                     patch.object(job.os, 'geteuid', return_value=1001, create=True), \
                     patch.object(job, 'release', return_value=Path('/reviewed/release')), \
@@ -93,9 +93,10 @@ class GazetteOperations(unittest.TestCase):
                 self.assertEqual(job.main(), 0 if outcome.returncode == 0 else 1)
                 invoke.assert_called_once()
                 argv = invoke.call_args.args[0]
-                self.assertEqual(argv[-2:], ['--date=2001-01-01', '--allow-paid=yes'])
+                self.assertEqual(argv[-1], '--allow-paid=yes')
+                self.assertFalse(any('--database' in arg or '--date=' in arg for arg in argv))
                 self.assertNotIn('shell', invoke.call_args.kwargs)
-        with patch.object(sys, 'argv', ['run.py', '--date=2001-01-01']), \
+        with patch.object(sys, 'argv', ['run.py', '--once']), \
                 patch.dict(os.environ, env, clear=True), patch.object(sys, 'platform', 'linux'), \
                 patch.object(job.os, 'geteuid', return_value=1001, create=True), \
                 patch.object(job, 'release', return_value=Path('/reviewed/release')), \
@@ -119,6 +120,9 @@ class GazetteOperations(unittest.TestCase):
         self.assertIn('OnCalendar=*-*-* 05:15:00 America/New_York', timer)
         self.assertIn('Persistent=false', timer)
         self.assertNotIn('OnBootSec=', timer)
+        self.assertIn('Requires=sanctuary-gazette-db.socket', service)
+        self.assertIn('InaccessiblePaths=/var/lib/sanctuaryfor-ai', service)
+        self.assertNotIn('ReadWritePaths=', service)
         example = dict(line.split('=', 1) for line in
                        (ROOT / 'ops/systemd/gazette-editor.env.example').read_text().splitlines()
                        if line and not line.startswith('#'))
@@ -143,6 +147,8 @@ class GazetteOperations(unittest.TestCase):
             content = (ROOT / 'ops/systemd' / unit).read_text().replace(
                 '/usr/local/lib/sanctuary-gazette/run.py', str(ROOT / 'ops/gazette/run.py'))
             (base / unit).write_text(content)
+            for helper in ['sanctuary-gazette-db.socket', 'sanctuary-gazette-db@.service']:
+                shutil.copyfile(ROOT / 'ops/systemd' / helper, base / helper)
             timer = 'sanctuary-gazette-editor.timer'
             shutil.copyfile(ROOT / 'ops/systemd' / timer, base / timer)
             parsed = subprocess.run(['systemd-analyze', 'verify', str(base / unit), str(base / timer)],

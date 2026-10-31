@@ -1,0 +1,67 @@
+# Keyless Gazette database helper (#84)
+
+Implementation for review, not operational authorization. #83 remains draft until the helper and integration security tests pass. Nothing here installs units, grants permissions, migrates production, reads real credentials, enables generation or makes paid calls. Production remains blocked pending separate owner setup/activation review.
+
+## Boundary
+
+The API worker uses `generate-gazette-brokered.php`, not the original direct-PDO job. It connects only to a root-controlled pathname Unix socket, receives bounded public editorial input, and invokes the existing fixed Responses/moderation transport. It has a distinct UID and protected Gazette credential, no shared database directory access and no storage fallback. The old local PDO adapter remains for existing offline tests/compatibility; the production brokered worker never invokes it.
+
+The keyless helper runs under the **existing non-root database owner**, preserving 0700/0600, ownership, journal mode and the application permission guard. It is trusted code with technical access to the whole shared database. This is operation-level isolation for the worker, not SQLite table-level security or protection from a compromised DB owner. Existing DB-owning FPM/Director principals already have that trust; their access/configuration does not change.
+
+`sanctuary-gazette-db.socket` uses `Accept=yes`, root:editor-only-group 0660 socket and a separately owner-provisioned root:editor-only-group 0710 directory. Only the editor belongs to that group. The short-lived instance gets an accepted socket on stdin/stdout; no TCP/HTTP/listener loop, root execution, sudo, `LoadCredential` or Director ENV. Python stdlib verifies kernel `SO_PEERCRED` before reading JSON, bounds/framing/depth/duplicate keys, then invokes one fixed PHP entry point without a shell. PHP owns the existing source/ledger/validation rules; there is no second ledger implementation.
+
+The helper has PrivateNetwork, AF_UNIX-only address-family policy, read-only system paths and inaccessible credential/config/private deployment/publication trees. Its root-owned nonsecret configuration is separate from worker ENV. An explicit allowlist constructs PHP's environment; it does not inherit worker secrets, PHP INI injection or caller prices. Directory writes are needed for SQLite sidecars; inventory other entries in the private directory during setup. Namespace restrictions and peer checks do not contain arbitrary code execution inside the trusted database-owning helper.
+
+## Configuration and release compatibility
+
+The fixed adapter path is `/usr/local/lib/sanctuary-gazette/db_helper.py`, root-installed after separate review. Configuration is `/etc/sanctuary-gazette-db/config.json`: a root-owned regular file, no group/world writes, with root-owned nonwritable ancestors. It contains no API key or new capability secret. Replace the example numeric `editor_uid` with the actual dedicated UID; it must differ from the helper UID. The example release placeholder refuses execution. Root config may choose a private staging database, but the socket client cannot supply any database/path/executable/config/clock.
+
+Pin one physical SHA release, matching `.release-commit` and current deployment pointer. Refuse a release directory writable by the helper UID. The owner verifies the immutable Toronto manifest/deployment separately; the marker is not a signature/manifest check and the helper does not gain deploy-private access. Client and server require identical release, protocol version and a digest of model/rates/budgets/token/byte policy before reservation. Later deployments fail closed until both pins/configurations are reviewed together. Running PHP CLI must be `/usr/bin/php8.3` with POSIX/PDO SQLite; Python 3 stdlib supplies socket peer credentials without extra PHP extensions.
+
+Broker `environment` has exactly the nine documented editorial settings; values are strings accepted by the existing strict PHP configuration validator. Worker limits must match. Limits/rates remain as reviewed in #81; no paid API parameter/pricing change is introduced. Neither component inherits Director budgets. Missing/uncertain usage retains the full commitment. Input-token admission remains a conservative wire-byte guard, not a certified tokenizer or invoice cap.
+
+`approved_date=null` admits only yesterday at 05:15–05:19:59 Eastern using server time. For a separately approved one-off finished day, the owner may provision an exact date in root-owned helper config; the client cannot choose it. This override stays pinned to that day until explicitly removed; the ledger still prevents another unpermitted attempt. No worker-facing revision permit support is provided. Additional revisions require a separate reviewed owner procedure; no automatic regeneration/backfill is added.
+
+## Protocol and capabilities
+
+One length-prefixed UTF-8 JSON object per connection, maximum 524288 bytes including observation envelope, depth <=32, no duplicate keys/NaN/infinity, and client write shutdown after the frame. Trailing/pipelined data and ancillary FD transfers are rejected. Read timeout is four seconds, PHP operation ten seconds, service fifteen seconds, maximum two connections and a socket activation rate limit. Limits fail closed; slow queries or IPC can leave conservative holds, not paid retries. Responses and provider bodies retain #81's separate 262144-byte API bound. No transaction or socket is held during HTTP.
+
+Every message binds version 1, exact release and policy SHA. Only these operations exist:
+
+1. `begin_generation`: collect an independent query-only public snapshot; reserve both request slots/full cost and commit generation dispatch before returning the exact request, dispatch ID, attempt ID, expiry and capability. Quiet material returns without reservation.
+2. `complete_generation`: consume the bound generation observation once, record supplied usage/cost before rejecting overruns, validate/store original draft and reauthorize sources, then commit moderation dispatch before returning the exact whole-draft moderation request and new capability.
+3. `complete_moderation`: consume its bound observation once, reauthorize cited sources, save exact-draft moderation/outcome and return sanitized status/IDs. All editions await protected owner review.
+
+`ready` is a read-only schema/protocol/policy check: no paid dispatch, reservation or credential content read. It is not proof of write access, unused budget, provider access or article quality. Disabled broker refuses all mutating operations. No SQL, arbitrary read, review/publish/permit, reset, refund, migration or file operation is exposed.
+
+Capabilities are HMAC-SHA256 over protocol, authenticated UID, release, attempt, request, stage and expiry, keyed by the existing private random lease-owner token. The raw owner token never leaves the helper. No new secret, table or schema migration is needed. Database state separately fences expired workers, completed receipts, duplicate dispatch and inactive leases. Capabilities are not owner approval credentials. Raw values never enter diagnostics. A stolen capability cannot cross UIDs or stages; compromise of the allowed worker UID remains within this transport's threat boundary.
+
+Provider bodies are **unverified observations forwarded by the API worker**. Matching IDs/model/schema and passed moderation do not cryptographically prove OpenAI origin or final billing. Existing receipts already record adapter observations, not invoice settlement; this implementation preserves their format and documents the split process provenance here rather than rewriting history. A compromised key-bearing worker could fabricate observations or call the provider outside application budgets. Independent owner factual review and provider-side controls remain necessary; no hard spend-cap claim is made.
+
+## Failure, concurrency and history
+
+Dispatch commits before payload delivery. Lost IPC response, worker crash, HTTP timeout, malformed result, expired lease or DB busy may leave an uncertain attempt and full holds. The worker never reconnects/retries a stage, asks for a lost paid payload, refunds, imports late output or falls back to direct SQLite. Owner inspection is separate. If it dies before sending a completion observation, the existing expired-lease recovery marks uncertainty on later committed admission. A different eligible day can still proceed within budgets; the old edition cannot be regenerated automatically.
+
+Sources are rechecked at draft capture, after moderation, owner review/publication and public reading. Exact stored text and prior revisions remain protected. Review/publish remains the existing local root-entry tool that drops to DB-owner UID; it is not callable through the socket. Public readers remain query-only and credential-free.
+
+No journal-mode/durability/checkpoint change is made. Reuse short BEGIN IMMEDIATE transactions and 100-ms reservation/transition busy wait, with independent query-only source snapshots completed before reservation. WAL has one writer and long readers can impede checkpoints; test both WAL and rollback journal, actual sidecar creation/reopen and contention. Never hold a read/write transaction across provider work, delete sidecars, use immutable=1 on live data or run automatic checkpoints to hide contention. Query duration is not guaranteed by the busy timeout. Runtime SQLite version/journal mode remain owner preflight facts, not inferred production state.
+
+## Validation
+
+Offline Gazette fixtures exercise all three stages, completed/flagged/missing-usage/bad-quote/incomplete/overrun/timeout observations, forbidden verbs/path injection, capability forgery/cross-UID/expiry, duplicate edition refusal, full holds, integrity/FKs, WAL and unchanged non-editorial data. Existing tests retain exact owner publication/revision/withdrawal/history coverage. Protocol tests exercise duplicate/malformed/deep frames and Linux kernel socket credentials before subprocess dispatch.
+
+Ubuntu CI additionally runs `tests/gazette_broker_identity.py` inside a fresh network namespace as root **only to create disposable fixtures and drop child processes to numeric UIDs**. It installs no user/service, uses no real credential and makes no provider call. The test proves a distinct editor cannot open a real 0700/0600 fixture DB, a keyless helper cannot open an editor-owned credential stand-in, unrelated UID socket denial, root peer refusal and an authorized actual PHP read-only DB readiness operation over a root-owned socket. Production does not run this root test. Windows skips Linux kernel tests; final Ubuntu CI must pass.
+
+Actual systemd socket activation, protected credential mounts and installed sandbox configuration still require separate isolated Linux setup verification before production installation. CI forks/inherited sockets establish real UID/peer/DB behavior, not a claim that an installed production unit was tested. Paid endpoint acceptance and quality remain separately authorized staging work.
+
+## Owner-only migration/setup/activation plan
+
+Keep generation disabled and #83 draft through implementation/integration review. No new SQL migration is introduced. If #80 ledger revision 1 is absent, use its separately approved drained-writer backup/migration plan, not deployment hooks. Preserve V6, existing tables/rows, holds, user_version and modes. Verify a consistent SQLite backup plus Gazette tree and a restored isolated copy before operational work. Never restore an old shared DB over newer village/accounting data.
+
+After approval, identify actual existing DB-owner UID/GID and dedicated editor UID. Review root-controlled config/helper/unit/socket-directory installation against exact deployed main and Ubuntu CI. Do not use placeholder identities or add editor to DB-owner/FPM/deploy groups. Provision only the root-owned runtime socket path/group and nonsecret configuration; keep API credential delivery in the separate worker. The database guard, owner and 0700/0600 remain unchanged. Refuse setup if the actual DB owner is root or the two service identities coincide.
+
+Revise #83 so its worker has no database ReadWritePaths or direct-database preflight/argv, requires the private socket and uses the brokered command. Pin helper/client policy/release together. Verify unit syntax/security, actual distinct-UID denials and protected metadata-only readiness in disposable Linux staging, including socket activation/rate bounds and journal sidecars. Use stand-ins before any credential inspection. No generator HTTP is needed for these checks.
+
+Only a later explicit bounded staging approval can authorize API calls. Review actual project/model/schema acceptance, token/byte assumptions, cost observations and article quality. Then seek separate production installation/migration (if necessary), paid activation, one exact-day draft and owner publication approval. Timer enablement is a final separate decision. Neither PR merges/deploys/installs/activates any of this automatically.
+
+Rollback disables new Gazette admissions and timer, lets in-flight work finish or retains uncertainty, then stops the socket only after draining the editor. Preserve all ledgers, drafts, reviews and manifests; leave a compatible reader. Never substitute a direct-DB credential-bearing worker, alter Director operations, remove tables or refund old holds. Current-SHA changes intentionally block old pins until reviewed.

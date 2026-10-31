@@ -12,8 +12,8 @@ try{
  const file=join(dir,'private.sqlite');await writeFile(file,'synthetic unchanged database canary',{mode:0o600});
  const before=await readFile(file);
  const env={...Object.fromEntries(Object.entries(process.env).filter(([k])=>!k.startsWith('LITTLE_SPARKS_')&&!k.startsWith('OPENAI_'))),LITTLE_SPARKS_GAZETTE_EDITOR_ENABLED:'0'};
- const check=spawnSync(process.env.PHP_BINARY||'php',['scripts/check-gazette-editor.php','--database='+file],{env,encoding:'utf8'});
- assert.equal(check.status,1);assert.ok(check.stderr.includes('Gazette preflight refused'));
+ const check=spawnSync(process.env.PHP_BINARY||'php',['scripts/generate-gazette-brokered.php','--check'],{env,encoding:'utf8'});
+ assert.equal(check.status,1);assert.ok(check.stdout.includes('refused_or_uncertain'));
  assert.deepEqual(await readFile(file),before,'Refused preflight preserves data');
 }finally{await rm(dir,{recursive:true,force:true});}
 console.log('PASS Gazette operations calendar, release pin, disabled job, sanitized receipts, unit policy and reservation math (offline)');

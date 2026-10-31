@@ -3,6 +3,8 @@
 Description=Prepare one owner-reviewed SanctuaryFor.AI Gazette draft
 Wants=network-online.target
 After=network-online.target time-sync.target
+Requires=sanctuary-gazette-db.socket
+After=sanctuary-gazette-db.socket
 
 [Service]
 Type=oneshot
@@ -21,8 +23,7 @@ PrivateTmp=true
 PrivateDevices=true
 ProtectSystem=strict
 ProtectHome=true
-ReadWritePaths=/var/lib/sanctuaryfor-ai
-InaccessiblePaths=-/var/lib/sanctuaryfor-ai/village.sqlite.gazette -/etc/sanctuaryfor-ai -/var/lib/sanctuaryfor-ai-deploy/private
+InaccessiblePaths=/var/lib/sanctuaryfor-ai -/etc/sanctuaryfor-ai -/var/lib/sanctuaryfor-ai-deploy/private
 ProtectKernelTunables=true
 ProtectKernelModules=true
 ProtectKernelLogs=true
