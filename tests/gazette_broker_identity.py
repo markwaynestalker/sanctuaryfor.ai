@@ -28,7 +28,7 @@ def main():
     with tempfile.TemporaryDirectory(prefix='gazette-uid-isolation-') as temporary:
         base = Path(temporary)
         base.chmod(0o711)
-        private = base / 'private'
+        private = base / 'little-sparks-journal-test-private'
         private.mkdir(mode=0o700)
         def php(args, extra=None):
             return subprocess.run(['/usr/bin/php8.3', *args], env={**env, **policy, **(extra or {})},
