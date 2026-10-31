@@ -1,5 +1,7 @@
 # Gazette editor integration (#78, third PR)
 
+For the subsequent service/timer preparation and owner-run activation gates, see [GAZETTE_OPERATIONS.md](GAZETTE_OPERATIONS.md). Dedicated-account database access remains explicitly blocked pending separate review; those templates do not activate this integration.
+
 This PR connects the source and ledger foundations to a default-off independent Responses job, a protected local-owner command and the versioned newspaper reader. It performs no paid evaluation or production operation and installs no timer/service. The #80 ledger migration remains a separate owner operation; this PR adds no SQLite tables or migration. Existing Director instructions, sessions, budgets, resident encounters, memory, relationship accounting, five-minute cadence and sleep settings are unchanged.
 
 ## Generation and API evidence

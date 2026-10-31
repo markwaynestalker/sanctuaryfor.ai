@@ -1,0 +1,43 @@
+# Template only. Installation, credentials and paid activation require owner review.
+[Unit]
+Description=Prepare one owner-reviewed SanctuaryFor.AI Gazette draft
+Wants=network-online.target
+After=network-online.target time-sync.target
+
+[Service]
+Type=oneshot
+User=sanctuarygazette
+Group=sanctuarygazette
+EnvironmentFile=/etc/sanctuary-gazette/editor.env
+LoadCredential=openai_api_key:/etc/sanctuary-gazette/openai_api_key
+WorkingDirectory=/
+# Root-installed reviewed helper; it resolves one explicitly pinned release.
+ExecStart=/usr/bin/python3 -I /usr/local/lib/sanctuary-gazette/run.py --scheduled
+Restart=no
+TimeoutStartSec=150s
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/sanctuaryfor-ai
+InaccessiblePaths=-/var/lib/sanctuaryfor-ai/village.sqlite.gazette -/etc/sanctuaryfor-ai -/var/lib/sanctuaryfor-ai-deploy/private
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectKernelLogs=true
+# Read-only cgroups must remain visible to credential unit-binding validation.
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+RestrictRealtime=true
+LockPersonality=true
+CapabilityBoundingSet=
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+MemoryMax=256M
+TasksMax=16
+LimitCORE=0
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=sanctuary-gazette-editor
+
+# No [Install]. Never attach this service to the village service or timer.
