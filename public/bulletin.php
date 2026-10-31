@@ -5,9 +5,16 @@ use function LittleSparks\e;
 $badges=[];$board=null;$error='';$history=false;$now=time();ini_set('display_errors','0');
 try{
     if(($_SERVER['REQUEST_METHOD']??'')!=='GET'){header('Allow: GET');throw new LittleSparks\Problem(405,'Use GET to read the bulletin board.');}
-    if(array_diff(array_keys($_GET),['page','history'])||isset($_GET['history'])&&$_GET['history']!=='1')throw new LittleSparks\Problem(422,'Choose an available board view.');
+    if(array_diff(array_keys($_GET),['page','history','notice'])||isset($_GET['history'])&&$_GET['history']!=='1')throw new LittleSparks\Problem(422,'Choose an available board view.');
     $raw=$_GET['page']??'1';if(!is_string($raw)||!preg_match('/\A[1-9][0-9]*\z/',$raw)||filter_var($raw,FILTER_VALIDATE_INT)===false)throw new LittleSparks\Problem(422,'Choose a valid board page.');
     $history=isset($_GET['history']);$db=LittleSparks\connect((string)getenv('LITTLE_SPARKS_DB'));$db->exec('PRAGMA query_only=ON');$board=LittleSparks\publicBulletin($db,$now,(int)$raw,$history);$badges=LittleSparks\appearanceBadges($db,array_column($board['notices'],'resident_id'));
+    if(isset($_GET['notice'])){
+        if(count($_GET)!==1||!is_string($_GET['notice'])||!preg_match('/\A[a-f0-9]{32}\z/',$_GET['notice']))throw new LittleSparks\Problem(422,'Choose an exact public notice.');
+        if(!LittleSparks\bulletinInstalled($db))throw new LittleSparks\Problem(404,'That public notice is unavailable.');
+        $q=$db->prepare('SELECT n.id,n.resident_id,r.name,n.kind,n.body,n.created_at,n.expires_at'.LittleSparks\bulletinPublicSql().' AND n.id=? LIMIT 1');$q->execute([$_GET['notice']]);$n=$q->fetch();
+        if(!$n)throw new LittleSparks\Problem(404,'That public notice is unavailable.');$n['status']=$n['expires_at']!==null&&$n['expires_at']<=gmdate('Y-m-d\TH:i:s\Z',$now)?'expired':'active';
+        $history=true;$board=['notices'=>[$n],'total'=>1,'page'=>1,'pages'=>1];$badges=LittleSparks\appearanceBadges($db,[$n['resident_id']]);
+    }
 }catch(LittleSparks\Problem $e){http_response_code($e->status);$error=$e->getMessage();}catch(Throwable){http_response_code(503);$error='The bulletin board could not be loaded. Please visit again soon.';}
 LittleSparks\pageStart('Village Bulletin Board');
 ?>

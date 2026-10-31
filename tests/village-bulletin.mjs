@@ -24,6 +24,9 @@ try{
  assert.ok(html.includes('Maple &amp; Sun')||html.includes('Fern &lt;script&gt;'),'Names are escaped');assert.ok(html.includes('<article')&&html.includes('<time')&&html.includes('aria-labelledby')&&html.includes('Back to the commons'));
  assert.equal((await fetch(origin+'/bulletin.php',{method:'POST',body:'notice=untrusted'})).status,405);
  for(const query of ['?page[]=1','?page=0','?history[]=1','?history=bad','?unknown=1'])assert.equal((await fetch(origin+'/bulletin.php'+query)).status,422);
+ const exact=await fetch(origin+'/bulletin.php?notice='+fixture.notice);assert.equal(exact.status,200);assert.ok((await exact.text()).includes('id="notice-'+fixture.notice+'"'));
+ assert.equal((await fetch(origin+'/bulletin.php?notice='+('0'.repeat(32)))).status,404);
+ for(const query of ['?notice[]=x','?notice=x','?notice='+fixture.notice+'&page=1'])assert.equal((await fetch(origin+'/bulletin.php'+query)).status,422);
  const village=await (await fetch(origin+'/village.php')).text();assert.ok(village.includes('class="village-noticeboard" href="bulletin.php"')&&village.includes('1 active notices'),'Physical board uses native accessible no-JS link and saved count');
  const commonsUrl=origin+'/api/commons.php?ids='+fixture.ids.join(',');
  const saved=await fetch(commonsUrl);assert.equal(saved.status,200);assert.equal(saved.headers.get('set-cookie'),null);
@@ -33,6 +36,7 @@ try{
  assert.equal(await digest(),before,'Public GET/POST rejection leaves SQLite unchanged');
  const remove=spawnSync(php,['scripts/remove-bulletin-notice.php','--database='+publicDb,'--notice='+fixture.notice,'--confirm='+fixture.notice],{cwd:root,env,encoding:'utf8'});assert.equal(remove.status,0,remove.stderr);
  assert.ok(!(await (await fetch(origin+'/bulletin.php?history=1')).text()).includes('question &amp; a little curiosity'),'Withdrawn text is hidden from all public history');
+ assert.equal((await fetch(origin+'/bulletin.php?notice='+fixture.notice)).status,404,'Exact citation never bypasses withdrawal');
  assert.deepEqual((await (await fetch(commonsUrl)).json()).bulletin_posts,[],'Withdrawal removes the saved-post indicator as well');
  console.log('PASS no-JS/keyboard native board, mobile semantic papers, exact escaped text, private projection, GET-only browsing without database writes or cookies, and operator-only CLI withdrawal preserving history');
 }finally{if(server){const exited=new Promise(ok=>server.once('exit',ok));server.kill();await exited;}await rm(dir,{recursive:true,force:true});}

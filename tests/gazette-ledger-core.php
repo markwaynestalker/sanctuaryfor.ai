@@ -17,6 +17,13 @@ try{
     ledgerCheck(ledgerOld($db)===$before&&(int)$db->query('PRAGMA user_version')->fetchColumn()===6,'Repeatable additive migration preserves every old table/row and V6');
     $read=LittleSparks\connect($path);$read->exec('PRAGMA query_only=ON');$snap=LittleSparks\editorialSourcePack($read,'2026-10-29',$now,['background'=>0]);$other=LittleSparks\editorialSourcePack($read,'2026-11-01',$now,['background'=>0]);
     $policy=['model'=>'synthetic-offline','pricing_version'=>'fixture-only','input_tokens'=>1000,'output_tokens'=>1000,'input_rate'=>1000000,'output_rate'=>1000000,'moderation_microusd'=>100,'daily_microusd'=>10000,'monthly_microusd'=>10000,'daily_requests'=>8,'lease_seconds'=>60];
+    $skipPath=$dir.'/editor-expired-permit.sqlite';copy($path,$skipPath);chmod($skipPath,0600);$skip=LittleSparks\connect($skipPath);
+    $first=LittleSparks\reserveEditorialAttempt($skip,$snap,$policy,$now);LittleSparks\finishEditorialAttempt($skip,$first['id'],$first['owner'],'rejected',$now);
+    $ph=hash('sha256',LittleSparks\editorialJson($policy));$expired=LittleSparks\permitEditorialRevision($skip,'2026-10-29',2,$snap['sha256'],$ph,2100,$now+5,$now);
+    ledgerReject(fn()=>LittleSparks\reserveEditorialAttempt($skip,$snap,$policy,$now+6,$expired),'Expired permit accepted');
+    $replacement=LittleSparks\permitEditorialRevision($skip,'2026-10-29',3,$snap['sha256'],$ph,2100,$now+60,$now+6);
+    $next=LittleSparks\reserveEditorialAttempt($skip,$snap,$policy,$now+6,$replacement);LittleSparks\finishEditorialAttempt($skip,$next['id'],$next['owner'],'rejected',$now+6);
+    ledgerCheck((int)$skip->query('SELECT MAX(ordinal) FROM gazette_editor_attempts')->fetchColumn()===3&&(int)$skip->query('SELECT COUNT(*) FROM gazette_editor_permits')->fetchColumn()===2,'New owner permit skips expired ordinal without rewriting evidence');$skip=null;
     ledgerCheck(LittleSparks\editorialReservationCost($policy)===2100,'Generation and moderation reserved together');
     foreach(['daily_microusd','monthly_microusd','daily_requests'] as $key){$bad=$policy;$bad[$key]=0;ledgerReject(fn()=>LittleSparks\reserveEditorialAttempt($db,$snap,$bad,$now),'Zero limit ignored');}
     $bad=$policy;unset($bad['daily_microusd']);ledgerReject(fn()=>LittleSparks\editorialReservationCost($bad),'Missing limit accepted');$bad=$policy;$bad['input_tokens']=PHP_INT_MAX;ledgerReject(fn()=>LittleSparks\editorialReservationCost($bad),'Cost overflow accepted');
