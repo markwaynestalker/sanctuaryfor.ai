@@ -28,7 +28,7 @@ def main():
     with tempfile.TemporaryDirectory(prefix='gazette-uid-isolation-') as temporary:
         base = Path(temporary)
         base.chmod(0o711)
-        private = base / 'private'
+        private = base / 'little-sparks-journal-test-private'
         private.mkdir(mode=0o700)
         def php(args, extra=None):
             return subprocess.run(['/usr/bin/php8.3', *args], env={**env, **policy, **(extra or {})},
@@ -41,6 +41,7 @@ def main():
             php([str(ROOT / ('scripts/migrate-' + phase + '.php')), '--database=' + str(database), '--confirm-drained=yes'])
         php([str(ROOT / 'tests/gazette-core.php'), str(private)])
         php([str(ROOT / 'scripts/migrate-gazette-editor.php'), '--database=' + str(database), '--confirm-drained=yes'])
+        php(['-r', 'require "app/village.php"; $d=LittleSparks\\connect($argv[1]); if($d->query("PRAGMA journal_mode=WAL")->fetchColumn()!=="wal")exit(1);', str(database)])
         for item in private.iterdir():
             os.chown(item, dbuid, dbuid)
         os.chown(private, dbuid, dbuid)
@@ -178,6 +179,10 @@ def main():
         assert private.stat().st_mode & 0o777 == 0o700
         assert database.stat().st_mode & 0o777 == 0o600
         assert database.stat().st_uid == dbuid
+        for suffix in ['-wal', '-shm', '-journal']:
+            sidecar = Path(str(database) + suffix)
+            if sidecar.exists():
+                assert sidecar.stat().st_uid == dbuid and sidecar.stat().st_mode & 0o077 == 0
         # Let TemporaryDirectory clean only its own known disposable tree as root.
         credential_dir.chmod(0o700)
         release.chmod(0o755)

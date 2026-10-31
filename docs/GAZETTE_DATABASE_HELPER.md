@@ -52,7 +52,7 @@ Offline Gazette fixtures exercise all three stages, completed/flagged/missing-us
 
 Ubuntu CI additionally runs `tests/gazette_broker_identity.py` inside a fresh network namespace as root **only to create disposable fixtures and drop child processes to numeric UIDs**. It installs no user/service, uses no real credential and makes no provider call. The test proves a distinct editor cannot open a real 0700/0600 fixture DB, a keyless helper cannot open an editor-owned credential stand-in, unrelated UID socket denial, root peer refusal and an authorized actual PHP read-only DB readiness operation over a root-owned socket. Production does not run this root test. Windows skips Linux kernel tests; final Ubuntu CI must pass.
 
-Actual systemd socket activation, protected credential mounts and installed sandbox configuration still require separate isolated Linux setup verification before production installation. CI forks/inherited sockets establish real UID/peer/DB behavior, not a claim that an installed production unit was tested. Paid endpoint acceptance and quality remain separately authorized staging work.
+The root-isolated Linux test also exercises all three actual PHP helper stages with mock generation/moderation and a WAL database, checking sidecar ownership/private modes. Actual systemd socket activation, protected credential mounts and installed sandbox configuration still require separate isolated Linux setup verification before production installation. CI forks/inherited sockets establish real UID/peer/DB behavior, not a claim that an installed production unit was tested. Paid endpoint acceptance and quality remain separately authorized staging work.
 
 ## Owner-only migration/setup/activation plan
 
