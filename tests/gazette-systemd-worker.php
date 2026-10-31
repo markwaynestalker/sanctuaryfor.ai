@@ -23,20 +23,23 @@ final class SystemdGazetteMock implements LittleSparks\EditorialTransport
             'output'=>[['type'=>'message','role'=>'assistant','status'=>'completed','content'=>[['type'=>'output_text','text'=>json_encode($draft)]]]]]];
     }
 }
+$stage='guard';
 try{
     if(PHP_SAPI!=='cli'||PHP_OS_FAMILY!=='Linux'||getenv('SANCTUARY_CI_SYSTEMD_TEST')!=='1'||posix_geteuid()===0)throw new RuntimeException();
     $mode=getenv('SANCTUARY_CI_MODE');
     if(in_array($mode,['disabled','ready','pin'],true)){
+        $stage='launcher';
+        if($mode==='ready'){$reason=LittleSparks\inspectSystemdCredential()['reason'];if($reason!==null)fwrite(STDERR,'CI credential metadata: '.$reason."\n");}
         $command=['/usr/bin/python3','-I',__DIR__.'/../ops/gazette/run.py',$mode==='disabled'?'--once':'--check'];
         $p=proc_open($command,[0=>['pipe','r'],1=>['pipe','w'],2=>['pipe','w']],$pipes);if(!is_resource($p))throw new RuntimeException();
         fclose($pipes[0]);$out=stream_get_contents($pipes[1],8192);fclose($pipes[1]);stream_get_contents($pipes[2],8192);fclose($pipes[2]);$exit=proc_close($p);
         echo $out;exit($exit);
     }
-    if(is_readable('/var/lib/sanctuaryfor-ai/village.sqlite'))throw new RuntimeException('DB readable');
+    $stage='database-denial';if(is_readable('/var/lib/sanctuaryfor-ai/village.sqlite'))throw new RuntimeException('DB readable');
     try{$db=new PDO('sqlite:/var/lib/sanctuaryfor-ai/village.sqlite',null,null,[PDO::SQLITE_ATTR_OPEN_FLAGS=>PDO::SQLITE_OPEN_READONLY]);throw new RuntimeException('DB opened');}catch(PDOException){}
-    $delivery=LittleSparks\inspectSystemdCredential();if($delivery['reason']!==null)throw new RuntimeException('Credential metadata failed');
+    $stage='credential-metadata';$delivery=LittleSparks\inspectSystemdCredential();if($delivery['reason']!==null){fwrite(STDERR,'CI credential metadata: '.$delivery['reason']."\n");throw new RuntimeException('Credential metadata failed');}
     $mock=new SystemdGazetteMock();$policy=LittleSparks\editorialConfiguration();$bytes=LittleSparks\unsignedEnvironmentInteger('LITTLE_SPARKS_GAZETTE_EDITOR_MAX_REQUEST_BYTES');
-    $result=LittleSparks\runBrokeredEditorialJob(new LittleSparks\GazetteUnixBroker(),$mock,$policy,$bytes,getenv('LITTLE_SPARKS_GAZETTE_EDITOR_RELEASE_SHA'));
+    $stage='mock-broker-flow';$result=LittleSparks\runBrokeredEditorialJob(new LittleSparks\GazetteUnixBroker(),$mock,$policy,$bytes,getenv('LITTLE_SPARKS_GAZETTE_EDITOR_RELEASE_SHA'));
     echo json_encode(['status'=>$result['status'],'mock_calls'=>$mock->calls,'credential_content_reads'=>0,'paid_requests'=>0])."\n";
     exit($result['status']==='awaiting_owner_review'?0:1);
-}catch(Throwable){echo "{\"status\":\"refused_or_uncertain\",\"paid_requests\":0}\n";exit(1);}
+}catch(Throwable){fwrite(STDERR,'CI worker failed at '.$stage."\n");echo "{\"status\":\"refused_or_uncertain\",\"paid_requests\":0}\n";exit(1);}
