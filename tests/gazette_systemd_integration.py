@@ -165,8 +165,10 @@ def main():
             return result
         def status():
             invocation=property_value(worker, 'InvocationID')
-            raw = run(['journalctl', '--no-pager', '-u', worker, '_SYSTEMD_INVOCATION_ID='+invocation, '-o', 'cat'], check=False).stdout
+            assert re.fullmatch('[a-f0-9]{32}', invocation), 'Missing manager invocation identity'
+            raw = run(['journalctl', '--no-pager', '-u', worker, '-o', 'cat'], check=False).stdout
             values = [json.loads(line) for line in raw.splitlines() if line.startswith('{') and line.endswith('}')]
+            values = [value for value in values if value.get('ci_invocation') == invocation]
             assert values, 'No sanitized worker result: ' + raw[-1200:]
             return values[-1]
         try:

@@ -2,6 +2,7 @@
 declare(strict_types=1);
 // CI only: actual broker client and credential metadata, synthetic provider, no credential reads/HTTP.
 require __DIR__.'/../app/village.php';require __DIR__.'/../app/gazette_broker_client.php';
+function ciReceipt(array $result):void{$result['ci_invocation']=getenv('INVOCATION_ID');echo json_encode($result)."\n";}
 final class SystemdGazetteMock implements LittleSparks\EditorialTransport
 {
     public int $calls=0;
@@ -33,13 +34,13 @@ try{
         $command=['/usr/bin/python3','-I',__DIR__.'/../ops/gazette/run.py',$mode==='disabled'?'--once':'--check'];
         $p=proc_open($command,[0=>['pipe','r'],1=>['pipe','w'],2=>['pipe','w']],$pipes);if(!is_resource($p))throw new RuntimeException();
         fclose($pipes[0]);$out=stream_get_contents($pipes[1],8192);fclose($pipes[1]);stream_get_contents($pipes[2],8192);fclose($pipes[2]);$exit=proc_close($p);
-        echo $out;exit($exit);
+        ciReceipt(json_decode($out,true,16,JSON_THROW_ON_ERROR));exit($exit);
     }
     $stage='database-denial';if(is_readable('/var/lib/sanctuaryfor-ai/village.sqlite'))throw new RuntimeException('DB readable');
     try{$db=new PDO('sqlite:/var/lib/sanctuaryfor-ai/village.sqlite',null,null,[PDO::SQLITE_ATTR_OPEN_FLAGS=>PDO::SQLITE_OPEN_READONLY]);throw new RuntimeException('DB opened');}catch(PDOException){}
     $stage='credential-metadata';$delivery=LittleSparks\inspectSystemdCredential();if($delivery['reason']!==null){fwrite(STDERR,'CI credential metadata: '.$delivery['reason']."\n");throw new RuntimeException('Credential metadata failed');}
     $mock=new SystemdGazetteMock();$policy=LittleSparks\editorialConfiguration();$bytes=LittleSparks\unsignedEnvironmentInteger('LITTLE_SPARKS_GAZETTE_EDITOR_MAX_REQUEST_BYTES');
     $stage='mock-broker-flow';$result=LittleSparks\runBrokeredEditorialJob(new LittleSparks\GazetteUnixBroker(),$mock,$policy,$bytes,getenv('LITTLE_SPARKS_GAZETTE_EDITOR_RELEASE_SHA'));
-    echo json_encode(['status'=>$result['status'],'mock_calls'=>$mock->calls,'credential_content_reads'=>0,'paid_requests'=>0])."\n";
+    ciReceipt(['status'=>$result['status'],'mock_calls'=>$mock->calls,'credential_content_reads'=>0,'paid_requests'=>0]);
     exit($result['status']==='awaiting_owner_review'?0:1);
-}catch(Throwable){fwrite(STDERR,'CI worker failed at '.$stage."\n");echo "{\"status\":\"refused_or_uncertain\",\"paid_requests\":0}\n";exit(1);}
+}catch(Throwable){fwrite(STDERR,'CI worker failed at '.$stage."\n");ciReceipt(['status'=>'refused_or_uncertain','paid_requests'=>0]);exit(1);}
