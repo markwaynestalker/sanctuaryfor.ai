@@ -141,8 +141,7 @@ def main():
             # All services must be drained before replacing only this disposable test-case DB.
             run(['systemctl', 'stop', worker, writer], check=False)
             run(['systemctl', 'reset-failed', worker, writer], check=False)
-            # Each cloned case has a fresh independent activation-rate window.
-            # Keep the production socket limits intact inside each case.
+            # Clear failed state only; active socket trigger-rate windows are not reset here.
             run(['systemctl', 'reset-failed', helper_socket], check=False)
             for suffix in ['', '-wal', '-shm', '-journal']:
                 Path(str(database) + suffix).unlink(missing_ok=True)
@@ -200,7 +199,7 @@ def main():
             wait_for(lambda: property_value(worker, 'ActiveState') in ['inactive', 'failed'], 'Successful worker did not finish')
             assert status()['status'] == 'awaiting_owner_review' and info() == [1, 2, 2, 30000, 0]
             assert (state / 'calls').read_text() == '2'
-            run(['systemctl', 'restart', helper_socket]);start()
+            run(['systemctl', 'restart', helper_socket]);trigger_epoch=time.monotonic();start()
             assert info() == [1, 2, 2, 30000, 0] and (state / 'calls').read_text() == '2'
             # Real independent SQLite writer holds the lock during the completion observation.
             reset();configure(barrier=True);start(wait=False)
@@ -220,6 +219,10 @@ def main():
             wait_for(lambda: property_value(worker, 'ActiveState') in ['inactive', 'failed'], 'Restarted worker did not finish')
             assert info() == [1, 1, 0, 30000, 0] and (state / 'calls').read_text() == '1'
             # Stopping a required socket fences an in-flight worker; restarting never replays it.
+            # The preceding synthetic cases deliberately approach the real 12/minute limit.
+            # Respect its actual window instead of weakening the reviewed unit rate policy.
+            while time.monotonic() < trigger_epoch+61:
+                time.sleep(.2)
             reset();configure(barrier=True);start(wait=False)
             wait_for(lambda: (state / 'dispatched').exists(), 'No restart-case dispatch')
             run(['systemctl', 'stop', helper_socket]);wait_for(lambda: property_value(worker, 'ActiveState') in ['inactive', 'failed'], 'Socket stop did not fence dependent worker')
