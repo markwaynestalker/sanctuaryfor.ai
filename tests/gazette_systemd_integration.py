@@ -213,6 +213,12 @@ def main():
             assert private.stat().st_mode & 0o777 == 0o700 and database.stat().st_mode & 0o777 == 0o600
             assert database.stat().st_uid == DB_UID
             print('PASS actual systemd Accept=yes socket, separate UIDs, LoadCredential readonly isolation, PHP broker client, disabled gates, pins, WAL contention, socket/worker restarts and no replay (zero paid calls)')
+        except BaseException:
+            # CI fixtures only: expose unit setup failures without ENV, credential contents or payloads.
+            print(run(['journalctl', '--no-pager', '-u', prefix + '*', '-n', '60', '-o', 'cat'], check=False).stdout, flush=True)
+            for name in [helper_socket, helper_template, worker, writer]:
+                print(run(['systemctl', 'show', name, '-p', 'LoadState', '-p', 'Result', '-p', 'ExecMainStatus'], check=False).stdout, flush=True)
+            raise
         finally:
             stop_units()
             for target, fixture in linked:
