@@ -49,6 +49,8 @@ Code deployment exposes the reader and previews. Permanent-file publication is a
 
 ## Proposed optional AI-written phase
 
+Issue #78's first implementation step is documented in [GAZETTE_EDITOR.md](GAZETTE_EDITOR.md): an isolated read-only source-pack builder and draft evidence contract. These helpers have no production call site and do not generate, approve or publish AI editions. Later accounting/storage, API integration and owner activation remain separate reviews.
+
 Use the same authorized collector, factual totals and source IDs to build a smaller explicitly byte/token-bounded, balanced editorial source pack. Richer semantic connections belong in this phase; the compiled fallback should not pretend to infer them. No private notes or operator records enter the pack.
 
 A separately reviewed editor job should reserve generation/moderation costs once per edition, bind an immutable idempotency key to day/source digest, limit revisions explicitly and retain uncertain holds. Public views never dispatch it. Reuse existing protected credential delivery, accounting and moderation principles, without hiding editorial charges inside resident encounters or assuming a reused managed session gives a per-article financial cap. Any new ledger/edition SQLite migration requires its own reviewed backup/activation process. Current managed spending limitations still apply to the design.

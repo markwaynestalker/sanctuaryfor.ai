@@ -7,9 +7,13 @@ const env={...Object.fromEntries(Object.entries(process.env).filter(([k])=>!k.st
 const run=args=>{const r=spawnSync(php,args,{cwd:root,env,encoding:'utf8'});assert.equal(r.status,0,r.stderr);return r.stdout;};
 const digest=async file=>createHash('sha256').update(await readFile(file)).digest('hex');
 try{
+ const contract=JSON.parse(await readFile(join(root,'contracts/gazette-draft-v1.schema.json'),'utf8'));
+ assert.equal(contract.additionalProperties,false);assert.equal(contract.properties.contract.enum[0],'sanctuary.gazette.draft.v1');
+ assert.deepEqual(contract.$defs.reference.required,['source','sequence']);
  run(['tests/journal-core.php',dir]);await copyFile(join(dir,'v4.sqlite'),join(dir,'v6.sqlite'));await chmod(join(dir,'v6.sqlite'),0o600);
  for(const s of ['memory','identity','director'])run(['scripts/migrate-'+s+'.php','--database='+join(dir,'v6.sqlite')]);
  const fixtures=JSON.parse(run(['tests/gazette-core.php',dir]));
+ console.log(run(['tests/gazette-editor-core.php',dir]).trim());
  console.log('PASS source authorization/privacy, full legacy/16-message history, topic-independent grouping, fair exact quotes, 23/25-hour DST, quiet days, frozen publication/idempotency and unchanged SQLite (offline)');
  for(const fixture of fixtures){
   const socket=createServer();await new Promise(ok=>socket.listen(0,'127.0.0.1',ok));const port=socket.address().port;await new Promise(ok=>socket.close(ok));const origin='http://127.0.0.1:'+port;
