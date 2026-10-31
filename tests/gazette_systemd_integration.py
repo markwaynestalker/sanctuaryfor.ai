@@ -164,7 +164,8 @@ def main():
                 wait_for(lambda: property_value(worker, 'ActiveState') in ['inactive', 'failed'], 'Worker did not finish', 35)
             return result
         def status():
-            raw = run(['journalctl', '--no-pager', '-u', worker, '-o', 'cat'], check=False).stdout
+            invocation=property_value(worker, 'InvocationID')
+            raw = run(['journalctl', '--no-pager', '-u', worker, '_SYSTEMD_INVOCATION_ID='+invocation, '-o', 'cat'], check=False).stdout
             values = [json.loads(line) for line in raw.splitlines() if line.startswith('{') and line.endswith('}')]
             assert values, 'No sanitized worker result: ' + raw[-1200:]
             return values[-1]
