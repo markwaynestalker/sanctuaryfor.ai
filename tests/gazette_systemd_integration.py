@@ -155,16 +155,23 @@ def main():
                 os.setgroups([]);os.setgid(DB_UID);os.setuid(DB_UID)
             result = subprocess.run(['/usr/bin/python3', '-c', code, str(database)], capture_output=True, text=True, preexec_fn=drop, check=True)
             return json.loads(result.stdout)
+        last_invocation={'value': None}
         def start(wait=True):
             run(['systemctl', 'reset-failed', worker], check=False)
             previous=property_value(worker, 'InvocationID')
             result = run(['systemctl', 'start', '--no-block', worker], check=False)
-            wait_for(lambda: property_value(worker, 'InvocationID') not in ['', previous], 'Worker did not enter a new invocation')
+            def entered():
+                value=property_value(worker, 'InvocationID')
+                if re.fullmatch('[a-f0-9]{32}', value) and value != previous:
+                    last_invocation['value']=value
+                    return True
+                return False
+            wait_for(entered, 'Worker did not enter a new invocation')
             if wait:
                 wait_for(lambda: property_value(worker, 'ActiveState') in ['inactive', 'failed'], 'Worker did not finish', 35)
             return result
         def status():
-            invocation=property_value(worker, 'InvocationID')
+            invocation=last_invocation['value']
             assert re.fullmatch('[a-f0-9]{32}', invocation), 'Missing manager invocation identity'
             raw = run(['journalctl', '--no-pager', '-u', worker, '-o', 'cat'], check=False).stdout
             values = [json.loads(line) for line in raw.splitlines() if line.startswith('{') and line.endswith('}')]
