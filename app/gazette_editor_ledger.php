@@ -40,7 +40,7 @@ function editorialReservationCost(array $policy):int
     return $cost+$policy['moderation_microusd'];
 }
 /** Reauthorize original records, not a fresh reporting sample or changed day counts. */
-function assertEditorialSources(PDO $db,array $snapshot,?array $aliases=null):void
+function assertEditorialSources(PDO $db,array $snapshot,?array $aliases=null,bool $historicalNames=false):void
 {
     if(strlen(editorialJson($snapshot))>262144||($snapshot['pack']['contract']??null)!=='sanctuary.gazette.sources.v1'
         ||!hash_equals(editorialHash($snapshot['sha256']??null),hash('sha256',editorialJson($snapshot['pack']))))throw new \RuntimeException('Invalid editorial source snapshot.');
@@ -54,13 +54,15 @@ function assertEditorialSources(PDO $db,array $snapshot,?array $aliases=null):vo
         if(count($found)!==count($wanted))throw new \RuntimeException('Editorial source unavailable.');
         $messages=conversationMessageBatch($db,$ids);
         foreach($found as $row){$s=$wanted[$row['id']];
-            if($s['at']!==$row['created_at']||$s['provider']!==$row['provider']||editorialJson($s['messages'])!==editorialJson(array_map(static fn($m)=>['sequence'=>$m['sequence'],'resident_id'=>$m['resident_id'],'name'=>$m['name'],'text'=>$m['text']],$messages[$row['id']]??[])))throw new \RuntimeException('Editorial source changed.');}
+            $current=array_map(static fn($m)=>['sequence'=>$m['sequence'],'resident_id'=>$m['resident_id'],'name'=>$m['name'],'text'=>$m['text']],$messages[$row['id']]??[]);
+            if($historicalNames)foreach($current as $i=>&$message)$message['name']=$s['messages'][$i]['name']??$message['name'];unset($message);
+            if($s['at']!==$row['created_at']||$s['provider']!==$row['provider']||editorialJson($s['messages'])!==editorialJson($current))throw new \RuntimeException('Editorial source changed.');}
     }
     if($notices){
         if(!bulletinInstalled($db))throw new \RuntimeException('Editorial notice unavailable.');$ids=array_keys($notices);$marks=implode(',',array_fill(0,count($ids),'?'));
         $q=$db->prepare('SELECT n.id,n.resident_id,r.name,n.body,n.kind,n.created_at,n.expires_at'.bulletinPublicSql()." AND n.id IN ($marks)");$q->execute($ids);$found=$q->fetchAll();
         if(count($found)!==count($notices))throw new \RuntimeException('Editorial notice unavailable.');
-        foreach($found as $n){$s=$notices[$n['id']];foreach(['resident_id'=>'resident_id','name'=>'name','text'=>'body','notice_kind'=>'kind','at'=>'created_at','expires_at'=>'expires_at'] as $a=>$b)if($s[$a]!==$n[$b])throw new \RuntimeException('Editorial notice changed.');}
+        foreach($found as $n){$s=$notices[$n['id']];foreach(['resident_id'=>'resident_id','name'=>'name','text'=>'body','notice_kind'=>'kind','at'=>'created_at','expires_at'=>'expires_at'] as $a=>$b)if(!($historicalNames&&$a==='name')&&$s[$a]!==$n[$b])throw new \RuntimeException('Editorial notice changed.');}
     }
 }
 function expireEditorialLease(PDO $db,int $now):void
@@ -95,10 +97,12 @@ function reserveEditorialAttempt(PDO $db,array $snapshot,array $policy,int $now,
         if(!$snapshot['pack']['coverage']['conversations']&&!$snapshot['pack']['coverage']['notices'])throw new \RuntimeException('No edition-day material.');
         expireEditorialLease($db,$now);
         if($db->query('SELECT attempt_id FROM gazette_editor_lease')->fetchColumn()!==null)throw new \RuntimeException('Editorial worker busy.');
-        $q=$db->prepare('SELECT COUNT(*) FROM gazette_editor_attempts WHERE edition=?');$q->execute([$date]);$ordinal=(int)$q->fetchColumn()+1;
+        $q=$db->prepare('SELECT COALESCE(MAX(ordinal),0) FROM gazette_editor_attempts WHERE edition=?');$q->execute([$date]);$ordinal=(int)$q->fetchColumn()+1;
         if($ordinal>1){
             $q=$db->prepare("SELECT 1 FROM gazette_editor_attempts a LEFT JOIN gazette_editor_outcomes o ON o.attempt_id=a.id WHERE a.edition=? AND (o.outcome IS NULL OR o.outcome='uncertain')");$q->execute([$date]);if($q->fetchColumn())throw new \RuntimeException('Uncertain edition cannot be regenerated.');
-            $q=$db->prepare('SELECT * FROM gazette_editor_permits WHERE id=? AND edition=? AND ordinal=? AND source_sha256=? AND policy_sha256=? AND max_microusd>=? AND expires_at>?');$q->execute([$permit,$date,$ordinal,$snapshot['sha256'],$policyHash,$cost,$now]);if(!$q->fetch())throw new \RuntimeException('Separate revision approval required.');
+            $q=$db->prepare('SELECT * FROM gazette_editor_permits WHERE id=? AND edition=? AND ordinal>=? AND source_sha256=? AND policy_sha256=? AND max_microusd>=? AND expires_at>?');$q->execute([$permit,$date,$ordinal,$snapshot['sha256'],$policyHash,$cost,$now]);$approved=$q->fetch();if(!$approved)throw new \RuntimeException('Separate revision approval required.');
+            // Unused expired permits remain immutable; the owner may explicitly skip their ordinals.
+            $ordinal=(int)$approved['ordinal'];
         }elseif($permit!==null)throw new \RuntimeException('Unexpected revision permit.');
         // Keep every reservation. Observed overruns can increase commitments, never refund holds.
         $commit="MAX(a.reserved_microusd,COALESCE((SELECT SUM(r.estimated_microusd) FROM gazette_editor_requests q JOIN gazette_editor_receipts r ON r.request_id=q.id WHERE q.attempt_id=a.id),0))";

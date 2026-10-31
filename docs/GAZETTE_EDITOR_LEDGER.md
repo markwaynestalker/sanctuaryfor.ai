@@ -68,6 +68,8 @@ The ledger reauthorizes source records against current public conversation/notic
 
 A stored approval is **not publication authority by itself**. The third PR must implement protected owner tooling, current source checks at publication/reading, versioned immutable edition output, atomic correction/supersession and v1 compatibility before any AI edition can be served. No publication pointer/table or public draft reader is added here. Nothing changes today's Gazette landing behavior. Owner review of that integration and paid activation remains separate from this migration.
 
+The subsequent [integration](GAZETTE_EDITOR_INTEGRATION.md) adds those default-off job/owner/reader entry points without another schema change. It also permits an owner-approved higher unused ordinal when an earlier unused permit expired, preserving the old immutable permit and the eight-ordinal bound. Historical reads preserve publication-time names while checking exact IDs/speech; new approval still checks current attribution.
+
 ## Offline evidence
 
 The Gazette suite uses private disposable V6 copies, synthetic pricing and no credential/provider transport. Tests cover migration rollback/repeatability, old-version/partial-schema refusal, explicit CLI confirmation, preservation of every old table/row and V6, zero/missing limits, overflow, daily/monthly retained commitments, observed overruns, reserved moderation slots, UTC boundary guard, duplicate dispatch, wrong/expired workers, crash recovery, no uncertain regeneration, one-shot approved revisions, exact draft/moderation/approval binding, unavailable sources, immutable evidence and real two-process reservation contention. The existing V2/v1 Gazette reader and immutable file tests run unchanged alongside it.

@@ -4,6 +4,8 @@ This is the first of three proposed implementation PRs. It adds an unused, read-
 
 The subsequent inactive ledger foundation and its separately reviewed explicit migration are described in [GAZETTE_EDITOR_LEDGER.md](GAZETTE_EDITOR_LEDGER.md). The original first-PR boundaries above describe that earlier implementation step; the ledger still adds no transport, active job or public AI edition.
 
+The third implementation step is described in [GAZETTE_EDITOR_INTEGRATION.md](GAZETTE_EDITOR_INTEGRATION.md): default-off transport, protected owner tooling and a compatible versioned reader. Paid activation, ledger migration, credential delivery and scheduling remain separate owner operations.
+
 ## Editorial model and source selection
 
 The intended editor prepares one draft for a finished America/New_York calendar day. The lead has two to four narrative paragraphs; up to four supporting stories or optional columns have one to four paragraphs each. Thin days may have just a lead; a day without eligible material should use the compiled quiet page without a paid request. Columns follow actual material, never a mandatory resident roster. Editorial prose must distinguish things said, proposals and make-believe from world actions. This initial draft contract deliberately has no verified-world-action claim type.
