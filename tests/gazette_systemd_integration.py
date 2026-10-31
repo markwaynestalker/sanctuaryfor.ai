@@ -82,6 +82,7 @@ def main():
         for tmp in ['/tmp', '/var/tmp']:
             inside(tmp).chmod(0o1777)
         runtime = inside('/run/sanctuary-gazette-db');os.chown(runtime, 0, EDITOR_UID);runtime.chmod(0o710)
+        marker=inside('/run/sanctuary-gazette-systemd-ci-marker');marker.write_text('DISPOSABLE_CI_ONLY');marker.chmod(0o444)
         private = inside('/var/lib/sanctuaryfor-ai');os.chown(private, DB_UID, DB_UID);private.chmod(0o700)
         state = inside('/var/lib/sanctuary-gazette-test');os.chown(state, EDITOR_UID, EDITOR_UID);state.chmod(0o700)
         writer_state = inside('/var/lib/sanctuary-gazette-writer-test');os.chown(writer_state, DB_UID, DB_UID);writer_state.chmod(0o700)
@@ -116,7 +117,7 @@ def main():
                       'SANCTUARY_CI_MODE': mode, 'SANCTUARY_CI_BARRIER': '1' if barrier else '0', 'SANCTUARY_CI_SYSTEMD_TEST': '1'}
             worker_env.write_text('\n'.join(key + '=' + value for key, value in values.items()) + '\n');worker_env.chmod(0o600)
         configure('disabled', enabled=False, helper_enabled=False)
-        common = '\nRootDirectory=' + str(jail) + '\nMountAPIVFS=true\nBindPaths=' + str(inside('/run')) + ':/run\nBindReadOnlyPaths=/usr /lib /lib64 /bin /etc/php /etc/ssl /etc/ld.so.cache\nEnvironment=MIBS=\n'
+        common = '\nRootDirectory=' + str(jail) + '\nMountAPIVFS=true\nBindPaths=' + str(inside('/run')) + ':/run\nBindReadOnlyPaths=/usr /lib /lib64 /bin /etc/php /etc/ssl /etc/ld.so.cache\nEnvironment=MIBS= SANCTUARY_CI_SYSTEMD_TEST=1\n'
         helper = (ROOT / 'ops/systemd/sanctuary-gazette-db@.service').read_text()
         helper = helper.replace('sanctuary-gazette-db.socket', helper_socket).replace('REVIEWED_DATABASE_OWNER', str(DB_UID)).replace('REVIEWED_DATABASE_GROUP', str(DB_UID))
         helper = helper.replace('/usr/local/lib/sanctuary-gazette/db_helper.py', release_path + '/ops/gazette/db_helper.py')
