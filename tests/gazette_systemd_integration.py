@@ -5,6 +5,7 @@ No production access, persistent unit installation, account creation, timer or r
 from contextlib import contextmanager
 import json
 import os
+import pwd
 from pathlib import Path
 import re
 import shutil
@@ -15,7 +16,10 @@ import time
 import uuid
 
 ROOT = Path(__file__).resolve().parents[1]
-DB_UID, EDITOR_UID, OTHER_UID = 64010, 64011, 64012
+# systemd resolves socket groups through NSS; reuse existing isolated-VM identities,
+# rather than creating users/groups or pretending an unregistered GID is provisioned.
+DB_UID, EDITOR_UID, OTHER_UID = [pwd.getpwnam(name).pw_uid for name in ['www-data', 'daemon', 'nobody']]
+assert len({DB_UID, EDITOR_UID, OTHER_UID}) == 3 and min(DB_UID, EDITOR_UID, OTHER_UID) > 0
 P = 'LITTLE_SPARKS_GAZETTE_EDITOR_'
 POLICY = {P + key: value for key, value in {
     'ENABLED': '0', 'PRICING_CONFIRMED': 'gazette-luna-standard-2026-10-31',
