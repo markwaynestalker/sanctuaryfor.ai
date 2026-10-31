@@ -4,8 +4,8 @@ import os
 import sqlite3
 import time
 marker=Path('/run/sanctuary-gazette-systemd-ci-marker')
-assert os.environ.get('SANCTUARY_CI_SYSTEMD_TEST') == '1'
-assert marker.is_file() and marker.stat().st_uid == 0 and marker.read_text() == 'DISPOSABLE_CI_ONLY'
+if os.environ.get('SANCTUARY_CI_SYSTEMD_TEST') != '1' or not marker.is_file() or marker.stat().st_uid != 0 or marker.read_text() != 'DISPOSABLE_CI_ONLY':
+    raise RuntimeError('Disposable CI root required before SQLite access')
 database = sqlite3.connect('/var/lib/sanctuaryfor-ai/village.sqlite', timeout=1)
 database.execute('BEGIN IMMEDIATE')
 state = Path('/var/lib/sanctuary-gazette-writer-test')

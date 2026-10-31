@@ -61,9 +61,10 @@ def jailed_paths(text):
 
 
 def main():
-    assert sys.platform == 'linux' and os.geteuid() == 0
-    assert os.environ.get('GITHUB_ACTIONS') == 'true' and os.environ.get('SANCTUARY_CI_SYSTEMD_TEST') == '1', 'CI-only test'
-    assert Path('/run/systemd/system').is_dir(), 'Actual systemd manager required, no skip'
+    if sys.platform != 'linux' or os.geteuid() != 0 or os.environ.get('GITHUB_ACTIONS') != 'true' or os.environ.get('SANCTUARY_CI_SYSTEMD_TEST') != '1':
+        raise RuntimeError('Disposable GitHub Linux CI root required; never run on production')
+    if not Path('/run/systemd/system').is_dir():
+        raise RuntimeError('Actual systemd manager required, no skip')
     prefix = 'sanctuary-ci-gazette-' + uuid.uuid4().hex[:12]
     helper_socket, helper_template = prefix + '-db.socket', prefix + '-db@.service'
     worker, writer = prefix + '-editor.service', prefix + '-writer.service'
