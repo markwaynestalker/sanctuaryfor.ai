@@ -29,7 +29,7 @@ try{
     $mode=getenv('SANCTUARY_CI_MODE');
     if(in_array($mode,['disabled','ready','pin'],true)){
         $stage='launcher';
-        if($mode==='ready'){$reason=LittleSparks\inspectSystemdCredential()['reason'];if($reason!==null)fwrite(STDERR,'CI credential metadata: '.$reason."\n");}
+        if($mode==='ready'){$reason=LittleSparks\inspectSystemdCredential()['reason'];if($reason!==null){fwrite(STDERR,'CI credential metadata: '.$reason."\n");foreach(['/run','/run/credentials'] as $node)fwrite(STDERR,'CI parent metadata '.json_encode(['uid'=>fileowner($node),'gid'=>filegroup($node),'mode'=>decoct(fileperms($node))])."\n");}}
         $command=['/usr/bin/python3','-I',__DIR__.'/../ops/gazette/run.py',$mode==='disabled'?'--once':'--check'];
         $p=proc_open($command,[0=>['pipe','r'],1=>['pipe','w'],2=>['pipe','w']],$pipes);if(!is_resource($p))throw new RuntimeException();
         fclose($pipes[0]);$out=stream_get_contents($pipes[1],8192);fclose($pipes[1]);stream_get_contents($pipes[2],8192);fclose($pipes[2]);$exit=proc_close($p);

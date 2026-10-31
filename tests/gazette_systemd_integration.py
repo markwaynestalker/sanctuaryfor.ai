@@ -75,7 +75,7 @@ def main():
         jail = base / 'root';jail.mkdir(mode=0o755)
         def inside(path):
             return jail / path.lstrip('/')
-        for directory in ['/usr', '/lib', '/lib64', '/bin', '/etc/php', '/etc/ssl', '/run', '/proc', '/sys', '/dev', '/tmp', '/var/tmp',
+        for directory in ['/usr', '/lib', '/lib64', '/bin', '/etc/php', '/etc/ssl', '/run', '/run/credentials', '/proc', '/sys', '/dev', '/tmp', '/var/tmp',
                           '/var/lib/sanctuaryfor-ai', '/var/lib/sanctuary-gazette-test', '/var/lib/sanctuary-gazette-writer-test',
                           '/etc/sanctuary-gazette-db', '/var/lib/sanctuaryfor-ai-deploy/releases', '/run/sanctuary-gazette-db']:
             inside(directory).mkdir(parents=True, exist_ok=True, mode=0o755)
