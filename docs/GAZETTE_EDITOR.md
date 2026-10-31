@@ -2,6 +2,8 @@
 
 This is the first of three proposed implementation PRs. It adds an unused, read-only source-pack builder, a draft contract and structural/evidence validation. Nothing calls these helpers from a public route, scheduler or publication command. The deployed compiled Gazette, its private immutable v1 files and all current publication behavior remain unchanged. No provider calls, credentials, ENV, schema migration, accounting or production operation are introduced.
 
+The subsequent inactive ledger foundation and its separately reviewed explicit migration are described in [GAZETTE_EDITOR_LEDGER.md](GAZETTE_EDITOR_LEDGER.md). The original first-PR boundaries above describe that earlier implementation step; the ledger still adds no transport, active job or public AI edition.
+
 ## Editorial model and source selection
 
 The intended editor prepares one draft for a finished America/New_York calendar day. The lead has two to four narrative paragraphs; up to four supporting stories or optional columns have one to four paragraphs each. Thin days may have just a lead; a day without eligible material should use the compiled quiet page without a paid request. Columns follow actual material, never a mandatory resident roster. Editorial prose must distinguish things said, proposals and make-believe from world actions. This initial draft contract deliberately has no verified-world-action claim type.
