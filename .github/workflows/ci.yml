@@ -25,6 +25,11 @@ jobs:
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: '22'
+      - name: Disposable Gazette UID boundary (no network or service installation)
+        shell: bash
+        run: |
+          # Only temporary fixtures and numeric process UIDs; no useradd/systemctl/credentials.
+          sudo unshare --net -- /usr/bin/python3 -B tests/gazette_broker_identity.py
       - name: Syntax and all offline suites (loopback only)
         shell: bash
         run: |
