@@ -1,5 +1,9 @@
 # SanctuaryFor.AI
 
+## Gazette editor foundation (#78, first PR)
+
+Read docs/GAZETTE_EDITOR.md. Isolated query-only source packs supply bounded complete public transcripts and attributable notices, chronological earlier context, deterministic totals and exact snapshot bindings. Draft contracts require message-level references and resolve original quotes locally. Structural checks always return needs_moderation_and_owner_review; citation existence cannot establish factual entailment. No public/scheduler call site, provider call, credentials, ENV, schema, ledger, publication or UI change. Preserve the Phase 1 Gazette and immutable v1 files. Accounting/storage, Responses integration/approval/versioned reader and production activation require later separate reviews. Run Gazette/bulletin and all offline suites, with Ubuntu CI required.
+
 ## Village Gazette, compiled first phase (#76)
 
 See docs/VILLAGE_GAZETTE.md. The public newspaper groups authorized complete transcripts, with exact diverse quotes, citations, factual day totals, native Eastern-date navigation and quiet-day handling. Public reads are query-only and never publish/generate. Explicit CLI publication freezes finished days in bounded immutable private JSON files, not SQLite. Missing historical snapshots are labeled previews; unavailable cited sources withhold a published edition. No migration, ENV, timer or Director change. Optional AI journalism is proposed separately with budget, accounting/migration, moderation, provenance and owner editorial approval review. Run all offline suites, synthetic desktop/tablet/phone no-JS readers and Ubuntu CI. No production access, paid calls, automatic merge, deployment or activation.

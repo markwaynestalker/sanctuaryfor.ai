@@ -2,6 +2,7 @@
 declare(strict_types=1);
 require __DIR__.'/../app/village.php';require __DIR__.'/../app/activity.php';require __DIR__.'/../app/director.php';require __DIR__.'/../app/bulletin_schema.php';require __DIR__.'/bulletin-test-support.php';
 require __DIR__.'/../app/commons.php';
+require __DIR__.'/../app/gazette_editor.php';
 function check(bool $ok,string $why):void{if(!$ok)throw new RuntimeException($why);}
 final class BulletinCountingPdo extends PDO{
     public int $reads=0;
@@ -49,6 +50,22 @@ try{
         putenv('LITTLE_SPARKS_BULLETIN_ACTIVE_MAX');
     }
     $fixture=LittleSparks\connect(dirname($argv[1]).'/board-good.sqlite');$entry=LittleSparks\publicBulletin($fixture,$now)['notices'][0];
+    $editorDb=LittleSparks\connect(dirname($argv[1]).'/board-good.sqlite');$editorDb->exec('PRAGMA query_only=ON');
+    $editorDate=(new DateTimeImmutable($entry['created_at']))->setTimezone(new DateTimeZone('America/New_York'))->format('Y-m-d');
+    $editorPack=LittleSparks\editorialSourcePack($editorDb,$editorDate,$now+172800);
+    $editorNotices=array_values(array_filter($editorPack['pack']['sources'],fn($s)=>$s['kind']==='notice'));
+    check(count($editorNotices)===1&&$editorNotices[0]['text']===$entry['body']&&$editorNotices[0]['claims']==='unverified_author_expression','Editor receives exact authorized announcement, never a completed action');
+    $noticeRef=['source'=>$editorNotices[0]['alias'],'sequence'=>null];$noticeClaim=['text'=>'A picnic invitation appeared on the board.','claim_type'=>'proposal','references'=>[$noticeRef]];
+    $noticeDraft=['contract'=>'sanctuary.gazette.draft.v1','date'=>$editorDate,'source_sha256'=>$editorPack['sha256'],
+        'stories'=>[['kind'=>'lead','connection'=>'standalone','headline'=>$noticeClaim,'paragraphs'=>[$noticeClaim,$noticeClaim],'quotes'=>[$noticeRef]]]];
+    check(LittleSparks\validateEditorialDraft($noticeDraft,$editorPack)['resolved_quotes'][0]['text']===$entry['body'],'Notice quote resolves full original text with null sequence');
+    $noticeDraft['stories'][0]['quotes'][0]['sequence']=0;
+    try{LittleSparks\validateEditorialDraft($noticeDraft,$editorPack);throw new LogicException('Notice accepted a message sequence');}catch(RuntimeException){}
+    $editorDb=null;
+    $withdrawnPath=dirname($argv[1]).'/editor-withdrawn.sqlite';copy(dirname($argv[1]).'/board-good.sqlite',$withdrawnPath);chmod($withdrawnPath,0600);$withdrawnDb=LittleSparks\connect($withdrawnPath);
+    $withdrawnDb->prepare("INSERT INTO bulletin_removals VALUES (?,?,'operator_removed')")->execute([$entry['id'],gmdate('Y-m-d\TH:i:s\Z',$now)]);$withdrawnDb->exec('PRAGMA query_only=ON');
+    $withdrawnPack=LittleSparks\editorialSourcePack($withdrawnDb,$editorDate,$now+172800);
+    check($withdrawnPack['pack']['counts']['notices']===0&&count(array_filter($withdrawnPack['pack']['sources'],fn($s)=>$s['kind']==='notice'))===0,'Withdrawn notice excluded from editor text and counts');$withdrawnDb=null;
     foreach(['DAILY_MAX','RESIDENT_DAILY_MAX','ACTIVE_MAX','RESIDENT_ACTIVE_MAX','TOTAL_MAX'] as $key){putenv('LITTLE_SPARKS_BULLETIN_'.$key.'=0');check(!LittleSparks\bulletinCanPost($fixture,$entry['resident_id'],$now+3601),'Zero quota disables posting '.$key);putenv('LITTLE_SPARKS_BULLETIN_'.$key);}
     $one=LittleSparks\publicBulletin($fixture,$now);check($one['total']===1&&$one['pages']===1,'Bounded public retrieval');
     foreach([$ids,[$entry['resident_id']]] as $visible){$counting=new BulletinCountingPdo('sqlite:'.dirname($argv[1]).'/board-good.sqlite',null,null,[PDO::ATTR_DEFAULT_FETCH_MODE=>PDO::FETCH_ASSOC,PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION]);
