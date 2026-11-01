@@ -147,11 +147,12 @@ def main():
         helper_cfg = inside('/etc/sanctuary-gazette-db/config.json')
         worker_env = base / 'editor.env';standin = base / 'credential-standin'
         standin.write_text('NON_SECRET_SYSTEMD_STANDIN');standin.chmod(0o600)
-        def configure(mode='generate', enabled=True, helper_enabled=True, barrier=False, worker_sha=sha, helper_sha=sha, practical=False):
+        def configure(mode='generate', enabled=True, helper_enabled=True, barrier=False, worker_sha=sha, helper_sha=sha, practical=False, automatic=False):
             policy = {**POLICY, **({P+'DAILY_MICROUSD':'1000000',P+'MONTHLY_MICROUSD':'20000000',P+'DAILY_REQUESTS':'20'} if practical else {})}
             cfg = {'editor_uid': EDITOR_UID, 'database': '/var/lib/sanctuaryfor-ai/village.sqlite',
                    'release': '/var/lib/sanctuaryfor-ai-deploy/releases/' + helper_sha, 'approved_date': '2026-10-29',
                    'environment': {**policy, P + 'ENABLED': '1' if helper_enabled else '0'}}
+            if automatic:cfg['auto_publish']={'version':1,'mode':'initial_only','enabled_at':int(time.time())-1}
             helper_cfg.write_text(json.dumps(cfg));helper_cfg.chmod(0o644)
             values = {**policy, P + 'ENABLED': '1' if enabled else '0', P + 'RELEASE_SHA': worker_sha,
                       'SANCTUARY_CI_MODE': mode, 'SANCTUARY_CI_BARRIER': '1' if barrier else '0', 'SANCTUARY_CI_SYSTEMD_TEST': '1'}
@@ -267,6 +268,15 @@ def main():
             start();assert status()['status']=='awaiting_owner_review' and info()==[2,4,4,60000,0]
             start();assert info()==[2,4,4,60000,0] and (state/'calls').read_text()=='4', 'Consumed owner request must never dispatch again'
             owner_file.unlink()
+            # Same real isolated UID/socket/keyless-helper boundary, now with
+            # one root-enabled standing policy; no fabricated owner review.
+            reset();configure(practical=True,automatic=True);start()
+            assert status()['status']=='published_automatically' and info()==[1,2,2,30000,0]
+            manifest=Path(str(database)+'.gazette')/'2026-10-29.editor'/'001.json'
+            assert manifest.is_file() and manifest.stat().st_uid==DB_UID and stat.S_IMODE(manifest.stat().st_mode)==0o600
+            before=manifest.read_bytes();start()
+            assert info()==[1,2,2,30000,0] and manifest.read_bytes()==before and (state/'calls').read_text()=='2'
+            print('PASS root-enabled automatic publication via real keyless helper, protected manifest, no human review fiction or paid replay')
             # Real independent SQLite writer holds the lock during the completion observation.
             reset();configure(barrier=True);start(wait=False)
             wait_for(lambda: (state / 'dispatched').exists(), 'No busy-case dispatch')

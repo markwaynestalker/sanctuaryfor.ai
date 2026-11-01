@@ -31,12 +31,15 @@ try{
  const pubRace=await Promise.all([publishEditor(),publishEditor()]);assert.ok(pubRace.includes(0)&&pubRace.every(x=>x===0||x===42));assert.equal(run(['tests/gazette-publish-worker.php',editorialFixture.publication_job,'audit']),'3');assert.equal(await digest(editorialFixture.publication_database),pubHash);
  console.log('PASS offline Responses/moderation lifecycle, no uncertain retries, exact owner approval, immutable corrections, cross-day citations and source withdrawal');
  console.log('PASS source authorization/privacy, full legacy/16-message history, topic-independent grouping, fair exact quotes, 23/25-hour DST, quiet days, frozen publication/idempotency and unchanged SQLite (offline)');
- for(const fixture of [...fixtures,{...editorialFixture,editorial:true}]){
+ const automaticDatabase=join(dir,'owner-automatic.sqlite');
+ const automaticFixture={database:automaticDatabase,automatic:true,sha256:await digest(automaticDatabase),edition_sha256:await digest(automaticDatabase+'.gazette/2026-10-29.editor/001.json')};
+ for(const fixture of [...fixtures,{...editorialFixture,editorial:true},automaticFixture]){
   const socket=createServer();await new Promise(ok=>socket.listen(0,'127.0.0.1',ok));const port=socket.address().port;await new Promise(ok=>socket.close(ok));const origin='http://127.0.0.1:'+port;
   server=spawn(php,['-S','127.0.0.1:'+port,'-t','public'],{cwd:root,env:{...env,LITTLE_SPARKS_DB:fixture.database},stdio:'ignore'});
   let ready;for(let i=0;i<60;i++){try{ready=await fetch(origin+'/gazette.php?date=2026-10-29');break;}catch{await delay(40);}}assert.ok(ready?.ok);
   const html=await ready.text();assert.ok(html.includes('The Village Gazette')&&html.includes('Published edition'));assert.ok(html.includes('America/New_York')&&html.includes('Village pulse'));assert.ok(!html.includes('PRIVATE_EDITORIAL_CANARY')&&!html.includes('PRIVATECREDENTIALCANARY'));assert.ok(!html.includes('<script> sneaked'));
   if(fixture.editorial){assert.ok(html.includes('AI-written reporting, reviewed and approved')&&html.includes('A lost-and-found remains an idea')&&html.includes('Revision 2'));assert.ok(!html.includes('req_editor')&&!html.includes('resp_editor')&&!html.includes('source_sha256'));const old=await fetch(origin+'/gazette.php?date=2026-10-29&revision=1');assert.ok(old.ok);assert.ok((await old.text()).includes('Revision 1'));assert.equal((await fetch(origin+'/gazette.php?date=2026-10-29&revision=8')).status,404);}
+  if(fixture.automatic){assert.ok(html.includes('automatically published after source checks and moderation'));assert.ok(!html.includes('reviewed and approved by the site owner'));assert.ok(!html.includes('automatic_policy_json')&&!html.includes('automatic_source_checks_and_moderation'));}
   assert.equal(ready.headers.get('set-cookie'),null);assert.match(ready.headers.get('cache-control'),/no-store/);assert.match(ready.headers.get('content-security-policy'),/script-src 'self'/);
   const links=[...html.matchAll(/href="(conversations\.php\?conversation=[^"]+)"/g)].map(m=>m[1].replaceAll('&amp;','&'));assert.ok(links.length>0);
   for(const link of [...new Set(links)]){const response=await fetch(origin+'/'+link);assert.ok(response.ok);assert.match(await response.text(),/class="archive-expansion" role="row" id="[^"]+"\s*>/,'Citation opens exactly its source without JS');}
@@ -50,7 +53,7 @@ try{
   const publish=()=>new Promise((ok,no)=>{const p=spawn(php,['scripts/publish-gazette.php','--database='+fixture.database,'--date=2026-10-26'],{cwd:root,env});let text='',error='';p.stdout.on('data',v=>text+=v);p.stderr.on('data',v=>error+=v);p.on('error',no);p.on('exit',code=>{try{assert.equal(code,0,error);ok(JSON.parse(text));}catch(e){no(e);}});});
   const race=await Promise.all([publish(),publish()]);assert.equal(race.filter(r=>r.existing===false).length,1,'Concurrent publication creates exactly one immutable edition');
   const frozen=JSON.parse(await readFile(fixture.database+'.gazette/2026-10-26.json','utf8'));assert.equal(frozen.edition.date,'2026-10-26');
-  assert.equal(await digest(fixture.database),fixture.sha256);if(!fixture.editorial)assert.equal(await digest(fixture.database+'.gazette/2026-10-29.json'),fixture.edition_sha256);
+  assert.equal(await digest(fixture.database),fixture.sha256);if(!fixture.editorial)assert.equal(await digest(fixture.database+(fixture.automatic?'.gazette/2026-10-29.editor/001.json':'.gazette/2026-10-29.json')),fixture.edition_sha256);
  }
  const css=await readFile(join(root,'public/assets/gazette.css'),'utf8');assert.match(css,/@media\(max-width:600px\)/);assert.ok(!css.includes('url('),'No external fonts or images');
  console.log('PASS server-rendered newspaper/citations, exact-conversation authorization, Eastern edition navigation, strict GET input, no cookies/provider calls and unchanged database/edition files');

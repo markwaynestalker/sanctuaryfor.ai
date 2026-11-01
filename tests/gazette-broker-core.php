@@ -8,8 +8,9 @@ final class FixtureBroker implements LittleSparks\GazetteBrokerChannel
 {
     public int $calls=0;public int $now;
     public ?array $authorization=null;
+    public ?array $autoPolicy=null;
     public function __construct(public PDO $db,public PDO $read,public array $policy,public string $release,public int $bytes=90000){$this->now=time();}
-    public function call(array $message):array{$this->calls++;return LittleSparks\gazetteBrokerHandle($this->db,$this->read,$message,$this->policy,$this->bytes,$this->release,64011,$this->now,true,'2026-10-29',$this->authorization);}
+    public function call(array $message):array{$this->calls++;return LittleSparks\gazetteBrokerHandle($this->db,$this->read,$message,$this->policy,$this->bytes,$this->release,64011,$this->now,true,'2026-10-29',$this->authorization,$this->autoPolicy);}
 }
 final class BrokerProvider implements LittleSparks\EditorialTransport
 {

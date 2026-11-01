@@ -83,7 +83,7 @@ function migrateEditorialLedger(PDO $db):void
 function upgradeEditorialOwnerWorkflow(PDO $db):void
 {
     migrateEditorialLedger($db);
-    if((int)$db->query('SELECT revision FROM gazette_editor_meta')->fetchColumn()===2){$db->query('SELECT is_preview FROM gazette_editor_attempts LIMIT 0');$db->query('SELECT authorization_json FROM gazette_editor_jobs LIMIT 0');return;}
+    if((int)$db->query('SELECT revision FROM gazette_editor_meta')->fetchColumn()===2){$db->query('SELECT is_preview FROM gazette_editor_attempts LIMIT 0');$db->query('SELECT authorization_json FROM gazette_editor_jobs LIMIT 0');installEditorialAutoPublication($db);return;}
     if($db->query('SELECT attempt_id FROM gazette_editor_lease')->fetchColumn()!==null)throw new \RuntimeException('Drain editorial work first.');
     $tables=['meta','permits','attempts','lease','requests','receipts','drafts','moderations','outcomes','reviews'];
     if($db->query("SELECT 1 FROM sqlite_master WHERE tbl_name NOT LIKE 'gazette_editor_%' AND sql LIKE '%gazette_editor_%' LIMIT 1")->fetchColumn())throw new \RuntimeException('Review external editorial schema dependencies first.');
@@ -109,4 +109,19 @@ function upgradeEditorialOwnerWorkflow(PDO $db):void
         CREATE TRIGGER gazette_editor_jobs_no_update BEFORE UPDATE ON gazette_editor_jobs BEGIN SELECT RAISE(ABORT,'Owner history immutable'); END;
         CREATE TRIGGER gazette_editor_jobs_no_delete BEFORE DELETE ON gazette_editor_jobs BEGIN SELECT RAISE(ABORT,'Owner history immutable'); END;");
     if($db->query('PRAGMA foreign_key_check')->fetch())throw new \RuntimeException('Editorial upgrade foreign keys failed.');
+    installEditorialAutoPublication($db);
+}
+
+/** Explicit installer transaction only; no activation or fabricated human review. */
+function installEditorialAutoPublication(PDO $db):void
+{
+    $db->exec("CREATE TABLE IF NOT EXISTS gazette_editor_auto_publications(
+        attempt_id TEXT PRIMARY KEY REFERENCES gazette_editor_attempts(id),
+        draft_sha256 TEXT NOT NULL CHECK(length(draft_sha256)=64),
+        policy_sha256 TEXT NOT NULL CHECK(length(policy_sha256)=64),
+        policy_json TEXT NOT NULL CHECK(length(policy_json)<=1024),
+        authorized_at INTEGER NOT NULL CHECK(authorized_at>=0));
+        CREATE TRIGGER IF NOT EXISTS gazette_editor_auto_publications_no_update BEFORE UPDATE ON gazette_editor_auto_publications BEGIN SELECT RAISE(ABORT,'Automatic publication authority immutable'); END;
+        CREATE TRIGGER IF NOT EXISTS gazette_editor_auto_publications_no_delete BEFORE DELETE ON gazette_editor_auto_publications BEGIN SELECT RAISE(ABORT,'Automatic publication authority immutable'); END;");
+    $db->query('SELECT attempt_id,draft_sha256,policy_sha256,policy_json,authorized_at FROM gazette_editor_auto_publications LIMIT 0');
 }

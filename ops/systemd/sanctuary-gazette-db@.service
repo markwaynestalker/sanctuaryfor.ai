@@ -1,5 +1,6 @@
 # Template: replace REVIEWED_DATABASE_OWNER with the existing non-root DB owner.
-# No credential, Director ENV, network transport, publication or root execution.
+# No credential, Director ENV, network transport or root execution.
+# Fixed publication after moderation is gated by the root-owned auto policy.
 [Unit]
 Description=One authenticated Gazette database operation
 Requires=sanctuary-gazette-db.socket
@@ -28,7 +29,7 @@ PrivateDevices=true
 ProtectSystem=strict
 ProtectHome=true
 ReadWritePaths=/var/lib/sanctuaryfor-ai
-InaccessiblePaths=-/etc/sanctuary-gazette -/etc/sanctuaryfor-ai -/var/lib/sanctuaryfor-ai/village.sqlite.gazette -/var/lib/sanctuaryfor-ai-deploy/private
+InaccessiblePaths=-/etc/sanctuary-gazette -/etc/sanctuaryfor-ai -/var/lib/sanctuaryfor-ai-deploy/private
 ProtectKernelTunables=true
 ProtectKernelModules=true
 ProtectKernelLogs=true

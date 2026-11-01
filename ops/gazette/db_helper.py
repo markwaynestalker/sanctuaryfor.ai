@@ -111,8 +111,16 @@ def configuration(path=CONFIG):
     if path.stat().st_size > 8192:
         raise ValueError('config_bound')
     cfg = decode(path.read_bytes())
-    if set(cfg) != {'editor_uid', 'database', 'release', 'approved_date', 'environment'}:
+    if set(cfg) not in ({'editor_uid', 'database', 'release', 'approved_date', 'environment'},
+                        {'editor_uid', 'database', 'release', 'approved_date', 'environment', 'auto_publish'}):
         raise ValueError('config_keys')
+    if 'auto_publish' in cfg:
+        policy = cfg['auto_publish']
+        if (not isinstance(policy, dict) or set(policy) != {'version','mode','enabled_at'}
+                or type(policy['version']) is not int or policy['version'] != 1
+                or policy['mode'] != 'initial_only' or type(policy['enabled_at']) is not int
+                or not 0 <= policy['enabled_at'] <= time.time()):
+            raise ValueError('auto_publication_policy')
     uid = cfg['editor_uid']
     if type(uid) is not int or uid <= 0 or uid == os.geteuid():
         raise ValueError('distinct_editor_identity_required')
@@ -157,6 +165,8 @@ def operation(connection, cfg):
     job = owner_request() if message.get('op') == 'begin_generation' else None
     if job is not None:
         request['owner_request'] = job
+    if 'auto_publish' in cfg:
+        request['auto_publish'] = cfg['auto_publish']
     request = encode(request)
     # A fresh allowlisted environment: neither caller secrets nor arbitrary PHP settings.
     env = {'PATH': '/usr/bin:/bin', 'LANG': 'C.UTF-8', **cfg['environment']}
