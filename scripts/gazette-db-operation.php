@@ -7,7 +7,8 @@ require __DIR__.'/../app/village.php';require __DIR__.'/../app/gazette_broker.ph
 try{
     if(PHP_OS_FAMILY!=='Linux'||!function_exists('posix_geteuid')||posix_geteuid()===0)throw new RuntimeException();
     $input=stream_get_contents(STDIN,524289);if(strlen($input)>524288)throw new RuntimeException();$m=json_decode($input,true,40,JSON_THROW_ON_ERROR);
-    LittleSparks\editorialKeys($m,array_key_exists('owner_request',$m)?['peer_uid','release','database','approved_date','message','owner_request']:['peer_uid','release','database','approved_date','message']);
+    $keys=['peer_uid','release','database','approved_date','message'];foreach(['owner_request','auto_publish'] as $optional)if(array_key_exists($optional,$m))$keys[]=$optional;
+    LittleSparks\editorialKeys($m,$keys);
     if(!is_int($m['peer_uid'])||$m['peer_uid']<=0||$m['peer_uid']===posix_geteuid()||!preg_match('/\A[a-f0-9]{40}\z/',$m['release']))throw new RuntimeException();
     $path=LittleSparks\databasePath($m['database']);if(fileowner($path)!==posix_geteuid())throw new RuntimeException();
     $policy=LittleSparks\editorialConfiguration(false);$bytes=LittleSparks\unsignedEnvironmentInteger('LITTLE_SPARKS_GAZETTE_EDITOR_MAX_REQUEST_BYTES');
@@ -15,6 +16,6 @@ try{
         $db=new PDO('sqlite:'.$path,null,null,[PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION,PDO::ATTR_DEFAULT_FETCH_MODE=>PDO::FETCH_ASSOC,PDO::SQLITE_ATTR_OPEN_FLAGS=>PDO::SQLITE_OPEN_READONLY]);$db->exec('PRAGMA query_only=ON');
         $read=$db;
     }else{$db=LittleSparks\connect($path);$read=LittleSparks\connect($path);$read->exec('PRAGMA query_only=ON');}
-    $result=LittleSparks\gazetteBrokerHandle($db,$read,$m['message'],$policy,$bytes,$m['release'],$m['peer_uid'],time(),getenv('LITTLE_SPARKS_GAZETTE_EDITOR_ENABLED')==='1',$m['approved_date'],$m['owner_request']??null);
+    $result=LittleSparks\gazetteBrokerHandle($db,$read,$m['message'],$policy,$bytes,$m['release'],$m['peer_uid'],time(),getenv('LITTLE_SPARKS_GAZETTE_EDITOR_ENABLED')==='1',$m['approved_date'],$m['owner_request']??null,$m['auto_publish']??null);
     echo LittleSparks\editorialJson($result);
 }catch(Throwable){echo '{"status":"refused_or_uncertain","action":"inspect_ledger_do_not_retry"}';exit(1);}

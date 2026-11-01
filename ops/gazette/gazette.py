@@ -1,5 +1,5 @@
 #!/usr/bin/python3 -I
-"""Local root-owner control. No key reads, provider HTTP, SQL, retry or auto-publication."""
+"""Local root-owner control. No key reads, provider HTTP, SQL or paid retries."""
 import argparse
 import hashlib
 from contextlib import contextmanager
@@ -189,6 +189,7 @@ def metadata(cfg, code, *, date=None, job=None):
         argv += ['--job=' + job]
     result = json.loads(run(argv).stdout)
     result['limits'] = {key: cfg['environment'][PREFIX + key] for key in ('DAILY_MICROUSD','MONTHLY_MICROUSD','DAILY_REQUESTS')}
+    result['automatic_publication'] = cfg.get('auto_publish')
     return result
 
 
@@ -280,6 +281,13 @@ def owner_tool(cfg, code, *options):
 def review_or_publish(args, cfg, code):
     if not re.fullmatch('[a-f0-9]{32}', args.attempt):
         raise ValueError('attempt_id_required')
+    if args.command == 'publish-pending':
+        if 'auto_publish' not in cfg:
+            raise ValueError('automatic_publication_not_enabled')
+        print(owner_tool(cfg, code, '--action=auto-publish', '--attempt=' + args.attempt,
+                         '--auto-policy=' + json.dumps(cfg['auto_publish'], separators=(',', ':')),
+                         '--release=' + code.name).strip())
+        return
     raw = owner_tool(cfg, code, '--action=show', '--attempt=' + args.attempt)
     draft = json.loads(raw)
     if args.command == 'review':
@@ -323,7 +331,11 @@ def configure(args, cfg):
             raise ValueError('nonnegative_limits_required')
     if args.approve_enable:
         changes[PREFIX + 'ENABLED'] = '1'
-    if not changes:
+    if args.approve_auto_publish:
+        cfg['auto_publish'] = {'version':1, 'mode':'initial_only', 'enabled_at':int(time.time())}
+    if args.disable_auto_publish:
+        cfg.pop('auto_publish', None)
+    if not changes and not args.approve_auto_publish and not args.disable_auto_publish:
         raise ValueError('explicit_limit_or_enable_approval_required')
     client.update(changes)
     cfg['environment'].update(changes)
@@ -444,12 +456,15 @@ def parser():
         item.add_argument('--max-attempt-microusd', type=int, default=50000)
     sub.add_parser('check')
     item = sub.add_parser('status'); item.add_argument('--date')
-    for name in ('review', 'publish'):
+    for name in ('review', 'publish', 'publish-pending'):
         item = sub.add_parser(name); item.add_argument('--attempt', required=True)
         if name == 'publish': item.add_argument('--replace-current', action='store_true')
     item = sub.add_parser('configure')
     item.add_argument('--approve-limits', action='store_true')
     item.add_argument('--approve-enable', action='store_true')
+    auto = item.add_mutually_exclusive_group()
+    auto.add_argument('--approve-auto-publish', action='store_true')
+    auto.add_argument('--disable-auto-publish', action='store_true')
     item.add_argument('--daily-microusd', type=int, default=1000000)
     item.add_argument('--monthly-microusd', type=int, default=20000000)
     item.add_argument('--requests', type=int, default=20)

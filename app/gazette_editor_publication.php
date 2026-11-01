@@ -6,11 +6,24 @@ require_once __DIR__.'/gazette_editor_ledger.php';
 
 function editorialStoredDraft(PDO $db,string $id,bool $approved=false,bool $historicalNames=false):array
 {
-    $join=$approved?" JOIN gazette_editor_reviews v ON v.attempt_id=a.id AND v.draft_sha256=d.sha256 AND v.decision='approved'
+    $auto=$db->query("SELECT 1 FROM sqlite_master WHERE type='table' AND name='gazette_editor_auto_publications'")->fetchColumn()!==false;
+    $join=$approved?" LEFT JOIN gazette_editor_reviews v ON v.attempt_id=a.id AND v.draft_sha256=d.sha256
         JOIN gazette_editor_moderations m ON m.attempt_id=a.id AND m.draft_sha256=d.sha256 AND m.result='passed'
         JOIN gazette_editor_outcomes o ON o.attempt_id=a.id AND o.outcome='finished'":'';
-    $q=$db->prepare("SELECT a.edition,a.snapshot_json,a.created_at,d.body_json,d.sha256 FROM gazette_editor_attempts a JOIN gazette_editor_drafts d ON d.attempt_id=a.id $join WHERE a.id=?");$q->execute([$id]);$r=$q->fetch();
+    $authority="'local_owner'";$authorization=$approved?" AND v.decision='approved'":'';$auditFields='';
+    if($approved&&$auto){$join.=' LEFT JOIN gazette_editor_auto_publications ap ON ap.attempt_id=a.id AND ap.draft_sha256=d.sha256';
+        $authorization=" AND (v.decision='approved' OR (v.attempt_id IS NULL AND ap.attempt_id IS NOT NULL))";
+        $authority="CASE WHEN v.decision='approved' THEN 'local_owner' ELSE 'automatic_policy' END";
+        $auditFields=',ap.policy_json AS automatic_policy_json,ap.policy_sha256 AS automatic_policy_sha256,ap.authorized_at AS automatic_authorized_at';}
+    $q=$db->prepare("SELECT a.edition,a.snapshot_json,a.created_at,d.body_json,d.sha256,$authority AS publication_authority $auditFields FROM gazette_editor_attempts a JOIN gazette_editor_drafts d ON d.attempt_id=a.id $join WHERE a.id=? $authorization");$q->execute([$id]);$r=$q->fetch();
     if(!$r)throw new \RuntimeException('Editorial draft unavailable.');
+    if($r['publication_authority']==='automatic_policy'){
+        $audit=json_decode($r['automatic_policy_json'],true,8,JSON_THROW_ON_ERROR);editorialKeys($audit,['policy','release','authority']);
+        $p=$audit['policy'];editorialKeys($p,['version','mode','enabled_at']);
+        if(!hash_equals(hash('sha256',$r['automatic_policy_json']),$r['automatic_policy_sha256'])||$audit['authority']!=='automatic_source_checks_and_moderation'
+            ||!is_string($audit['release'])||preg_match('/\A[a-f0-9]{40}\z/',$audit['release'])!==1||$p['version']!==1||$p['mode']!=='initial_only'
+            ||!is_int($p['enabled_at'])||$p['enabled_at']<0||$p['enabled_at']>$r['created_at']||$r['automatic_authorized_at']<$r['created_at'])throw new \RuntimeException('Automatic publication authority invalid.');
+    }
     $snapshot=json_decode($r['snapshot_json'],true,32,JSON_THROW_ON_ERROR);$draft=json_decode($r['body_json'],true,32,JSON_THROW_ON_ERROR);$validation=validateEditorialDraft($draft,$snapshot);
     if(!hash_equals($r['sha256'],$validation['draft_sha256'])||$r['edition']!==$draft['date'])throw new \RuntimeException('Editorial stored binding invalid.');
     assertEditorialSources($db,$snapshot,$validation['sources'],$historicalNames);return ['record'=>$r,'snapshot'=>$snapshot,'draft'=>$draft,'validation'=>$validation];
@@ -90,6 +103,6 @@ function readEditorialGazette(PDO $db,string $database,array $day,?int $revision
         }
         $pack=$stored['snapshot']['pack'];$db->commit();
         return ['version'=>2,'date'=>$day['date'],'as_of'=>gmdate('Y-m-d\TH:i:s\Z',$stored['record']['created_at']),'counts'=>$pack['counts'],'covered'=>$pack['coverage']['conversations'],
-            'stories'=>$stories,'revision'=>$m['sequence'],'revision_count'=>count($chain),'publication_sha256'=>$w['sha256'],'published_at'=>$m['published_at']];
+            'stories'=>$stories,'revision'=>$m['sequence'],'revision_count'=>count($chain),'publication_sha256'=>$w['sha256'],'published_at'=>$m['published_at'],'publication_authority'=>$stored['record']['publication_authority']];
     }catch(\Throwable $e){$db->rollBack();throw $e;}
 }

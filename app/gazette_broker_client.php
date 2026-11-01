@@ -43,7 +43,7 @@ function runBrokeredEditorialJob(GazetteBrokerChannel $channel,EditorialTranspor
         $wire=$transport->post($endpoint,$result['body'],$result['deadline']);
         $result=$channel->call($base+['op'=>'complete_'.$stage,'attempt_id'=>$result['attempt_id'],'request_id'=>$result['request_id'],'capability'=>$result['capability'],'wire'=>$wire]);
     }
-    if(!in_array($result['status']??null,['awaiting_owner_review','moderation_rejected','rejected_or_uncertain','refused_or_uncertain'],true))throw new \RuntimeException('Broker outcome unknown.');
+    if(!in_array($result['status']??null,['awaiting_owner_review','moderation_rejected','rejected_or_uncertain','refused_or_uncertain','published_automatically','existing_publication_preserved','preview_private','publication_pending'],true))throw new \RuntimeException('Broker outcome unknown.');
     $safe=['status'=>$result['status']];foreach(['attempt_id'=>32,'draft_sha256'=>64] as $key=>$length)if(is_string($result[$key]??null)&&preg_match('/\A[a-f0-9]{'.$length.'}\z/',$result[$key]))$safe[$key]=$result[$key];
     if($result['status']==='rejected_or_uncertain'&&in_array($result['rejection_code']??null,EDITORIAL_REJECTION_CODES,true))$safe['rejection_code']=$result['rejection_code'];
     return $safe;

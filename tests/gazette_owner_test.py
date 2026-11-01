@@ -96,6 +96,19 @@ class OwnerWorkflow(unittest.TestCase):
                         with self.assertRaises(ValueError): owner.generation(args, {'environment':policy}, Path('/release') / ('a'*40))
                     self.assertEqual(len(calls), before+1); self.assertFalse(request.exists())
 
+    def test_one_time_automatic_policy_is_explicit_and_preserves_limits(self):
+        with tempfile.TemporaryDirectory() as directory:
+            env=Path(directory)/'editor.env';cfgfile=Path(directory)/'config.json'
+            policy={owner.PREFIX+'ENABLED':'0',owner.PREFIX+'DAILY_MICROUSD':'50000'}
+            env.write_text(''.join(k+'='+v+'\n' for k,v in policy.items()))
+            cfg={'environment':dict(policy)};cfgfile.write_text(json.dumps(cfg))
+            with patch.object(owner,'ENV',env),patch.object(owner,'CONFIG',cfgfile),patch.object(owner,'trusted'),patch.object(owner,'idle'),patch('sys.stdout',new_callable=io.StringIO):
+                args=owner.parser().parse_args(['configure','--approve-auto-publish']);owner.configure(args,cfg)
+                saved=json.loads(cfgfile.read_text());self.assertEqual(saved['environment'],policy)
+                self.assertEqual(saved['auto_publish']['mode'],'initial_only');self.assertEqual(env.read_text(),''.join(k+'='+v+'\n' for k,v in policy.items()))
+                owner.configure(owner.parser().parse_args(['configure','--disable-auto-publish']),cfg)
+                self.assertNotIn('auto_publish',json.loads(cfgfile.read_text()))
+
     def test_preview_and_existing_publication_need_separate_decisions(self):
         args = owner.parser().parse_args(['publish', '--attempt', 'a'*32])
         for preview, current in [(True,None), (None,'b'*64)]:

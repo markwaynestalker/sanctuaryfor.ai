@@ -45,5 +45,5 @@ try{
     $mock=new SystemdGazetteMock();$policy=LittleSparks\editorialConfiguration();$bytes=LittleSparks\unsignedEnvironmentInteger('LITTLE_SPARKS_GAZETTE_EDITOR_MAX_REQUEST_BYTES');
     $stage='mock-broker-flow';$result=LittleSparks\runBrokeredEditorialJob(new LittleSparks\GazetteUnixBroker(),$mock,$policy,$bytes,getenv('LITTLE_SPARKS_GAZETTE_EDITOR_RELEASE_SHA'));
     ciReceipt(['status'=>$result['status'],'mock_calls'=>$mock->calls,'credential_content_reads'=>0,'paid_requests'=>0]);
-    exit($result['status']==='awaiting_owner_review'?0:1);
+    exit(in_array($result['status'],['awaiting_owner_review','published_automatically','existing_publication_preserved','preview_private'],true)?0:1);
 }catch(Throwable){fwrite(STDERR,'CI worker failed at '.$stage."\n");ciReceipt(['status'=>'refused_or_uncertain','paid_requests'=>0]);exit(1);}

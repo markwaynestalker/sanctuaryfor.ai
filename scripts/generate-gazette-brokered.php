@@ -9,5 +9,5 @@ try{
     if(LittleSparks\inspectSystemdCredential()['reason']!==null)throw new RuntimeException();
     $release=getenv('LITTLE_SPARKS_GAZETTE_EDITOR_RELEASE_SHA');
     $result=LittleSparks\runBrokeredEditorialJob(new LittleSparks\GazetteUnixBroker(),new LittleSparks\EditorialHttp(),$policy,$bytes,is_string($release)?$release:'',$check);
-    echo LittleSparks\editorialJson($result)."\n";exit(in_array($result['status'],['preflight_ready','quiet_or_input_bound','awaiting_owner_review'],true)?0:1);
+    echo LittleSparks\editorialJson($result)."\n";exit(in_array($result['status'],['preflight_ready','quiet_or_input_bound','awaiting_owner_review','published_automatically','existing_publication_preserved','preview_private'],true)?0:1);
 }catch(Throwable){echo "{\"status\":\"refused_or_uncertain\",\"action\":\"inspect_ledger_do_not_retry\"}\n";exit(1);}

@@ -1,5 +1,7 @@
 # Gazette owner workflow
 
+**Latest direction:** enable [automatic daily publication](GAZETTE_AUTOMATIC_PUBLICATION.md) once to publish successfully validated and moderated completed editions without daily human approval. The manual-review instructions below apply when automatic publication is disabled and to explicit corrections of existing publications.
+
 This supersedes the manual date overrides and hand-calculated revision permits in the earlier operations runbook. One reviewed installation gives the local owner a `gazette` command. It uses the existing credential-isolated editor service and keyless Unix broker; it never reads the key, gives the login account database/key permissions, publishes during generation, or changes the Director.
 
 ## Routine use

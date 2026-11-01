@@ -3,6 +3,7 @@ declare(strict_types=1);
 namespace LittleSparks;
 use PDO;
 require_once __DIR__.'/gazette_editor_job.php';
+require_once __DIR__.'/gazette_auto_publication.php';
 
 const GAZETTE_BROKER_VERSION=1;
 /** Policy is supplied by the root-configured helper, never by a socket client. */
@@ -22,13 +23,14 @@ function gazetteBrokerEnvelope(array $message,string $release,string $policyHash
 }
 /** Trusted CLI domain entry: authenticated peer UID/clock/config come from the keyless adapter.
  * Provider JSON is an unverified worker observation, not authenticated billing evidence. */
-function gazetteBrokerHandle(PDO $db,PDO $read,array $m,array $policy,int $bytes,string $release,int $peer,int $now,bool $enabled,?string $approvedDate=null,?array $authorization=null):array
+function gazetteBrokerHandle(PDO $db,PDO $read,array $m,array $policy,int $bytes,string $release,int $peer,int $now,bool $enabled,?string $approvedDate=null,?array $authorization=null,?array $autoPolicy=null):array
 {
     $ph=gazetteBrokerPolicyHash($policy,$bytes,$release);gazetteBrokerEnvelope($m,$release,$ph);
     $op=$m['op']??'';
     if($op==='ready'){
         editorialKeys($m,['version','release','policy_sha256','op']);
         if((int)$db->query('PRAGMA user_version')->fetchColumn()!==6||!editorialLedgerInstalled($db)||!in_array((int)$db->query('SELECT revision FROM gazette_editor_meta WHERE singleton=1')->fetchColumn(),[1,2],true))throw new \RuntimeException('Broker schema unavailable.');
+        if($autoPolicy!==null){validateEditorialAutoPolicy($autoPolicy,$now);$db->query('SELECT attempt_id FROM gazette_editor_auto_publications LIMIT 0');}
         return ['status'=>'preflight_ready','version'=>GAZETTE_BROKER_VERSION,'policy_sha256'=>$ph];
     }
     if(!$enabled)throw new \RuntimeException('Broker disabled.');
@@ -86,6 +88,13 @@ function gazetteBrokerHandle(PDO $db,PDO $read,array $m,array $policy,int $bytes
         $q=$db->prepare('SELECT sha256,body_json FROM gazette_editor_drafts WHERE attempt_id=?');$q->execute([$id]);$saved=$q->fetch();$sha=$saved['sha256'];
         assertEditorialSources($db,$snapshot,validateEditorialDraft(json_decode($saved['body_json'],true,32,JSON_THROW_ON_ERROR),$snapshot)['sources']);
         $passed=!$results[0]['flagged'];saveEditorialModeration($db,$id,$owner,$sha,$mod,$passed?'passed':'flagged',$now);finishEditorialAttempt($db,$id,$owner,$passed?'finished':'rejected',$now);
+        if($passed&&$autoPolicy!==null){
+            try{
+                $database=$db->query('PRAGMA database_list')->fetch()['file'];
+                $publication=autoPublishEditorialDraft($db,$read,$database,$id,$sha,$autoPolicy,$release,$now);
+                return $publication+['attempt_id'=>$id,'draft_sha256'=>$sha];
+            }catch(\Throwable){return ['status'=>'publication_pending','attempt_id'=>$id,'draft_sha256'=>$sha];}
+        }
         return ['status'=>$passed?'awaiting_owner_review':'moderation_rejected','attempt_id'=>$id,'draft_sha256'=>$sha];
     }catch(\Throwable $e){
         try{if($request!==null)receiptEditorialRequest($db,$id,$owner,$request,'uncertain',null,null,null,null,$now);finishEditorialAttempt($db,$id,$owner,$uncertain?'uncertain':'rejected',$now);}catch(\Throwable){}
