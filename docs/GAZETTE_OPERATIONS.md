@@ -51,6 +51,8 @@ First use stand-in credential delivery in isolated Linux staging. The existing v
 
 Diagnostics contain only sanitized status, attempt/draft identifiers and static refusal text. No raw observation, capability, source/draft copy, tokens, credential, ENV or exception enters the journal. Inspect selected private ledger evidence for token/cost diagnosis. A timeout/lost IPC response may have committed dispatch: never restart it to retry, refund or regenerate. Let an in-flight paid operation finish safely when disabling new admissions.
 
+The [completed-generation rejection investigation](GAZETTE_GENERATION_REJECTIONS.md) documents synthetic contract reproductions and fixed allowlisted `rejection_code` diagnostics. No private response is logged or retained for debugging. The root-installed launcher needs a separate reviewed update to preserve those codes in its safe journal receipt; code deployment does not install it automatically. Codes cannot recover a historical reason that was discarded, and do not authorize retry or revision of the first rejected edition.
+
 ## SQLite migration maintenance window
 
 There is **no new #84/#83 migration**. #80's ledger revision 1 is still separately required. If already installed, inspect it; never drop/recreate it.

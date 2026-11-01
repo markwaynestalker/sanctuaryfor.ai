@@ -80,6 +80,21 @@ class GazetteOperations(unittest.TestCase):
             with self.assertRaises(ValueError):
                 job.safe_result(bad)
 
+    def test_rejection_codes_are_fixed_and_private_details_are_discarded(self):
+        php = (ROOT / 'app/gazette_rejections.php').read_text()
+        block = php.split('const EDITORIAL_REJECTION_CODES=[', 1)[1].split('];', 1)[0]
+        import re
+        self.assertEqual(job.REJECTION_CODES, set(re.findall(r"'([a-z_]+)'", block)))
+        for code in job.REJECTION_CODES:
+            result = job.safe_result(json.dumps({'status': 'rejected_or_uncertain',
+                'rejection_code': code, 'exception': 'PRIVATE_CANARY', 'draft': 'PRIVATE_CANARY'}))
+            self.assertEqual(result, {'status': 'rejected_or_uncertain', 'rejection_code': code})
+        for code in ['PRIVATE_CANARY', 'draft_story_shape\nPRIVATE_CANARY', [], {}, None]:
+            self.assertEqual(job.safe_result(json.dumps({'status': 'rejected_or_uncertain',
+                'rejection_code': code})), {'status': 'rejected_or_uncertain'})
+        self.assertEqual(job.safe_result(json.dumps({'status': 'preflight_ready',
+            'rejection_code': 'draft_story_shape'})), {'status': 'preflight_ready'})
+
     def test_enabled_invokes_once_and_never_retries_unknown_outcome(self):
         env = {'LITTLE_SPARKS_GAZETTE_EDITOR_ENABLED': '1',
                'LITTLE_SPARKS_GAZETTE_EDITOR_RELEASE_SHA': 'a' * 40}

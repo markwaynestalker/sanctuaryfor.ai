@@ -1,6 +1,7 @@
 <?php
 declare(strict_types=1);
 require __DIR__.'/../app/village.php';require __DIR__.'/../app/gazette_broker_client.php';
+require_once __DIR__.'/gazette-contract-fixtures.php';
 function brokerCheck(bool $v,string $why):void{if(!$v)throw new RuntimeException($why);}
 function brokerReject(callable $f,string $why):void{try{$f();}catch(Throwable){return;}throw new RuntimeException($why);}
 final class FixtureBroker implements LittleSparks\GazetteBrokerChannel
@@ -12,7 +13,7 @@ final class FixtureBroker implements LittleSparks\GazetteBrokerChannel
 final class BrokerProvider implements LittleSparks\EditorialTransport
 {
     public array $calls=[];
-    public function __construct(public string $mode){}
+    public function __construct(public string $mode,public ?PDO $db=null){}
     public function post(string $path,array $body,int $deadline):array
     {
         $this->calls[]=$path;if($this->mode==='timeout')throw new RuntimeException('Mock timeout');
@@ -26,13 +27,13 @@ final class BrokerProvider implements LittleSparks\EditorialTransport
             'usage'=>['input_tokens'=>1000,'output_tokens'=>500],
             'output'=>[['type'=>'message','role'=>'assistant','status'=>'completed','content'=>[['type'=>'output_text','text'=>json_encode($draft)]]]]];
         if($this->mode==='partial')$r['status']='in_progress';if($this->mode==='missingusage')unset($r['usage']);if($this->mode==='overrun')$r['usage']['input_tokens']=200000;
-        return ['body'=>$r,'request_id'=>'req_fixture_gen'];
+        return ['body'=>fixtureGazetteMutation($r,$this->mode,$body['text']['format']['schema'],$this->db),'request_id'=>'req_fixture_gen'];
     }
 }
 try{
     $dir=$argv[1];$release=str_repeat('a',40);
     $policy=['model'=>'gpt-6-luna','pricing_version'=>'fixture','input_tokens'=>96000,'output_tokens'=>12000,'input_rate'=>250000,'output_rate'=>500000,'moderation_microusd'=>0,'daily_microusd'=>50000,'monthly_microusd'=>1000000,'daily_requests'=>2,'lease_seconds'=>120];
-    foreach(['good','flagged','missingusage','partial','badquote','overrun','timeout','wal'] as $mode){
+    foreach([...['good','flagged','missingusage','partial','badquote','overrun','timeout','wal'],...array_keys(GAZETTE_CONTRACT_CASES)] as $mode){
         $path=$dir.'/broker-'.$mode.'.sqlite';copy($dir.'/v6.sqlite',$path);chmod($path,0600);$db=LittleSparks\connect($path);
         if($mode==='wal')brokerCheck($db->query('PRAGMA journal_mode=WAL')->fetchColumn()==='wal','Disposable WAL fixture');
         $db->exec('BEGIN IMMEDIATE');LittleSparks\migrateEditorialLedger($db);$db->exec('COMMIT');
@@ -41,15 +42,25 @@ try{
         foreach(['sql','review','publish','permit','refund'] as $op)brokerReject(fn()=>$channel->call($base+['op'=>$op]),'Forbidden operation accepted');
         brokerReject(fn()=>$channel->call($base+['op'=>'begin_generation','database'=>'/tmp/other']),'Client path accepted');
         brokerCheck((int)$db->query('SELECT COUNT(*) FROM gazette_editor_attempts')->fetchColumn()===0,'Rejected requests write nothing');
-        $provider=new BrokerProvider($mode==='wal'?'good':$mode);
+        $provider=new BrokerProvider($mode==='wal'?'good':$mode,$db);
         if($mode==='timeout')brokerReject(fn()=>LittleSparks\runBrokeredEditorialJob($channel,$provider,$policy,90000,$release),'Timeout not propagated');
         else{
             $result=LittleSparks\runBrokeredEditorialJob($channel,$provider,$policy,90000,$release);
             $expected=in_array($mode,['good','missingusage','wal'],true)?'awaiting_owner_review':($mode==='flagged'?'moderation_rejected':'rejected_or_uncertain');
             brokerCheck($result['status']===$expected,'Broker lifecycle '.$mode);
+            if(isset(GAZETTE_CONTRACT_CASES[$mode])){
+                brokerCheck(($result['rejection_code']??null)===GAZETTE_CONTRACT_CASES[$mode],'Static rejection code '.$mode);
+                brokerCheck($provider->calls===['responses'],'Rejected draft never reaches moderation');
+                brokerCheck((int)$db->query('SELECT COUNT(*) FROM gazette_editor_drafts')->fetchColumn()===0,'Rejected candidate never stored');
+                brokerCheck($db->query('SELECT outcome FROM gazette_editor_outcomes')->fetchColumn()==='rejected','Completed generation is rejected, not refunded');
+                brokerCheck($db->query('SELECT outcome FROM gazette_editor_receipts')->fetchColumn()==='completed'&&(int)$db->query('SELECT estimated_microusd FROM gazette_editor_receipts')->fetchColumn()===6000,'Completed observed receipt retained before validation rejection');
+                brokerCheck((int)$db->query('SELECT SUM(request_slots) FROM gazette_editor_attempts')->fetchColumn()===2,'Both slots retained');
+                brokerCheck(!str_contains(json_encode($result),'PRIVATE_SYNTHETIC_REJECTION_CANARY'),'No exception/provider text in receipt');
+                if($mode==='source_withdrawn')$db->exec("UPDATE simulation_runs SET status='completed' WHERE id=(SELECT run_id FROM conversations WHERE id='integrity-good')");
+            }
         }
         brokerCheck(count($provider->calls)<=2,'No extra provider calls');
-        brokerReject(fn()=>LittleSparks\runBrokeredEditorialJob($channel,$provider,$policy,90000,$release),'Duplicate edition admitted');
+        $calls=$provider->calls;brokerReject(fn()=>LittleSparks\runBrokeredEditorialJob($channel,$provider,$policy,90000,$release),'Duplicate edition admitted');brokerCheck($provider->calls===$calls,'Rejected edition cannot redispatch');
         $attempt=$db->query('SELECT * FROM gazette_editor_attempts')->fetch();$request=$db->query("SELECT id FROM gazette_editor_requests WHERE kind='generation'")->fetchColumn();
         $cap=LittleSparks\gazetteBrokerCapability($attempt,$request,'generation',64011,$release);
         brokerCheck($cap!==$attempt['owner']&&strlen($cap)===64,'Opaque derived capability');
@@ -63,5 +74,5 @@ try{
         brokerCheck($db->query('PRAGMA integrity_check')->fetchColumn()==='ok'&&!$db->query('PRAGMA foreign_key_check')->fetch(),'Integrity preserved');
         $db=null;
     }
-    echo "PASS keyless broker lifecycle, three fixed operations, private capabilities, retained holds, source validation, WAL and unchanged non-editorial data (mock provider)\n";
+    echo "PASS keyless broker lifecycle and synthetic completed-receipt/no-draft/no-moderation rejection matrix, static codes, retained holds/slots and no retry (mock provider)\n";
 }catch(Throwable $e){fwrite(STDERR,$e->getMessage()."\n");exit(1);}

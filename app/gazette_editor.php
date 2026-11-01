@@ -3,6 +3,7 @@ declare(strict_types=1);
 namespace LittleSparks;
 use PDO;
 require_once __DIR__.'/gazette.php';
+require_once __DIR__.'/gazette_rejections.php';
 
 /** Offline editorial preparation only. No provider, publication, ENV or ledger access. */
 function editorialJson(mixed $value):string
@@ -12,12 +13,12 @@ function editorialJson(mixed $value):string
 function editorialKeys(array $value,array $keys):void
 {
     $actual=array_keys($value);sort($actual);sort($keys);
-    if($actual!==$keys)throw new \RuntimeException('Invalid editorial fields.');
+    if($actual!==$keys)throw new EditorialRejection('draft_fields_invalid');
 }
 function editorialText(mixed $value,int $limit):string
 {
     if(!is_string($value)||preg_match('/\A[^\p{C}<>]{1,'.$limit.'}\z/u',$value)!==1||trim($value)!==$value
-        ||preg_match('/\bsk-[a-zA-Z0-9_-]{8,}|Bearer\s+[a-zA-Z0-9_-]{8,}/i',$value))throw new \RuntimeException('Invalid editorial text.');
+        ||preg_match('/\bsk-[a-zA-Z0-9_-]{8,}|Bearer\s+[a-zA-Z0-9_-]{8,}/i',$value))throw new EditorialRejection('draft_text_invalid');
     return $value;
 }
 /** Bounded candidates spread across first speakers AND UTC hours before selection. */
@@ -105,44 +106,44 @@ function editorialSourcePack(PDO $db,string $date,int $now,array $options=[]):ar
 function validateEditorialDraft(array $draft,array $snapshot):array
 {
     if(strlen(editorialJson($draft))>65536||!isset($snapshot['pack'],$snapshot['sha256'])
-        ||!is_string($snapshot['sha256'])||!hash_equals($snapshot['sha256'],hash('sha256',editorialJson($snapshot['pack']))))throw new \RuntimeException('Invalid editorial snapshot.');
+        ||!is_string($snapshot['sha256'])||!hash_equals($snapshot['sha256'],hash('sha256',editorialJson($snapshot['pack']))))throw new EditorialRejection('draft_snapshot_invalid');
     editorialKeys($draft,['contract','date','source_sha256','stories']);$pack=$snapshot['pack'];
     if($draft['contract']!=='sanctuary.gazette.draft.v1'||$draft['date']!==$pack['date']||$draft['source_sha256']!==$snapshot['sha256']
-        ||!is_array($draft['stories'])||!array_is_list($draft['stories'])||count($draft['stories'])<1||count($draft['stories'])>5)throw new \RuntimeException('Invalid editorial draft.');
+        ||!is_array($draft['stories'])||!array_is_list($draft['stories'])||count($draft['stories'])<1||count($draft['stories'])>5)throw new EditorialRejection('draft_binding_invalid');
     $sources=[];foreach($pack['sources'] as $source)$sources[$source['alias']]=$source;
     $moderation=[];$quotes=[];$used=[];$quoteVoices=[];
     $reference=static function(mixed $ref)use($sources,&$used):array{
-        if(!is_array($ref))throw new \RuntimeException('Invalid editorial reference.');editorialKeys($ref,['source','sequence']);
+        if(!is_array($ref))throw new EditorialRejection('draft_reference_invalid');editorialKeys($ref,['source','sequence']);
         $source=is_string($ref['source'])?($sources[$ref['source']]??null):null;
-        if(!$source)throw new \RuntimeException('Unknown editorial source.');
+        if(!$source)throw new EditorialRejection('draft_source_unknown');
         if($source['kind']==='notice'){
-            if($ref['sequence']!==null)throw new \RuntimeException('Notice references have no sequence.');
+            if($ref['sequence']!==null)throw new EditorialRejection('draft_notice_sequence');
             $message=['resident_id'=>$source['resident_id'],'name'=>$source['name'],'text'=>$source['text']];
         }else{
-            if(!is_int($ref['sequence'])||!isset($source['messages'][$ref['sequence']]))throw new \RuntimeException('Unknown editorial message.');
+            if(!is_int($ref['sequence'])||!isset($source['messages'][$ref['sequence']]))throw new EditorialRejection('draft_message_unknown');
             $message=$source['messages'][$ref['sequence']];
         }
         $used[$source['alias']]=true;return ['source'=>$source,'message'=>$message];
     };
     foreach($draft['stories'] as $i=>$story){
-        if(!is_array($story))throw new \RuntimeException('Invalid editorial story.');editorialKeys($story,['kind','connection','headline','paragraphs','quotes']);
+        if(!is_array($story))throw new EditorialRejection('draft_story_shape');editorialKeys($story,['kind','connection','headline','paragraphs','quotes']);
         if(!in_array($story['kind'],$i===0?['lead']:['support','column'],true)||!in_array($story['connection'],['standalone','theme','claimed_continuation'],true)
             ||!is_array($story['paragraphs'])||!array_is_list($story['paragraphs'])||count($story['paragraphs'])<($i===0?2:1)||count($story['paragraphs'])>4
-            ||!is_array($story['quotes'])||!array_is_list($story['quotes'])||count($story['quotes'])>3)throw new \RuntimeException('Invalid editorial story shape.');
+            ||!is_array($story['quotes'])||!array_is_list($story['quotes'])||count($story['quotes'])>3)throw new EditorialRejection('draft_story_shape');
         $dayEvidence=false;$storyConversations=[];
         foreach([$story['headline'],...$story['paragraphs']] as $j=>$claim){
-            if(!is_array($claim))throw new \RuntimeException('Invalid editorial claim.');editorialKeys($claim,['text','claim_type','references']);
+            if(!is_array($claim))throw new EditorialRejection('draft_claim_invalid');editorialKeys($claim,['text','claim_type','references']);
             $moderation[]=editorialText($claim['text'],$j===0?120:1000);
             if(!in_array($claim['claim_type'],['speech','theme','proposal','imagination'],true)||!is_array($claim['references'])||!array_is_list($claim['references'])
-                ||count($claim['references'])<1||count($claim['references'])>8)throw new \RuntimeException('Invalid editorial claim evidence.');
+                ||count($claim['references'])<1||count($claim['references'])>8)throw new EditorialRejection('draft_claim_evidence');
             $seen=[];
-            foreach($claim['references'] as $ref){$evidence=$reference($ref);$key=editorialJson($ref);if(isset($seen[$key]))throw new \RuntimeException('Duplicate editorial reference.');$seen[$key]=true;
+            foreach($claim['references'] as $ref){$evidence=$reference($ref);$key=editorialJson($ref);if(isset($seen[$key]))throw new EditorialRejection('draft_reference_duplicate');$seen[$key]=true;
                 $s=$evidence['source'];$dayEvidence=$dayEvidence||$s['scope']==='edition';if($s['kind']==='conversation')$storyConversations[$s['alias']]=true;}
         }
-        if(!$dayEvidence||($story['connection']==='claimed_continuation'&&count($storyConversations)<2))throw new \RuntimeException('Insufficient story evidence.');
+        if(!$dayEvidence||($story['connection']==='claimed_continuation'&&count($storyConversations)<2))throw new EditorialRejection('draft_story_evidence');
         foreach($story['quotes'] as $ref){
             $evidence=$reference($ref);$key=editorialJson($ref);$m=$evidence['message'];
-            if(isset($quotes[$key])||($quoteVoices[$m['resident_id']]??0)>=2)throw new \RuntimeException('Repeated editorial quotation.');
+            if(isset($quotes[$key])||($quoteVoices[$m['resident_id']]??0)>=2)throw new EditorialRejection('draft_quote_reused');
             $quoteVoices[$m['resident_id']]=($quoteVoices[$m['resident_id']]??0)+1;
             // Resolve original text/identity locally. The model cannot supply replacement words.
             $quotes[$key]=['reference'=>$ref,'resident_id'=>$m['resident_id'],'name'=>$m['name'],'text'=>$m['text']];$moderation[]=$m['name'].': '.$m['text'];

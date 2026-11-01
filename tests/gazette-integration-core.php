@@ -1,12 +1,13 @@
 <?php
 declare(strict_types=1);
 require __DIR__.'/../app/village.php';require __DIR__.'/../app/gazette_editor_job.php';require __DIR__.'/../app/gazette_editor_publication.php';
+require_once __DIR__.'/gazette-contract-fixtures.php';
 function integrationCheck(bool $ok,string $why):void{if(!$ok)throw new RuntimeException($why);}
 function integrationReject(callable $f,string $why):void{try{$f();}catch(RuntimeException){return;}throw new LogicException($why);}
 final class EditorialMock implements LittleSparks\EditorialTransport
 {
     public array $calls=[];
-    public function __construct(public string $mode='good'){}
+    public function __construct(public string $mode='good',public ?PDO $db=null){}
     public function post(string $path,array $body,int $deadline):array
     {
         $this->calls[]=$path;if($this->mode==='timeout')throw new RuntimeException('Synthetic failure.');
@@ -25,19 +26,24 @@ final class EditorialMock implements LittleSparks\EditorialTransport
         $r=['id'=>'resp_editor_fixture','status'=>$this->mode==='partial'?'in_progress':'completed','error'=>null,'incomplete_details'=>null,'model'=>$this->mode==='wrongmodel'?'unknown':$body['model'],
             'service_tier'=>$this->mode==='wrongtier'?'priority':'default','output'=>[$item],'usage'=>['input_tokens'=>$this->mode==='overrun'?100000:1000,'output_tokens'=>500]];
         if($this->mode==='missingusage')unset($r['usage']);if($this->mode==='ambiguous')$r['output'][]=$item;
-        return ['body'=>$r,'request_id'=>'req_editor_fixture'];
+        return ['body'=>fixtureGazetteMutation($r,$this->mode,$body['text']['format']['schema'],$this->db),'request_id'=>'req_editor_fixture'];
     }
 }
 try{
     $dir=$argv[1];$now=strtotime('2026-11-03T12:00:00Z');$manifest=[];
     $policy=['model'=>'gpt-6-luna','pricing_version'=>'fixture-only','input_tokens'=>65536,'output_tokens'=>8192,'input_rate'=>250000,'output_rate'=>500000,'moderation_microusd'=>100,'daily_microusd'=>1000000,'monthly_microusd'=>1000000,'daily_requests'=>8,'lease_seconds'=>120];
-    foreach(['good','flagged','timeout','partial','wrongmodel','wrongtier','badquote','missingusage','overrun','ambiguous','invented'] as $mode){
+    foreach([...['good','flagged','timeout','partial','wrongmodel','wrongtier','badquote','missingusage','overrun','ambiguous','invented'],...array_keys(GAZETTE_CONTRACT_CASES)] as $mode){
         $path=$dir.'/integration-'.$mode.'.sqlite';copy($dir.'/v6.sqlite',$path);chmod($path,0600);$db=LittleSparks\connect($path);$db->exec('BEGIN IMMEDIATE');LittleSparks\migrateEditorialLedger($db);$db->exec('COMMIT');
-        $read=LittleSparks\connect($path);$read->exec('PRAGMA query_only=ON');$mock=new EditorialMock($mode);$result=LittleSparks\runEditorialJob($db,$read,'2026-10-29',$policy,131072,$mock,static fn()=>$now);
+        $read=LittleSparks\connect($path);$read->exec('PRAGMA query_only=ON');$mock=new EditorialMock($mode,$db);$result=LittleSparks\runEditorialJob($db,$read,'2026-10-29',$policy,131072,$mock,static fn()=>$now);
         integrationCheck(count($mock->calls)<=2&&$mock->calls[0]==='responses','Bounded request count');
         if(in_array($mode,['good','missingusage','invented'],true))integrationCheck($result['status']==='awaiting_owner_review'&&count($mock->calls)===2,'Completed draft always waits for owner');
         elseif($mode==='flagged')integrationCheck($result['status']==='moderation_rejected','Flagged draft rejected');
         else integrationCheck($result['status']==='rejected_or_uncertain','Invalid/uncertain result rejected');
+        if(isset(GAZETTE_CONTRACT_CASES[$mode])){
+            integrationCheck(($result['rejection_code']??null)===GAZETTE_CONTRACT_CASES[$mode]&&$mock->calls===['responses'],'Direct adapter shares safe refusal code and never moderates rejected content');
+            integrationCheck((int)$db->query('SELECT COUNT(*) FROM gazette_editor_drafts')->fetchColumn()===0&&$db->query('SELECT outcome FROM gazette_editor_receipts')->fetchColumn()==='completed','Completed receipt survives invalid candidate without draft');
+            integrationCheck(!str_contains(json_encode($result),'PRIVATE_SYNTHETIC_REJECTION_CANARY'),'Direct adapter diagnostics omit content/errors');
+        }
         $day=LittleSparks\gazetteDay('2026-10-29',$now);integrationCheck(LittleSparks\readEditorialGazette($read,$path,$day)===null,'Generation never publishes');
         integrationReject(fn()=>LittleSparks\runEditorialJob($db,$read,'2026-10-29',$policy,131072,$mock,static fn()=>$now),'Routine edition replayed');
         if($mode!=='good')continue;$id=$result['attempt_id'];$sha=$result['draft_sha256'];

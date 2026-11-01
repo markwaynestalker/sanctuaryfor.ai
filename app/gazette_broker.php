@@ -82,8 +82,8 @@ function gazetteBrokerHandle(PDO $db,PDO $read,array $m,array $policy,int $bytes
         assertEditorialSources($db,$snapshot,validateEditorialDraft(json_decode($saved['body_json'],true,32,JSON_THROW_ON_ERROR),$snapshot)['sources']);
         $passed=!$results[0]['flagged'];saveEditorialModeration($db,$id,$owner,$sha,$mod,$passed?'passed':'flagged',$now);finishEditorialAttempt($db,$id,$owner,$passed?'finished':'rejected',$now);
         return ['status'=>$passed?'awaiting_owner_review':'moderation_rejected','attempt_id'=>$id,'draft_sha256'=>$sha];
-    }catch(\Throwable){
+    }catch(\Throwable $e){
         try{if($request!==null)receiptEditorialRequest($db,$id,$owner,$request,'uncertain',null,null,null,null,$now);finishEditorialAttempt($db,$id,$owner,$uncertain?'uncertain':'rejected',$now);}catch(\Throwable){}
-        return ['status'=>'rejected_or_uncertain','attempt_id'=>$id];
+        return ['status'=>'rejected_or_uncertain','attempt_id'=>$id,'rejection_code'=>editorialRejectionCode($e)];
     }
 }
