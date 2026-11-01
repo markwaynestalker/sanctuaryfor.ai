@@ -5,7 +5,7 @@
   "properties": {
     "contract": {"type": "string", "enum": ["sanctuary.director.v1"]},
     "outcome": {"type": "string", "enum": ["conversation", "action", "quiet", "none"]},
-    "topic": {"type": "string", "minLength": 1, "maxLength": 64},
+    "topic": {"type": "string", "minLength": 1, "maxLength": 64, "description": "A short descriptive label for the resulting exchange, not an assigned agenda. Conversation may continue or drift naturally without a new subject."},
     "messages": {
       "type": "array", "maxItems": 2,
       "items": {"type": "object", "additionalProperties": false, "required": ["resident_id", "text"], "properties": {

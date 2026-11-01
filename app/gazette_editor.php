@@ -4,6 +4,7 @@ namespace LittleSparks;
 use PDO;
 require_once __DIR__.'/gazette.php';
 require_once __DIR__.'/gazette_rejections.php';
+require_once __DIR__.'/gazette_provenance.php';
 
 /** Offline editorial preparation only. No provider, publication, ENV or ledger access. */
 function editorialJson(mixed $value):string
@@ -41,6 +42,8 @@ function editorialConversationCandidates(PDO $db,string $start,string $end,int $
         $out[]=['kind'=>'conversation','scope'=>$background?'background':'edition','id'=>$row['id'],'at'=>$row['created_at'],
             'provider'=>$row['provider'],'messages'=>array_map(static fn($m)=>['sequence'=>$m['sequence'],'resident_id'=>$m['resident_id'],'name'=>$m['name'],'text'=>$m['text']],$turns)];
     }
+    $exposures=gazetteConversationExposureBatch($db,array_column($out,'id'));
+    foreach($out as &$source)if(isset($exposures[$source['id']]))$source['prior_gazette_context']=$exposures[$source['id']];unset($source);
     return $out;
 }
 /** Caller supplies a query-only connection; one snapshot, complete records or omission. */

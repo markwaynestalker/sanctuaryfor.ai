@@ -98,3 +98,4 @@ $final=$u->call($base+['op'=>'begin_generation']);brokerCheck($final['status']==
 brokerCheck($u->db->query('PRAGMA integrity_check')->fetchColumn()==='ok'&&!$u->db->query('PRAGMA foreign_key_check')->fetch(),'Upgrade and owner workflow preserve integrity');
 echo "PASS owner workflow upgrade/history/rollback, automatic authorized rejected revisions beyond eight, consumed jobs, uncertain fencing, budgets/attempt caps and separately moderated partial previews (offline)\n";
 require __DIR__.'/gazette-auto-core.php';
+require __DIR__.'/director-gazette-core.php';
