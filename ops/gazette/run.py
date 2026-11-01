@@ -14,6 +14,17 @@ RELEASES = Path('/var/lib/sanctuaryfor-ai-deploy/releases')
 CURRENT = Path('/var/lib/sanctuaryfor-ai-deploy/current')
 PHP = '/usr/bin/php8.3'
 SHA = re.compile(r'[a-f0-9]{40}')
+REJECTION_CODES = frozenset({
+    'response_envelope_invalid', 'response_output_invalid', 'response_content_invalid',
+    'response_answer_ambiguous', 'response_json_invalid', 'draft_snapshot_invalid',
+    'draft_fields_invalid', 'draft_text_invalid', 'draft_binding_invalid',
+    'draft_reference_invalid', 'draft_source_unknown', 'draft_notice_sequence',
+    'draft_message_unknown', 'draft_story_shape', 'draft_claim_invalid',
+    'draft_claim_evidence', 'draft_reference_duplicate', 'draft_story_evidence',
+    'draft_quote_reused', 'source_snapshot_invalid', 'source_kind_invalid',
+    'source_unavailable', 'source_changed', 'notice_unavailable', 'notice_changed',
+    'storage_refused', 'guard_refused',
+})
 
 
 def edition(now, scheduled, explicit=None):
@@ -66,7 +77,11 @@ def safe_result(raw):
         value = result.get(key)
         if isinstance(value, str) and re.fullmatch('[a-f0-9]{' + str(size) + '}', value):
             safe[key] = value
-    # No source/draft copy, usage tokens, key, environment or vendor exception output.
+    code = result.get('rejection_code')
+    if (result['status'] == 'rejected_or_uncertain' and isinstance(code, str)
+            and code in REJECTION_CODES):
+        safe['rejection_code'] = code
+    # Only fixed codes; no source/draft copy, tokens, key, ENV or exception output.
     return safe
 
 

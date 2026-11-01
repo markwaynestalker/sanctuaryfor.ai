@@ -43,26 +43,26 @@ function editorialReservationCost(array $policy):int
 function assertEditorialSources(PDO $db,array $snapshot,?array $aliases=null,bool $historicalNames=false):void
 {
     if(strlen(editorialJson($snapshot))>262144||($snapshot['pack']['contract']??null)!=='sanctuary.gazette.sources.v1'
-        ||!hash_equals(editorialHash($snapshot['sha256']??null),hash('sha256',editorialJson($snapshot['pack']))))throw new \RuntimeException('Invalid editorial source snapshot.');
+        ||!hash_equals(editorialHash($snapshot['sha256']??null),hash('sha256',editorialJson($snapshot['pack']))))throw new EditorialRejection('source_snapshot_invalid');
     $sources=$snapshot['pack']['sources'];$wanted=[];$notices=[];
     foreach($sources as $s)if($aliases===null||in_array($s['alias'],$aliases,true)){
-        if($s['kind']==='conversation')$wanted[$s['id']]=$s;elseif($s['kind']==='notice')$notices[$s['id']]=$s;else throw new \RuntimeException('Invalid source kind.');
+        if($s['kind']==='conversation')$wanted[$s['id']]=$s;elseif($s['kind']==='notice')$notices[$s['id']]=$s;else throw new EditorialRejection('source_kind_invalid');
     }
     if($wanted){
         ['prefix'=>$prefix,'sql'=>$sql,'source'=>$provider]=gazetteSourceSetup($db);$ids=array_keys($wanted);$marks=implode(',',array_fill(0,count($ids),'?'));
         $q=$db->prepare($prefix."SELECT c.id,c.created_at,$provider AS provider $sql AND c.id IN ($marks)");$q->execute($ids);$found=$q->fetchAll();
-        if(count($found)!==count($wanted))throw new \RuntimeException('Editorial source unavailable.');
+        if(count($found)!==count($wanted))throw new EditorialRejection('source_unavailable');
         $messages=conversationMessageBatch($db,$ids);
         foreach($found as $row){$s=$wanted[$row['id']];
             $current=array_map(static fn($m)=>['sequence'=>$m['sequence'],'resident_id'=>$m['resident_id'],'name'=>$m['name'],'text'=>$m['text']],$messages[$row['id']]??[]);
             if($historicalNames)foreach($current as $i=>&$message)$message['name']=$s['messages'][$i]['name']??$message['name'];unset($message);
-            if($s['at']!==$row['created_at']||$s['provider']!==$row['provider']||editorialJson($s['messages'])!==editorialJson($current))throw new \RuntimeException('Editorial source changed.');}
+            if($s['at']!==$row['created_at']||$s['provider']!==$row['provider']||editorialJson($s['messages'])!==editorialJson($current))throw new EditorialRejection('source_changed');}
     }
     if($notices){
-        if(!bulletinInstalled($db))throw new \RuntimeException('Editorial notice unavailable.');$ids=array_keys($notices);$marks=implode(',',array_fill(0,count($ids),'?'));
+        if(!bulletinInstalled($db))throw new EditorialRejection('notice_unavailable');$ids=array_keys($notices);$marks=implode(',',array_fill(0,count($ids),'?'));
         $q=$db->prepare('SELECT n.id,n.resident_id,r.name,n.body,n.kind,n.created_at,n.expires_at'.bulletinPublicSql()." AND n.id IN ($marks)");$q->execute($ids);$found=$q->fetchAll();
-        if(count($found)!==count($notices))throw new \RuntimeException('Editorial notice unavailable.');
-        foreach($found as $n){$s=$notices[$n['id']];foreach(['resident_id'=>'resident_id','name'=>'name','text'=>'body','notice_kind'=>'kind','at'=>'created_at','expires_at'=>'expires_at'] as $a=>$b)if(!($historicalNames&&$a==='name')&&$s[$a]!==$n[$b])throw new \RuntimeException('Editorial notice changed.');}
+        if(count($found)!==count($notices))throw new EditorialRejection('notice_unavailable');
+        foreach($found as $n){$s=$notices[$n['id']];foreach(['resident_id'=>'resident_id','name'=>'name','text'=>'body','notice_kind'=>'kind','at'=>'created_at','expires_at'=>'expires_at'] as $a=>$b)if(!($historicalNames&&$a==='name')&&$s[$a]!==$n[$b])throw new EditorialRejection('notice_changed');}
     }
 }
 function expireEditorialLease(PDO $db,int $now):void
