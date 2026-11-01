@@ -1,4 +1,5 @@
 import importlib.util
+import hashlib
 import io
 import json
 from pathlib import Path
@@ -91,6 +92,24 @@ class OwnerWorkflow(unittest.TestCase):
             owner.socket_ready()
             self.assertIn((['systemctl','restart',owner.SOCKET],), [c.args for c in run.call_args_list])
             self.assertNotIn((['systemctl','restart',owner.UNIT],), [c.args for c in run.call_args_list])
+
+    @unittest.skipUnless(sys.platform == 'linux', 'Real immutable Unix modes required')
+    def test_manifest_verified_owner_bundle_rejects_tampered_deploy_content(self):
+        with tempfile.TemporaryDirectory() as directory:
+            base=Path(directory); code=base/('a'*40); code.mkdir()
+            (code/'app').mkdir(); source=code/'app/example.php'
+            source.write_text('<?php /* synthetic, never executed */');source.chmod(0o444)
+            (code/'.release-commit').write_text('a'*40+'\n');(code/'.release-commit').chmod(0o444)
+            files={name:{'sha256':hashlib.sha256((code/name).read_bytes()).hexdigest(),'mode':0o444} for name in ['app/example.php','.release-commit']}
+            manifest=base/'manifest.json';manifest.write_text(json.dumps({'commit':'a'*40,'files':files}));manifest.chmod(0o600)
+            # Fixture runner is deliberately unprivileged. Only destination root
+            # ownership is mocked; real source ownership/modes/hashes are checked.
+            with patch.object(owner, 'trusted'):
+                bundle,_=owner.copy_owner_bundle(code,base/'installed',manifest)
+                self.assertEqual((bundle/'app/example.php').read_bytes(),source.read_bytes())
+                self.assertEqual(stat.S_IMODE((bundle/'app/example.php').stat().st_mode),0o444)
+                source.chmod(0o644);source.write_text('tampered synthetic content');source.chmod(0o444)
+                with self.assertRaises(ValueError):owner.copy_owner_bundle(code,base/'installed',manifest)
 
 
 if __name__ == '__main__': unittest.main()

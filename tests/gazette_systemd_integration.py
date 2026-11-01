@@ -230,7 +230,7 @@ def main():
             review_code=('require $argv[2]; $d=LittleSparks\\connect($argv[1]); '
                          '$r=$d->query("SELECT a.id,d.sha256 FROM gazette_editor_attempts a JOIN gazette_editor_drafts d ON d.attempt_id=a.id LIMIT 1")->fetch(); '
                          'LittleSparks\\reviewEditorialDraft($d,$r["id"],$r["sha256"],"rejected",time());')
-            run(['/usr/bin/php8.3','-r',review_code,str(database),str(release/'app/gazette_editor_publication.php')],preexec_fn=db_identity)
+            subprocess.run(['/usr/bin/php8.3','-r',review_code,str(database),str(release/'app/gazette_editor_publication.php')],preexec_fn=db_identity,check=True,capture_output=True,text=True)
             configure(practical=True)
             owner_file=owner_dir/'request.json'
             owner_file.write_text(json.dumps({'id':'c'*32,'date':'2026-10-29','preview':False,

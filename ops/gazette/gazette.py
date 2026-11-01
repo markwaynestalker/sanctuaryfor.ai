@@ -1,6 +1,7 @@
 #!/usr/bin/python3 -I
 """Local root-owner control. No key reads, provider HTTP, SQL, retry or auto-publication."""
 import argparse
+import hashlib
 from contextlib import contextmanager
 from datetime import datetime, timezone
 import json
@@ -56,8 +57,30 @@ def config():
             or Path('/var/lib/sanctuaryfor-ai-deploy/current').resolve() != code
             or (code / '.release-commit').read_text() != code.name + '\n'):
         raise ValueError('reviewed_release_not_current')
-    trusted(code, directory=True)
+    release_directory(code)
     return value, code
+
+
+def release_directory(code):
+    # The reviewed deployment helper intentionally owns 0555 releases as its
+    # dedicated non-root deploy account. Do not demand fictitious root ownership.
+    uid = code.lstat().st_uid
+    for part in [*reversed(code.parents), code]:
+        info = part.lstat()
+        if info.st_uid not in {0, uid} or info.st_mode & 0o022 or stat.S_ISLNK(info.st_mode):
+            raise ValueError('untrusted_release_path')
+    if stat.S_IMODE(code.stat().st_mode) != 0o555:
+        raise ValueError('immutable_release_required')
+
+
+def owner_code(code):
+    # Root commands execute only the root-installed verified code bundle; they
+    # do not elevate later edits made by the unprivileged deployment account.
+    bundle = Path('/usr/local/lib/sanctuary-gazette/owner-code') / code.name
+    trusted(bundle, directory=True)
+    if (bundle / '.release-commit').read_text() != code.name + '\n':
+        raise ValueError('owner_code_pin_mismatch')
+    return bundle
 
 
 def state(unit):
@@ -110,7 +133,7 @@ def write_file(path, raw, mode):
 
 
 def metadata(cfg, code, *, date=None, job=None):
-    argv = ['/usr/bin/php8.3', str(code / 'scripts/gazette-owner-status.php'),
+    argv = ['/usr/bin/php8.3', str(owner_code(code) / 'scripts/gazette-owner-status.php'),
             '--database=' + cfg['database']]
     if date:
         argv += ['--date=' + date]
@@ -200,7 +223,7 @@ def check(cfg, code):
 
 
 def owner_tool(cfg, code, *options):
-    return run(['/usr/bin/php8.3', str(code / 'scripts/review-gazette.php'),
+    return run(['/usr/bin/php8.3', str(owner_code(code) / 'scripts/review-gazette.php'),
                 '--database=' + cfg['database'], *options]).stdout
 
 
@@ -260,11 +283,43 @@ def configure(args, cfg):
     print('Explicitly approved Gazette policy saved on both sides; no request or timer activation.')
 
 
+def copy_owner_bundle(code, destination, manifest_file):
+    manifest_info = manifest_file.lstat()
+    if (not stat.S_ISREG(manifest_info.st_mode) or manifest_info.st_nlink != 1
+            or manifest_info.st_uid != code.stat().st_uid or stat.S_IMODE(manifest_info.st_mode) != 0o600):
+        raise ValueError('private_deploy_manifest_required')
+    manifest = json.loads(manifest_file.read_text())
+    if manifest['commit'] != code.name:
+        raise ValueError('manifest_commit_mismatch')
+    destination.mkdir(mode=0o755, parents=True, exist_ok=True); trusted(destination, directory=True)
+    bundle = destination / 'owner-code' / code.name
+    bundle.mkdir(mode=0o755, parents=True, exist_ok=True); trusted(bundle, directory=True)
+    verified = {}
+    for name, entry in manifest['files'].items():
+        relative = Path(name)
+        if relative.is_absolute() or '..' in relative.parts:
+            raise ValueError('manifest_path_refused')
+        source = code / relative
+        item = source.lstat()
+        if (not stat.S_ISREG(item.st_mode) or item.st_nlink != 1 or item.st_uid != code.stat().st_uid
+                or stat.S_IMODE(item.st_mode) != entry['mode']):
+            raise ValueError('release_metadata_changed')
+        raw = source.read_bytes()
+        if hashlib.sha256(raw).hexdigest() != entry['sha256']:
+            raise ValueError('release_content_changed')
+        if relative.parts[0] in {'app','scripts','contracts'} or name == '.release-commit':
+            target = bundle / relative; target.parent.mkdir(mode=0o755, parents=True, exist_ok=True)
+            trusted(target.parent, directory=True); write_file(target, raw.decode('utf-8'), 0o444)
+        if name.startswith(('ops/gazette/','ops/systemd/')):
+            verified[name] = raw.decode('utf-8')
+    return bundle, verified
+
+
 def install(args):
     if not args.approve_install or not re.fullmatch('[a-f0-9]{40}', args.release):
         raise ValueError('reviewed_install_approval_required')
     code = Path('/var/lib/sanctuaryfor-ai-deploy/releases') / args.release
-    trusted(code, directory=True)
+    release_directory(code)
     if (Path('/var/lib/sanctuaryfor-ai-deploy/current').resolve() != code
             or (code / '.release-commit').read_text() != args.release + '\n'
             or Path(__file__).resolve() != code / 'ops/gazette/gazette.py'):
@@ -272,8 +327,9 @@ def install(args):
     trusted(CONFIG); trusted(ENV)
     cfg = json.loads(CONFIG.read_text())
     database = Path(cfg['database']); info = database.stat()
-    if (stat.S_IMODE(info.st_mode) != 0o600 or stat.S_IMODE(database.parent.stat().st_mode) != 0o700
-            or info.st_uid in {0, cfg['editor_uid']}):
+    if (database.resolve() != database or database.is_symlink()
+            or stat.S_IMODE(info.st_mode) != 0o600 or stat.S_IMODE(database.parent.stat().st_mode) != 0o700
+            or info.st_uid in {0, cfg['editor_uid']} or info.st_gid == 0):
         raise ValueError('private_database_identity_required')
     idle()
     timer = 'sanctuary-gazette-editor.timer'
@@ -284,6 +340,8 @@ def install(args):
     editor = pwd.getpwuid(cfg['editor_uid'])
     if editor.pw_name != 'sanctuarygazette':
         raise ValueError('review_actual_editor_account')
+    destination = Path('/usr/local/lib/sanctuary-gazette')
+    bundle, verified = copy_owner_bundle(code, destination, code.parent.parent / 'private' / (code.name + '.json'))
     # SQLite backup runs as the existing DB owner, includes WAL, and creates no
     # root-owned journals. No Director stop/restart or accounting modification.
     backup = str(database) + '.before-owner-' + secrets.token_hex(8) + '.sqlite'
@@ -294,19 +352,17 @@ def install(args):
                    'd.close()\ns.close()\n')
     run(['runuser', '-u', user.pw_name, '--', '/usr/bin/python3', '-c', backup_code, str(database), backup])
     run(['runuser', '-u', user.pw_name, '--', '/usr/bin/php8.3',
-         str(code / 'scripts/upgrade-gazette-owner.php'), '--database=' + str(database), '--confirm-drained=yes'])
-    destination = Path('/usr/local/lib/sanctuary-gazette')
-    destination.mkdir(mode=0o755, parents=True, exist_ok=True); trusted(destination, directory=True)
+         str(bundle / 'scripts/upgrade-gazette-owner.php'), '--database=' + str(database), '--confirm-drained=yes'])
     for name in ('run.py', 'db_helper.py'):
-        write_file(destination / name, (code / 'ops/gazette' / name).read_text(), 0o755)
-    write_file(Path('/usr/local/sbin/gazette'), (code / 'ops/gazette/gazette.py').read_text(), 0o755)
+        write_file(destination / name, verified['ops/gazette/'+name], 0o755)
+    write_file(Path('/usr/local/sbin/gazette'), verified['ops/gazette/gazette.py'], 0o755)
     for name in ('sanctuary-gazette-editor.service', 'sanctuary-gazette-db.socket',
                  'sanctuary-gazette-db@.service', 'sanctuary-gazette-runtime.service'):
-        content = (code / 'ops/systemd' / name).read_text().replace(
+        content = verified['ops/systemd/'+name].replace(
             'REVIEWED_DATABASE_OWNER', user.pw_name).replace('REVIEWED_DATABASE_GROUP', group.gr_name)
         write_file(Path('/etc/systemd/system') / name, content, 0o644)
     write_file(Path('/etc/tmpfiles.d/sanctuary-gazette-db.conf'),
-               (code / 'ops/systemd/sanctuary-gazette-db.tmpfiles.conf').read_text(), 0o644)
+               verified['ops/systemd/sanctuary-gazette-db.tmpfiles.conf'], 0o644)
     client = dict(line.split('=', 1) for line in ENV.read_text().splitlines() if line and not line.startswith('#'))
     client[PREFIX + 'RELEASE_SHA'] = args.release
     cfg['release'] = str(code); cfg['approved_date'] = None
