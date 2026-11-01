@@ -106,7 +106,9 @@ function reserveEditorialAttempt(PDO $db,array $snapshot,array $policy,int $now,
                 if(!in_array($r['outcome'],['finished','rejected'],true))throw new \RuntimeException('Unknown edition outcome; no duplicate dispatch.');
                 $q=$db->prepare("SELECT 1 FROM gazette_editor_requests q LEFT JOIN gazette_editor_receipts r ON r.request_id=q.id WHERE q.attempt_id=? AND (r.outcome IS NULL OR r.outcome='uncertain') LIMIT 1");$q->execute([$r['id']]);if($q->fetchColumn())throw new \RuntimeException('Unknown request; retain holds.');
             }
-            if($prior&&$prior[0]['outcome']!=='rejected'&&$prior[0]['decision']!=='rejected'&&!$preview)throw new \RuntimeException('Review or reject existing draft before regenerating.');
+            // A fresh root-owner paid approval permits another completed revision.
+            // Existing drafts/reviews/publications stay immutable; publication is
+            // still separate. Unknown requests above can never be refreshed.
         }
         expireEditorialLease($db,$now);
         if($db->query('SELECT attempt_id FROM gazette_editor_lease')->fetchColumn()!==null)throw new \RuntimeException('Editorial worker busy.');
