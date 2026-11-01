@@ -8,7 +8,10 @@ final class SystemdGazetteMock implements LittleSparks\EditorialTransport
     public int $calls=0;
     public function post(string $path,array $body,int $deadline):array
     {
-        $this->calls++;file_put_contents('/var/lib/sanctuary-gazette-test/calls',(string)$this->calls);
+        $this->calls++;
+        $counter='/var/lib/sanctuary-gazette-test/calls';
+        $total=is_file($counter)?(int)file_get_contents($counter):0;
+        file_put_contents($counter,(string)($total+1));
         if($path==='moderations')return ['request_id'=>'req_systemd_mod','body'=>['results'=>[['flagged'=>false]]]];
         $snapshot=json_decode($body['input'][0]['content'][0]['text'],true,32,JSON_THROW_ON_ERROR);
         $source=array_values(array_filter($snapshot['pack']['sources'],fn($s)=>$s['id']==='integrity-good'))[0];
