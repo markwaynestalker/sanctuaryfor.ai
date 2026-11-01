@@ -22,26 +22,31 @@ function gazetteBrokerEnvelope(array $message,string $release,string $policyHash
 }
 /** Trusted CLI domain entry: authenticated peer UID/clock/config come from the keyless adapter.
  * Provider JSON is an unverified worker observation, not authenticated billing evidence. */
-function gazetteBrokerHandle(PDO $db,PDO $read,array $m,array $policy,int $bytes,string $release,int $peer,int $now,bool $enabled,?string $approvedDate=null):array
+function gazetteBrokerHandle(PDO $db,PDO $read,array $m,array $policy,int $bytes,string $release,int $peer,int $now,bool $enabled,?string $approvedDate=null,?array $authorization=null):array
 {
     $ph=gazetteBrokerPolicyHash($policy,$bytes,$release);gazetteBrokerEnvelope($m,$release,$ph);
     $op=$m['op']??'';
     if($op==='ready'){
         editorialKeys($m,['version','release','policy_sha256','op']);
-        if((int)$db->query('PRAGMA user_version')->fetchColumn()!==6||!editorialLedgerInstalled($db)||(int)$db->query('SELECT revision FROM gazette_editor_meta WHERE singleton=1')->fetchColumn()!==1)throw new \RuntimeException('Broker schema unavailable.');
+        if((int)$db->query('PRAGMA user_version')->fetchColumn()!==6||!editorialLedgerInstalled($db)||!in_array((int)$db->query('SELECT revision FROM gazette_editor_meta WHERE singleton=1')->fetchColumn(),[1,2],true))throw new \RuntimeException('Broker schema unavailable.');
         return ['status'=>'preflight_ready','version'=>GAZETTE_BROKER_VERSION,'policy_sha256'=>$ph];
     }
     if(!$enabled)throw new \RuntimeException('Broker disabled.');
     if($op==='begin_generation'){
         editorialKeys($m,['version','release','policy_sha256','op']);
         $local=(new \DateTimeImmutable('@'.$now))->setTimezone(new \DateTimeZone('America/New_York'));
-        if($approvedDate===null){
+        $preview=false;
+        if($authorization!==null){
+            $date=$authorization['date']??'';$preview=($authorization['preview']??null)===true;
+            if(($authorization['release']??null)!==$release)throw new \RuntimeException('Owner release changed.');
+            validateGazetteAuthorization($authorization,$date,$preview,editorialReservationCost($policy),$now);
+        }elseif($approvedDate===null){
             if($local->format('H')!=='05'||(int)$local->format('i')<15||(int)$local->format('i')>=20)throw new \RuntimeException('Broker admission window closed.');
             $date=$local->modify('-1 day')->format('Y-m-d');
         }else{$date=$approvedDate;if($date>=gazetteDay($date,$now)['today'])throw new \RuntimeException('Finished date required.');}
-        ['snapshot'=>$snapshot,'policy'=>$storedPolicy,'request'=>$body]=editorialJobPlan($read,$date,$policy,$bytes,$now);
+        ['snapshot'=>$snapshot,'policy'=>$storedPolicy,'request'=>$body]=editorialJobPlan($read,$date,$policy,$bytes,$now,$preview);
         if(!$snapshot['pack']['coverage']['conversations']&&!$snapshot['pack']['coverage']['notices'])return ['status'=>'quiet_or_input_bound'];
-        $a=reserveEditorialAttempt($db,$snapshot,$storedPolicy,$now);
+        $a=reserveEditorialAttempt($db,$snapshot,$storedPolicy,$now,null,$authorization);
         $request=startEditorialRequest($db,$a['id'],$a['owner'],'generation',$now);
         return ['status'=>'dispatch_generation','attempt_id'=>$a['id'],'request_id'=>$request,'deadline'=>$a['expires_at'],
             'capability'=>gazetteBrokerCapability($a,$request,'generation',$peer,$release),'body'=>$body];

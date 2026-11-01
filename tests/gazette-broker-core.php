@@ -7,8 +7,9 @@ function brokerReject(callable $f,string $why):void{try{$f();}catch(Throwable){r
 final class FixtureBroker implements LittleSparks\GazetteBrokerChannel
 {
     public int $calls=0;public int $now;
+    public ?array $authorization=null;
     public function __construct(public PDO $db,public PDO $read,public array $policy,public string $release,public int $bytes=90000){$this->now=time();}
-    public function call(array $message):array{$this->calls++;return LittleSparks\gazetteBrokerHandle($this->db,$this->read,$message,$this->policy,$this->bytes,$this->release,64011,$this->now,true,'2026-10-29');}
+    public function call(array $message):array{$this->calls++;return LittleSparks\gazetteBrokerHandle($this->db,$this->read,$message,$this->policy,$this->bytes,$this->release,64011,$this->now,true,'2026-10-29',$this->authorization);}
 }
 final class BrokerProvider implements LittleSparks\EditorialTransport
 {
@@ -74,5 +75,6 @@ try{
         brokerCheck($db->query('PRAGMA integrity_check')->fetchColumn()==='ok'&&!$db->query('PRAGMA foreign_key_check')->fetch(),'Integrity preserved');
         $db=null;
     }
+    require __DIR__.'/gazette-owner-core.php';
     echo "PASS keyless broker lifecycle and synthetic completed-receipt/no-draft/no-moderation rejection matrix, static codes, retained holds/slots and no retry (mock provider)\n";
 }catch(Throwable $e){fwrite(STDERR,$e->getMessage()."\n");exit(1);}

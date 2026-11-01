@@ -50,6 +50,7 @@ function publishEditorialDraft(PDO $db,string $database,string $id,string $expec
 {
     if(PHP_SAPI!=='cli')throw new \RuntimeException('Local owner publication required.');
     $stored=editorialStoredDraft($db,$id,true);if($stored['record']['sha256']!==editorialHash($expectedDraft))throw new \RuntimeException('Publication copy changed.');
+    if(($stored['snapshot']['pack']['preview']['partial']??false)===true)throw new \RuntimeException('In-progress preview cannot publish as a completed edition.');
     $day=gazetteDay($stored['record']['edition'],$now);$chain=editorialManifests($database,$day);$current=$chain?end($chain):null;
     if($current&&$current['manifest']['attempt_id']===$id&&$current['manifest']['draft_sha256']===$expectedDraft)return $current;
     if(($current['sha256']??null)!==$expectedCurrent||count($chain)>=8)throw new \RuntimeException('Current edition changed.');

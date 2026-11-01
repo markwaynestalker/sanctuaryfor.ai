@@ -1,6 +1,8 @@
 # Owner-installed only after separate review. Never enable automatically.
 [Unit]
 Description=Private fixed-operation Gazette database socket
+Requires=sanctuary-gazette-runtime.service
+After=sanctuary-gazette-runtime.service
 
 [Socket]
 ListenStream=/run/sanctuary-gazette-db/editor.sock
@@ -13,7 +15,7 @@ Accept=yes
 MaxConnections=2
 Backlog=2
 TriggerLimitIntervalSec=60
-TriggerLimitBurst=12
+TriggerLimitBurst=64
 RemoveOnStop=true
 
 # No [Install]: owner explicitly starts only after isolation validation.

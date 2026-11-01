@@ -13,7 +13,7 @@ function migrateEditorialLedger(PDO $db):void
     if((int)$db->query('PRAGMA user_version')->fetchColumn()!==6)throw new \RuntimeException('V6 required.');
     $tables=['meta','permits','attempts','lease','requests','receipts','drafts','moderations','outcomes','reviews'];
     if(editorialLedgerInstalled($db)){
-        if((int)$db->query('SELECT revision FROM gazette_editor_meta WHERE singleton=1')->fetchColumn()!==1)throw new \RuntimeException('Unknown editorial revision.');
+        if(!in_array((int)$db->query('SELECT revision FROM gazette_editor_meta WHERE singleton=1')->fetchColumn(),[1,2],true))throw new \RuntimeException('Unknown editorial revision.');
         foreach($tables as $table)$db->query('SELECT * FROM gazette_editor_'.$table.' LIMIT 0');return;
     }
     foreach($tables as $table){$q=$db->prepare('SELECT 1 FROM sqlite_master WHERE name=?');$q->execute(['gazette_editor_'.$table]);if($q->fetchColumn())throw new \RuntimeException('Partial editorial schema refused.');}
@@ -76,4 +76,37 @@ function migrateEditorialLedger(PDO $db):void
     foreach(array_diff($tables,['lease']) as $table){$name='gazette_editor_'.$table;
         $db->exec("CREATE TRIGGER {$name}_no_update BEFORE UPDATE ON $name BEGIN SELECT RAISE(ABORT,'Editorial history is immutable'); END;
             CREATE TRIGGER {$name}_no_delete BEFORE DELETE ON $name BEGIN SELECT RAISE(ABORT,'Editorial history is immutable'); END;");}
+}
+
+/** Explicit drained-writer upgrade. Rebuild only the ten editorial tables,
+ * preserving all original columns/rows; no shared village table or hold changes. */
+function upgradeEditorialOwnerWorkflow(PDO $db):void
+{
+    migrateEditorialLedger($db);
+    if((int)$db->query('SELECT revision FROM gazette_editor_meta')->fetchColumn()===2){$db->query('SELECT is_preview FROM gazette_editor_attempts LIMIT 0');$db->query('SELECT authorization_json FROM gazette_editor_jobs LIMIT 0');return;}
+    if($db->query('SELECT attempt_id FROM gazette_editor_lease')->fetchColumn()!==null)throw new \RuntimeException('Drain editorial work first.');
+    $tables=['meta','permits','attempts','lease','requests','receipts','drafts','moderations','outcomes','reviews'];
+    if($db->query("SELECT 1 FROM sqlite_master WHERE tbl_name NOT LIKE 'gazette_editor_%' AND sql LIKE '%gazette_editor_%' LIMIT 1")->fetchColumn())throw new \RuntimeException('Review external editorial schema dependencies first.');
+    $schema=[];$columns=[];
+    foreach($tables as $suffix){$name='gazette_editor_'.$suffix;
+        $q=$db->prepare("SELECT sql FROM sqlite_master WHERE name=? AND type='table'");$q->execute([$name]);$schema[$name]=$q->fetchColumn();$q->closeCursor();
+        $columns[$name]=array_column($db->query('PRAGMA table_info('.$name.')')->fetchAll(),'name');
+    }
+    $objects=$db->query("SELECT type,name,sql FROM sqlite_master WHERE tbl_name LIKE 'gazette_editor_%' AND type IN ('trigger','index') AND sql IS NOT NULL")->fetchAll();
+    foreach($objects as $o)$db->exec('DROP '.strtoupper($o['type']).' "'.$o['name'].'"');
+    foreach($tables as $suffix)$db->exec('ALTER TABLE gazette_editor_'.$suffix.' RENAME TO gazette_upgrade_'.$suffix);
+    foreach($schema as $name=>$sql){
+        $sql=str_replace(['ordinal BETWEEN 1 AND 8','ordinal BETWEEN 2 AND 8','revision=1'],['ordinal>=1','ordinal>=2','revision=2'],$sql);
+        if($name==='gazette_editor_attempts')$sql=str_replace('CHECK(expires_at>created_at)','is_preview INTEGER NOT NULL DEFAULT 0 CHECK(is_preview IN (0,1)), CHECK(expires_at>created_at)',$sql);
+        $db->exec($sql);
+        $names=implode(',',array_map(static fn($c)=>'"'.str_replace('"','""',$c).'"',$columns[$name]));
+        $select=$name==='gazette_editor_meta'?'singleton,2':$names;
+        $db->exec('INSERT INTO '.$name.'('.$names.') SELECT '.$select.' FROM '.str_replace('gazette_editor_','gazette_upgrade_',$name).' ORDER BY rowid');
+    }
+    foreach(array_reverse($tables) as $suffix)$db->exec('DROP TABLE gazette_upgrade_'.$suffix);
+    foreach($objects as $o)$db->exec($o['sql']);
+    $db->exec("CREATE TABLE gazette_editor_jobs(id TEXT PRIMARY KEY CHECK(length(id)=32),attempt_id TEXT NOT NULL UNIQUE REFERENCES gazette_editor_attempts(id),approved_at INTEGER NOT NULL,authorization_json TEXT NOT NULL CHECK(length(authorization_json)<=1024));
+        CREATE TRIGGER gazette_editor_jobs_no_update BEFORE UPDATE ON gazette_editor_jobs BEGIN SELECT RAISE(ABORT,'Owner history immutable'); END;
+        CREATE TRIGGER gazette_editor_jobs_no_delete BEFORE DELETE ON gazette_editor_jobs BEGIN SELECT RAISE(ABORT,'Owner history immutable'); END;");
+    if($db->query('PRAGMA foreign_key_check')->fetch())throw new \RuntimeException('Editorial upgrade foreign keys failed.');
 }

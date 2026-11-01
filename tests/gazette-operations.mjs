@@ -7,6 +7,8 @@ import {join} from 'node:path';
 const result=spawnSync(process.env.PYTHON_BINARY||'python',['-B','-m','unittest','discover','-s','tests','-p','gazette_operations_test.py','-v'],{encoding:'utf8'});
 assert.equal(result.status,0,result.stderr||result.error?.message);
 console.log(result.stdout.trim());
+const owner=spawnSync(process.env.PYTHON_BINARY||'python',['-B','-m','unittest','discover','-s','tests','-p','gazette_owner_test.py','-v'],{encoding:'utf8'});
+assert.equal(owner.status,0,owner.stderr||owner.error?.message);console.log('PASS owner command authorization, proposed limits, one dispatch, preview publication fence and safe socket recovery');
 const dir=await mkdtemp(join(tmpdir(),'gazette-preflight-'));
 try{
  const file=join(dir,'private.sqlite');await writeFile(file,'synthetic unchanged database canary',{mode:0o600});

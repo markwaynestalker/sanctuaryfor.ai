@@ -12,6 +12,7 @@ from zoneinfo import ZoneInfo
 
 RELEASES = Path('/var/lib/sanctuaryfor-ai-deploy/releases')
 CURRENT = Path('/var/lib/sanctuaryfor-ai-deploy/current')
+OWNER_REQUEST = Path('/run/sanctuary-gazette-owner/request.json')
 PHP = '/usr/bin/php8.3'
 SHA = re.compile(r'[a-f0-9]{40}')
 REJECTION_CODES = frozenset({
@@ -98,7 +99,7 @@ def main():
     try:
         if sys.platform != 'linux' or os.geteuid() == 0:
             raise ValueError('nonroot_linux_service_required')
-        if args.scheduled:
+        if args.scheduled and not OWNER_REQUEST.exists():
             edition(datetime.now(timezone.utc), True)
         path = release(os.environ.get('LITTLE_SPARKS_GAZETTE_EDITOR_RELEASE_SHA', ''))
         # No shell, no selected executable/environment path, no automatic second invocation.

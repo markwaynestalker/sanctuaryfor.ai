@@ -1,5 +1,9 @@
 # SanctuaryFor.AI
 
+## Practical Gazette owner workflow (latest owner direction)
+
+Read docs/GAZETTE_OWNER_WORKFLOW.md. One cohesive change adds a root-owner command around the credential-isolated systemd worker and keyless broker, automatic bound revision authorization only after confirmed rejection, explicit proposed $1/day/$20/month/20-request approval, per-owner-attempt cost cap, and private partial today previews that cannot publish as finalized editions. Explicit Gazette ledger revision 2 removes lifetime eight-attempt constraints, preserves all original rows/holds/publications and V6 tables, adds immutable one-shot owner authorization evidence and a preview flag. Unknown/in-flight requests remain fenced with no refunds/replay. Keep mandatory moderation, exact-source factual review, separate publication, 0700/0600, credential isolation and the Director unchanged. Root tmpfiles ordering provisions the socket after reboot. Installation preserves production limits/activation flags and disabled timer; no production operations, paid tests, merge or deployment are authorized during development. Run all 27 offline suites plus real-UID/systemd Ubuntu integration and require final exact-commit CI. Earlier manual permit/activation instructions are historical where superseded here.
+
 ## Gazette operations preparation (#82)
 
 Read docs/GAZETTE_OPERATIONS.md. The worker now uses #84's keyless helper with no SQLite path, writable DB directory or direct-PDO fallback. Preserve 0700/0600 and authoritative helper policy/date/release. Keep #83 draft through security/integration review; production setup, credential delivery, paid evaluation, installation and timer activation remain separately gated. No automatic merge/deploy/migration/paid calls or Director change.

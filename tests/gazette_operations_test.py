@@ -162,7 +162,7 @@ class GazetteOperations(unittest.TestCase):
             content = (ROOT / 'ops/systemd' / unit).read_text().replace(
                 '/usr/local/lib/sanctuary-gazette/run.py', str(ROOT / 'ops/gazette/run.py'))
             (base / unit).write_text(content)
-            for helper in ['sanctuary-gazette-db.socket', 'sanctuary-gazette-db@.service']:
+            for helper in ['sanctuary-gazette-db.socket', 'sanctuary-gazette-db@.service', 'sanctuary-gazette-runtime.service']:
                 shutil.copyfile(ROOT / 'ops/systemd' / helper, base / helper)
             timer = 'sanctuary-gazette-editor.timer'
             shutil.copyfile(ROOT / 'ops/systemd' / timer, base / timer)

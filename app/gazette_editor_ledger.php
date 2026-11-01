@@ -4,11 +4,12 @@ namespace LittleSparks;
 use PDO;
 require_once __DIR__.'/gazette_editor.php';
 require_once __DIR__.'/gazette_editor_schema.php';
+require_once __DIR__.'/gazette_owner.php';
 
 /** Trusted CLI callers only. Never hold this short lock across a network operation. */
 function editorialTransaction(PDO $db,callable $work):mixed
 {
-    if(PHP_SAPI!=='cli'||!editorialLedgerInstalled($db)||(int)$db->query('SELECT revision FROM gazette_editor_meta')->fetchColumn()!==1)throw new \RuntimeException('Editorial ledger unavailable.');
+    if(PHP_SAPI!=='cli'||!editorialLedgerInstalled($db)||!in_array((int)$db->query('SELECT revision FROM gazette_editor_meta')->fetchColumn(),[1,2],true))throw new \RuntimeException('Editorial ledger unavailable.');
     $busy=(int)$db->query('PRAGMA busy_timeout')->fetchColumn();$begun=false;
     try{$db->exec('PRAGMA busy_timeout=100');$db->exec('BEGIN IMMEDIATE');$begun=true;$result=$work();$db->exec('COMMIT');$begun=false;return $result;}
     catch(\Throwable $e){if($begun)$db->exec('ROLLBACK');throw $e;}
@@ -86,20 +87,37 @@ function permitEditorialRevision(PDO $db,string $date,int $ordinal,string $sourc
         $id=bin2hex(random_bytes(16));$db->prepare('INSERT INTO gazette_editor_permits VALUES (?,?,?,?,?,?,?,?)')->execute([$id,$date,$ordinal,$sourceHash,$policyHash,$maxCost,$expires,$now]);return $id;
     });
 }
-function reserveEditorialAttempt(PDO $db,array $snapshot,array $policy,int $now,?string $permit=null):array
+function reserveEditorialAttempt(PDO $db,array $snapshot,array $policy,int $now,?string $permit=null,?array $authorization=null):array
 {
     $cost=editorialReservationCost($policy);$policyJson=editorialJson($policy);$policyHash=hash('sha256',$policyJson);$date=$snapshot['pack']['date']??'';
-    if($date>=gazetteDay($date,$now)['today'])throw new \RuntimeException('Finished edition required.');
+    $preview=($snapshot['pack']['preview']['partial']??false)===true;
+    if($date>=gazetteDay($date,$now)['today']&&!($preview&&$date===gazetteDay($date,$now)['today']&&$authorization!==null))throw new \RuntimeException('Finished edition or approved preview required.');
     $day=gmdate('Y-m-d',$now);$month=gmdate('Y-m',$now);$expires=$now+$policy['lease_seconds'];
     if(gmdate('Y-m-d',$expires)!==$day)throw new \RuntimeException('Editorial UTC boundary guard.');
-    return editorialTransaction($db,function()use($db,$snapshot,$policy,$policyJson,$policyHash,$date,$cost,$now,$day,$month,$expires,$permit){
+    return editorialTransaction($db,function()use($db,$snapshot,$policy,$policyJson,$policyHash,$date,$cost,$now,$day,$month,$expires,$permit,$authorization,$preview){
         assertEditorialSources($db,$snapshot);
         if(!$snapshot['pack']['coverage']['conversations']&&!$snapshot['pack']['coverage']['notices'])throw new \RuntimeException('No edition-day material.');
+        if($authorization!==null){
+            validateGazetteAuthorization($authorization,$date,$preview,$cost,$now);
+            if((int)$db->query('SELECT revision FROM gazette_editor_meta')->fetchColumn()!==2)throw new \RuntimeException('Owner workflow upgrade required.');
+            $q=$db->prepare('SELECT 1 FROM gazette_editor_jobs WHERE id=?');$q->execute([$authorization['id']]);if($q->fetchColumn())throw new \RuntimeException('Owner request consumed.');
+            $q=$db->prepare("SELECT a.id,o.outcome,v.decision FROM gazette_editor_attempts a LEFT JOIN gazette_editor_outcomes o ON o.attempt_id=a.id LEFT JOIN gazette_editor_reviews v ON v.attempt_id=a.id WHERE a.edition=? AND a.is_preview=? ORDER BY a.ordinal DESC");$q->execute([$date,(int)$preview]);$prior=$q->fetchAll();
+            foreach($prior as $r){
+                if(!in_array($r['outcome'],['finished','rejected'],true))throw new \RuntimeException('Unknown edition outcome; no duplicate dispatch.');
+                $q=$db->prepare("SELECT 1 FROM gazette_editor_requests q LEFT JOIN gazette_editor_receipts r ON r.request_id=q.id WHERE q.attempt_id=? AND (r.outcome IS NULL OR r.outcome='uncertain') LIMIT 1");$q->execute([$r['id']]);if($q->fetchColumn())throw new \RuntimeException('Unknown request; retain holds.');
+            }
+            if($prior&&$prior[0]['outcome']!=='rejected'&&$prior[0]['decision']!=='rejected'&&!$preview)throw new \RuntimeException('Review or reject existing draft before regenerating.');
+        }
         expireEditorialLease($db,$now);
         if($db->query('SELECT attempt_id FROM gazette_editor_lease')->fetchColumn()!==null)throw new \RuntimeException('Editorial worker busy.');
         $q=$db->prepare('SELECT COALESCE(MAX(ordinal),0) FROM gazette_editor_attempts WHERE edition=?');$q->execute([$date]);$ordinal=(int)$q->fetchColumn()+1;
+        if($authorization!==null){$q=$db->prepare('SELECT COALESCE(MAX(ordinal),0) FROM (SELECT ordinal FROM gazette_editor_attempts WHERE edition=? UNION ALL SELECT ordinal FROM gazette_editor_permits WHERE edition=?)');$q->execute([$date,$date]);$ordinal=(int)$q->fetchColumn()+1;}
+        if($ordinal>1&&$authorization!==null){
+            $permit=bin2hex(random_bytes(16));
+            $db->prepare('INSERT INTO gazette_editor_permits VALUES (?,?,?,?,?,?,?,?)')->execute([$permit,$date,$ordinal,$snapshot['sha256'],$policyHash,$cost,$now+120,$now]);
+        }
         if($ordinal>1){
-            $q=$db->prepare("SELECT 1 FROM gazette_editor_attempts a LEFT JOIN gazette_editor_outcomes o ON o.attempt_id=a.id WHERE a.edition=? AND (o.outcome IS NULL OR o.outcome='uncertain')");$q->execute([$date]);if($q->fetchColumn())throw new \RuntimeException('Uncertain edition cannot be regenerated.');
+            $q=$db->prepare("SELECT 1 FROM gazette_editor_attempts a LEFT JOIN gazette_editor_outcomes o ON o.attempt_id=a.id WHERE a.edition=?".($authorization!==null?' AND a.is_preview=?':'')." AND (o.outcome IS NULL OR o.outcome='uncertain')");$q->execute($authorization!==null?[$date,(int)$preview]:[$date]);if($q->fetchColumn())throw new \RuntimeException('Uncertain edition cannot be regenerated.');
             $q=$db->prepare('SELECT * FROM gazette_editor_permits WHERE id=? AND edition=? AND ordinal>=? AND source_sha256=? AND policy_sha256=? AND max_microusd>=? AND expires_at>?');$q->execute([$permit,$date,$ordinal,$snapshot['sha256'],$policyHash,$cost,$now]);$approved=$q->fetch();if(!$approved)throw new \RuntimeException('Separate revision approval required.');
             // Unused expired permits remain immutable; the owner may explicitly skip their ordinals.
             $ordinal=(int)$approved['ordinal'];
@@ -114,7 +132,11 @@ function reserveEditorialAttempt(PDO $db,array $snapshot,array $policy,int $now,
         if(!is_int($used)||$policy['daily_requests']<2||$used>$policy['daily_requests']-2)throw new \RuntimeException('Editorial request limit.');
         $id=bin2hex(random_bytes(16));$owner=bin2hex(random_bytes(16));
         $key=hash('sha256',editorialJson([$date,$snapshot['sha256'],$policyHash,$permit]));
-        $db->prepare('INSERT INTO gazette_editor_attempts VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)')->execute([$id,$date,$ordinal,$key,$snapshot['sha256'],editorialJson($snapshot),$policyHash,$policyJson,$day,$month,$cost,2,$owner,$now,$expires,$permit]);
+        $insert=$db->prepare('INSERT INTO gazette_editor_attempts(id,edition,ordinal,idempotency_sha256,source_sha256,snapshot_json,policy_sha256,policy_json,day,month,reserved_microusd,request_slots,owner,created_at,expires_at,permit_id'.($authorization!==null?',is_preview':'').') VALUES ('.implode(',',array_fill(0,$authorization!==null?17:16,'?')).')');
+        $values=[$id,$date,$ordinal,$key,$snapshot['sha256'],editorialJson($snapshot),$policyHash,$policyJson,$day,$month,$cost,2,$owner,$now,$expires,$permit];if($authorization!==null)$values[]=(int)$preview;$insert->execute($values);
+        if($authorization!==null){
+            $db->prepare('INSERT INTO gazette_editor_jobs VALUES (?,?,?,?)')->execute([$authorization['id'],$id,$now,editorialJson($authorization)]);
+        }
         $db->prepare('UPDATE gazette_editor_lease SET attempt_id=?,owner=?,expires_at=? WHERE singleton=1')->execute([$id,$owner,$expires]);
         return ['id'=>$id,'owner'=>$owner,'reserved_microusd'=>$cost,'expires_at'=>$expires];
     });

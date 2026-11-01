@@ -1,0 +1,10 @@
+# Root-owned provisioning only; no database/credential access and no paid operation.
+[Unit]
+Description=Provision private Gazette runtime socket and owner request directories
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/systemd-tmpfiles --create /etc/tmpfiles.d/sanctuary-gazette-db.conf
+NoNewPrivileges=true
+ProtectHome=true
+PrivateTmp=true
