@@ -9,6 +9,7 @@ import stat
 import struct
 import subprocess
 import sys
+import time
 
 CONFIG = Path('/etc/sanctuary-gazette-db/config.json')
 MAX_FRAME = 524288
@@ -16,6 +17,27 @@ ENV_KEYS = {'ENABLED', 'PRICING_CONFIRMED', 'DAILY_MICROUSD', 'MONTHLY_MICROUSD'
             'DAILY_REQUESTS', 'MODERATION_MICROUSD', 'MAX_INPUT_TOKENS',
             'MAX_OUTPUT_TOKENS', 'MAX_REQUEST_BYTES'}
 PREFIX = 'LITTLE_SPARKS_GAZETTE_EDITOR_'
+OWNER_REQUEST = Path('/run/sanctuary-gazette-owner/request.json')
+
+
+def owner_request(path=OWNER_REQUEST):
+    """Root-owned authorization, not a client field or a credential."""
+    if not path.exists():
+        return None
+    protected(path.parent, directory=True)
+    protected(path)
+    if path.stat().st_size > 1024:
+        raise ValueError('owner_request_bound')
+    job = decode(path.read_bytes())
+    if (set(job) != {'id', 'date', 'preview', 'expires_at', 'max_microusd', 'release'}
+        or not re.fullmatch('[a-f0-9]{32}', str(job['id']))
+        or not re.fullmatch(r'\d{4}-\d{2}-\d{2}', str(job['date']))
+        or type(job['preview']) is not bool or type(job['expires_at']) is not int
+        or not time.time() < job['expires_at'] <= time.time() + 600
+        or type(job['max_microusd']) is not int or job['max_microusd'] <= 0
+        or not re.fullmatch('[a-f0-9]{40}', str(job['release']))):
+        raise ValueError('owner_request_invalid')
+    return job
 
 
 def unique(pairs):
@@ -130,8 +152,12 @@ def operation(connection, cfg):
     if extra or ancillary or flags:
         raise ValueError('trailing_frame')
     release = Path(cfg['release'])
-    request = encode({'peer_uid': uid, 'database': cfg['database'], 'release': release.name,
-                      'approved_date': cfg['approved_date'], 'message': message})
+    request = {'peer_uid': uid, 'database': cfg['database'], 'release': release.name,
+               'approved_date': cfg['approved_date'], 'message': message}
+    job = owner_request() if message.get('op') == 'begin_generation' else None
+    if job is not None:
+        request['owner_request'] = job
+    request = encode(request)
     # A fresh allowlisted environment: neither caller secrets nor arbitrary PHP settings.
     env = {'PATH': '/usr/bin:/bin', 'LANG': 'C.UTF-8', **cfg['environment']}
     result = subprocess.run(['/usr/bin/php8.3', '-d', 'display_errors=0', '-d', 'log_errors=0',

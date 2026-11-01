@@ -1,5 +1,7 @@
 # Gazette operations and helper integration (#82/#84)
 
+The latest [Gazette owner workflow](GAZETTE_OWNER_WORKFLOW.md) supersedes the manual per-edition overrides and permit calculations below. It provides one owner command, explicit proposed budget approval, authenticated brokered revisions after confirmed rejection, partial previews, and boot-safe socket provisioning. Historical setup/security notes below remain useful; no old activation text overrides the owner's newer approved development scope. No production action occurs automatically.
+
 **Activation is BLOCKED pending final review and separate owner setup/staging/activation approval.** #83 integrates the keyless helper from #85; review the helper PR first. No database ACL, group permission, ownership or application-guard change is needed. Do not work around this with root execution, a shared UID for the API worker, direct SQLite access, sudo or a direct-storage fallback.
 
 This runbook describes future owner operations, not commands executed by development. No production access, installation, migration, credentials, ENV/service/timer change or paid call is authorized by the implementation PRs. Neither PR merges or deploys automatically. Actual installed systemd credential/sandbox validation and separately bounded live evaluation remain operational gates after code review.

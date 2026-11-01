@@ -76,9 +76,9 @@ function editorialResponseDraft(array $r,array $policy):array
     if(count($texts)!==1||strlen($texts[0])>65536)throw new EditorialRejection('response_answer_ambiguous');
     try{$draft=json_decode($texts[0],true,32,JSON_THROW_ON_ERROR);}catch(\JsonException){throw new EditorialRejection('response_json_invalid');}if(!is_array($draft)||array_is_list($draft))throw new EditorialRejection('response_json_invalid');return $draft;
 }
-function editorialJobPlan(PDO $read,string $date,array $policy,int $bytes,int $now):array
+function editorialJobPlan(PDO $read,string $date,array $policy,int $bytes,int $now,bool $preview=false):array
 {
-    $snapshot=boundEditorialSnapshot(editorialSourcePack($read,$date,$now),$policy,$bytes);
+    $snapshot=boundEditorialSnapshot(editorialSourcePack($read,$date,$now,[],$preview),$policy,$bytes);
     $request=editorialRequest($snapshot,$policy);
     $envelope=$request;unset($envelope['input']);
     $policy['pricing_version'].='-'.substr(hash('sha256',editorialJson([$envelope,$bytes])),0,16);

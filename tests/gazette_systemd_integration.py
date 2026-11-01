@@ -9,6 +9,7 @@ import pwd
 from pathlib import Path
 import re
 import shutil
+import stat
 import subprocess
 import sys
 import tempfile
@@ -68,7 +69,8 @@ def main():
     prefix = 'sanctuary-ci-gazette-' + uuid.uuid4().hex[:12]
     helper_socket, helper_template = prefix + '-db.socket', prefix + '-db@.service'
     worker, writer = prefix + '-editor.service', prefix + '-writer.service'
-    units, linked = [helper_socket, helper_template, worker, writer], []
+    runtime_unit = prefix + '-runtime.service'
+    units, linked = [helper_socket, helper_template, worker, writer, runtime_unit], []
     sha = run(['git', '-C', str(ROOT), 'rev-parse', 'HEAD']).stdout.strip()
     assert re.fullmatch('[a-f0-9]{40}', sha)
     with tempfile.TemporaryDirectory(prefix='sanctuary-ci-systemd-') as temporary:
@@ -104,17 +106,19 @@ def main():
             php([str(ROOT / ('scripts/migrate-' + phase + '.php')), '--database=' + str(seed / 'v6.sqlite')])
         php([str(ROOT / 'tests/gazette-core.php'), str(seed)])
         php([str(ROOT / 'scripts/migrate-gazette-editor.php'), '--database=' + str(seed / 'v6.sqlite'), '--confirm-drained=yes'])
+        php([str(ROOT / 'scripts/upgrade-gazette-owner.php'), '--database=' + str(seed / 'v6.sqlite'), '--confirm-drained=yes'])
         php(['-r', 'require "app/village.php"; $d=LittleSparks\\connect($argv[1]); $d->query("PRAGMA journal_mode=WAL");', str(seed / 'v6.sqlite')])
         database = private / 'village.sqlite'
         helper_cfg = inside('/etc/sanctuary-gazette-db/config.json')
         worker_env = base / 'editor.env';standin = base / 'credential-standin'
         standin.write_text('NON_SECRET_SYSTEMD_STANDIN');standin.chmod(0o600)
-        def configure(mode='generate', enabled=True, helper_enabled=True, barrier=False, worker_sha=sha, helper_sha=sha):
+        def configure(mode='generate', enabled=True, helper_enabled=True, barrier=False, worker_sha=sha, helper_sha=sha, practical=False):
+            policy = {**POLICY, **({P+'DAILY_MICROUSD':'1000000',P+'MONTHLY_MICROUSD':'20000000',P+'DAILY_REQUESTS':'20'} if practical else {})}
             cfg = {'editor_uid': EDITOR_UID, 'database': '/var/lib/sanctuaryfor-ai/village.sqlite',
                    'release': '/var/lib/sanctuaryfor-ai-deploy/releases/' + helper_sha, 'approved_date': '2026-10-29',
-                   'environment': {**POLICY, P + 'ENABLED': '1' if helper_enabled else '0'}}
+                   'environment': {**policy, P + 'ENABLED': '1' if helper_enabled else '0'}}
             helper_cfg.write_text(json.dumps(cfg));helper_cfg.chmod(0o644)
-            values = {**POLICY, P + 'ENABLED': '1' if enabled else '0', P + 'RELEASE_SHA': worker_sha,
+            values = {**policy, P + 'ENABLED': '1' if enabled else '0', P + 'RELEASE_SHA': worker_sha,
                       'SANCTUARY_CI_MODE': mode, 'SANCTUARY_CI_BARRIER': '1' if barrier else '0', 'SANCTUARY_CI_SYSTEMD_TEST': '1'}
             worker_env.write_text('\n'.join(key + '=' + value for key, value in values.items()) + '\n');worker_env.chmod(0o600)
         configure('disabled', enabled=False, helper_enabled=False)
@@ -124,13 +128,19 @@ def main():
         helper = helper.replace('/usr/local/lib/sanctuary-gazette/db_helper.py', release_path + '/ops/gazette/db_helper.py')
         helper = jailed_paths(helper) + common + 'ExecStartPre=/usr/bin/php8.3 ' + release_path + '/tests/gazette-systemd-helper-probe.php\n'
         socket_unit = (ROOT / 'ops/systemd/sanctuary-gazette-db.socket').read_text().replace('/run/sanctuary-gazette-db/editor.sock', str(runtime / 'editor.sock')).replace('SocketGroup=sanctuarygazette', 'SocketGroup=' + str(EDITOR_UID))
+        socket_unit = socket_unit.replace('sanctuary-gazette-runtime.service', runtime_unit)
+        config_dir=base / 'tmpfiles';config_dir.mkdir()
+        runtime_config=config_dir / 'gazette.conf'
+        owner_dir=inside('/run/sanctuary-gazette-owner')
+        runtime_config.write_text('d ' + str(runtime) + ' 0710 root ' + str(EDITOR_UID) + ' -\nd ' + str(owner_dir) + ' 0755 root root -\n')
+        provision = (ROOT / 'ops/systemd/sanctuary-gazette-runtime.service').read_text().replace('/etc/tmpfiles.d/sanctuary-gazette-db.conf', str(runtime_config)) + '\nPrivateTmp=false\n'
         editor = (ROOT / 'ops/systemd/sanctuary-gazette-editor.service').read_text().replace('sanctuary-gazette-db.socket', helper_socket)
         editor = editor.replace('User=sanctuarygazette', 'User=' + str(EDITOR_UID)).replace('Group=sanctuarygazette', 'Group=' + str(EDITOR_UID))
         editor = editor.replace('/etc/sanctuary-gazette/editor.env', str(worker_env)).replace('/etc/sanctuary-gazette/openai_api_key', str(standin))
         editor = re.sub(r'^ExecStart=.*$', 'ExecStart=/usr/bin/php8.3 -d display_errors=0 -d log_errors=0 ' + release_path + '/tests/gazette-systemd-worker.php', editor, flags=re.M)
         editor = jailed_paths(editor) + common + 'PrivateNetwork=true\nReadWritePaths=+/var/lib/sanctuary-gazette-test\n'
         writer_unit = '[Unit]\nDescription=CI synthetic SQLite lock holder\n[Service]\nType=exec\nUser=' + str(DB_UID) + '\nGroup=' + str(DB_UID) + '\nExecStart=/usr/bin/python3 ' + release_path + '/tests/gazette-systemd-writer.py\nPrivateNetwork=true\nProtectSystem=strict\nNoNewPrivileges=true\nReadWritePaths=+/var/lib/sanctuaryfor-ai +/var/lib/sanctuary-gazette-writer-test\nRuntimeMaxSec=30\n' + common
-        contents = dict(zip(units, [socket_unit, helper, editor, writer_unit]))
+        contents = dict(zip(units, [socket_unit, helper, editor, writer_unit, provision]))
         unit_dir = base / 'units';unit_dir.mkdir()
         def stop_units():
             listing = run(['systemctl', 'list-units', '--all', '--plain', '--no-legend', prefix + '*'], check=False).stdout
@@ -187,7 +197,8 @@ def main():
                 run(['systemctl', 'link', '--runtime', str(fixture)])
                 linked.append((target, fixture))
             run(['systemctl', 'daemon-reload'])
-            reset();run(['systemctl', 'start', helper_socket])
+            reset();runtime.rmdir();run(['systemctl', 'start', helper_socket])
+            assert runtime.exists() and runtime.stat().st_uid==0 and runtime.stat().st_gid==EDITOR_UID and stat.S_IMODE(runtime.stat().st_mode)==0o710, 'Boot dependency must recreate exact private socket directory'
             start();assert status()['status'] == 'disabled' and info() == [0, 0, 0, 0, 0]
             configure('ready', enabled=False, helper_enabled=False);start()
             assert status()['status'] == 'preflight_ready' and info() == [0, 0, 0, 0, 0]
@@ -212,6 +223,22 @@ def main():
             assert (state / 'calls').read_text() == '2'
             run(['systemctl', 'restart', helper_socket]);trigger_epoch=time.monotonic();start()
             assert info() == [1, 2, 2, 30000, 0] and (state / 'calls').read_text() == '2'
+            # Real root-controlled owner request, distinct credential worker UID,
+            # exact-snapshot revision through the actual keyless helper/socket.
+            def db_identity():
+                os.setgroups([]);os.setgid(DB_UID);os.setuid(DB_UID)
+            review_code=('require dirname($argv[2])."/village.php"; require $argv[2]; $d=LittleSparks\\connect($argv[1]); '
+                         '$r=$d->query("SELECT a.id,d.sha256 FROM gazette_editor_attempts a JOIN gazette_editor_drafts d ON d.attempt_id=a.id LIMIT 1")->fetch(); '
+                         'LittleSparks\\reviewEditorialDraft($d,$r["id"],$r["sha256"],"rejected",time());')
+            reviewed=subprocess.run(['/usr/bin/php8.3','-r',review_code,str(database),str(release/'app/gazette_editor_publication.php')],preexec_fn=db_identity,capture_output=True,text=True)
+            assert reviewed.returncode==0, 'Synthetic review bootstrap failed: '+reviewed.stderr[-2000:]
+            configure(practical=True)
+            owner_file=owner_dir/'request.json'
+            owner_file.write_text(json.dumps({'id':'c'*32,'date':'2026-10-29','preview':False,
+                'expires_at':int(time.time())+300,'max_microusd':50000,'release':sha}));owner_file.chmod(0o644)
+            start();assert status()['status']=='awaiting_owner_review' and info()==[2,4,4,60000,1]
+            start();assert info()==[2,4,4,60000,1] and (state/'calls').read_text()=='4', 'Consumed owner request must never dispatch again'
+            owner_file.unlink()
             # Real independent SQLite writer holds the lock during the completion observation.
             reset();configure(barrier=True);start(wait=False)
             wait_for(lambda: (state / 'dispatched').exists(), 'No busy-case dispatch')
@@ -230,10 +257,8 @@ def main():
             wait_for(lambda: property_value(worker, 'ActiveState') in ['inactive', 'failed'], 'Restarted worker did not finish')
             assert info() == [1, 1, 0, 30000, 0] and (state / 'calls').read_text() == '1'
             # Stopping a required socket fences an in-flight worker; restarting never replays it.
-            # The preceding synthetic cases deliberately approach the real 12/minute limit.
-            # Respect its actual window instead of weakening the reviewed unit rate policy.
-            while time.monotonic() < trigger_epoch+61:
-                time.sleep(.2)
+            # The reviewed 64/minute fuse accommodates these bounded tests and
+            # owner revisions; no production request or fuse bypass is used.
             reset();configure(barrier=True);start(wait=False)
             wait_for(lambda: (state / 'dispatched').exists(), 'No restart-case dispatch')
             run(['systemctl', 'stop', helper_socket]);wait_for(lambda: property_value(worker, 'ActiveState') in ['inactive', 'failed'], 'Socket stop did not fence dependent worker')
