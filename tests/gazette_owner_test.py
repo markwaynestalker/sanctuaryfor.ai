@@ -132,7 +132,7 @@ class OwnerWorkflow(unittest.TestCase):
                     # Simulate the exact previous partial installation and resume.
                     for folder in [base/'installed',bundle.parent,bundle,bundle/'app']:folder.chmod(0o700)
                     owner.copy_owner_bundle(code,base/'installed',manifest)
-                    for folder in [base/'installed',bundle.parent,bundle,bundle/'app']:
+                    for folder in [base/'installed',bundle.parent,bundle,bundle/'app',bundle/'public']:
                         self.assertEqual(stat.S_IMODE(folder.stat().st_mode),0o755)
                 finally:os.umask(mask)
                 self.assertEqual((bundle/'app/example.php').read_bytes(),source.read_bytes())

@@ -344,6 +344,10 @@ def copy_owner_bundle(code, destination, manifest_file):
     code_directory(destination)
     bundle = destination / 'owner-code' / code.name
     code_directory(bundle.parent); code_directory(bundle)
+    # databasePath() requires the application public directory to exist before
+    # it can enforce that SQLite lies outside it. This nonserved code bundle
+    # needs that empty directory too; do not weaken the shared database guard.
+    code_directory(bundle / 'public')
     verified = {}
     for name, entry in manifest['files'].items():
         relative = Path(name)
