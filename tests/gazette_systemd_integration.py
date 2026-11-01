@@ -227,10 +227,11 @@ def main():
             # exact-snapshot revision through the actual keyless helper/socket.
             def db_identity():
                 os.setgroups([]);os.setgid(DB_UID);os.setuid(DB_UID)
-            review_code=('require $argv[2]; $d=LittleSparks\\connect($argv[1]); '
+            review_code=('require dirname($argv[2])."/village.php"; require $argv[2]; $d=LittleSparks\\connect($argv[1]); '
                          '$r=$d->query("SELECT a.id,d.sha256 FROM gazette_editor_attempts a JOIN gazette_editor_drafts d ON d.attempt_id=a.id LIMIT 1")->fetch(); '
                          'LittleSparks\\reviewEditorialDraft($d,$r["id"],$r["sha256"],"rejected",time());')
-            subprocess.run(['/usr/bin/php8.3','-r',review_code,str(database),str(release/'app/gazette_editor_publication.php')],preexec_fn=db_identity,check=True,capture_output=True,text=True)
+            reviewed=subprocess.run(['/usr/bin/php8.3','-r',review_code,str(database),str(release/'app/gazette_editor_publication.php')],preexec_fn=db_identity,capture_output=True,text=True)
+            assert reviewed.returncode==0, 'Synthetic review bootstrap failed: '+reviewed.stderr[-2000:]
             configure(practical=True)
             owner_file=owner_dir/'request.json'
             owner_file.write_text(json.dumps({'id':'c'*32,'date':'2026-10-29','preview':False,
