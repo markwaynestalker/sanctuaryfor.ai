@@ -1,6 +1,7 @@
 import importlib.util
 import hashlib
 import io
+import os
 import json
 from pathlib import Path
 import stat
@@ -32,13 +33,33 @@ class OwnerWorkflow(unittest.TestCase):
         args = owner.parser().parse_args(['generate', '--date', '2026-10-31'])
         with patch.object(owner, 'run', side_effect=AssertionError('operation before approval')):
             with self.assertRaises(ValueError): owner.generation(args, {}, Path('/unused'))
+        refresh=owner.parser().parse_args(['refresh','--approve-paid'])
+        self.assertEqual(refresh.date,'today')
+        refresh=owner.parser().parse_args(['refresh','--date','2026-10-31'])
+        with patch.object(owner,'run',side_effect=AssertionError('operation before approval')):
+            with self.assertRaises(ValueError):owner.generation(refresh,{},Path('/unused'))
+
+    def test_safe_install_phase_and_migration_failure_codes(self):
+        for phase,error,code in [('backup',ValueError('PRIVATE_CANARY'),'backup_failed'),
+                                 ('installation',PermissionError('PRIVATE_CANARY'),'permission_denied')]:
+            with self.assertRaises(owner.InstallFailure) as caught:
+                with owner.install_phase(phase):raise error
+            self.assertEqual((caught.exception.phase,caught.exception.code),(phase,code))
+            self.assertNotIn('PRIVATE_CANARY',str(caught.exception))
+        for raw,code in [('{"code":"database_busy"}','database_busy'),
+                         ('{"code":"schema_failure"}','schema_failure'),
+                         ('{"code":"PRIVATE_CANARY"}','migration_process_failed'),
+                         ('PRIVATE_CANARY','migration_process_failed')]:
+            with patch.object(owner,'run',return_value=SimpleNamespace(returncode=1,stdout=raw)):
+                with self.assertRaises(owner.InstallFailure) as caught:owner.migrate_bundle(Path('/bundle'),Path('/db'),'dbuser')
+                self.assertEqual(caught.exception.code,code)
 
     def test_install_does_not_select_budgets_enable_flags_or_read_keys(self):
         source = (ROOT / 'ops/gazette/gazette.py').read_text()
         install = source.split('def install(args):', 1)[1].split('def parser():', 1)[0]
         for forbidden in ['openai_api_key', "'DAILY_MICROUSD'", "'MONTHLY_MICROUSD'", "'DAILY_REQUESTS'", "'ENABLED'", "'enable'", "'--now'"]:
             self.assertNotIn(forbidden, install)
-        self.assertIn("'--confirm-drained=yes'", install)
+        self.assertIn("'--confirm-drained=yes'", source.split('def migrate_bundle',1)[1].split('def run',1)[0])
         self.assertIn('s.backup(d)', install)
 
     def test_proposed_limits_require_explicit_approval_and_preserve_activation(self):
@@ -105,7 +126,15 @@ class OwnerWorkflow(unittest.TestCase):
             # Fixture runner is deliberately unprivileged. Only destination root
             # ownership is mocked; real source ownership/modes/hashes are checked.
             with patch.object(owner, 'trusted'):
-                bundle,_=owner.copy_owner_bundle(code,base/'installed',manifest)
+                mask=os.umask(0o077)
+                try:
+                    bundle,_=owner.copy_owner_bundle(code,base/'installed',manifest)
+                    # Simulate the exact previous partial installation and resume.
+                    for folder in [base/'installed',bundle.parent,bundle,bundle/'app']:folder.chmod(0o700)
+                    owner.copy_owner_bundle(code,base/'installed',manifest)
+                    for folder in [base/'installed',bundle.parent,bundle,bundle/'app',bundle/'public']:
+                        self.assertEqual(stat.S_IMODE(folder.stat().st_mode),0o755)
+                finally:os.umask(mask)
                 self.assertEqual((bundle/'app/example.php').read_bytes(),source.read_bytes())
                 self.assertEqual(stat.S_IMODE((bundle/'app/example.php').stat().st_mode),0o444)
                 source.chmod(0o644);source.write_text('tampered synthetic content');source.chmod(0o444)

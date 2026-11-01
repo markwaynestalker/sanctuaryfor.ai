@@ -24,14 +24,24 @@ $upgrade($b);$upgrade($b);
 $saved=$b->db->query('SELECT * FROM gazette_editor_attempts')->fetchAll();unset($saved[0]['is_preview']);
 brokerCheck($saved===$old&&$b->db->query('SELECT * FROM gazette_editor_receipts')->fetchAll()===$receipt,'Reviewed upgrade preserves rejected attempt and exact observed accounting');
 brokerCheck($world($b->db)===$oldWorld,'Upgrade preserves every shared village table/schema/row');
+$upgradeCli=function(string $path):array{
+    $p=proc_open([PHP_BINARY,__DIR__.'/../scripts/upgrade-gazette-owner.php','--database='.$path,'--confirm-drained=yes'],[1=>['pipe','w'],2=>['pipe','w']],$pipes);
+    $out=stream_get_contents($pipes[1]);$error=stream_get_contents($pipes[2]);fclose($pipes[1]);fclose($pipes[2]);
+    return [proc_close($p),$out,$error];
+};
+$path=$b->db->query('PRAGMA database_list')->fetch()['file'];
+$b->db->exec('BEGIN IMMEDIATE');
+try{[$exit,$out,$error]=$upgradeCli($path);}finally{$b->db->exec('ROLLBACK');}
+brokerCheck($exit===1&&$error===''&&json_decode($out,true)['code']==='database_busy','Migration CLI reports safe structured contention without raw exception or accounting changes');
+[$exit]=$upgradeCli($path);brokerCheck($exit===0,'Same migration safely resumes after lock refusal');
 $authorize($b);[$new,$provider]=$execute($b);
 brokerCheck($new['status']==='awaiting_owner_review'&&$provider->calls===['responses','moderations'],'Owner-authorized rejected revision travels through same secure broker');
 brokerCheck((int)$b->db->query('SELECT MAX(ordinal) FROM gazette_editor_attempts')->fetchColumn()===2&&(int)$b->db->query('SELECT SUM(reserved_microusd) FROM gazette_editor_attempts')->fetchColumn()===60000,'Revision preserves earlier hold and adds its own');
 $used=$b->authorization;$calls=$provider->calls;
 brokerReject(fn()=>LittleSparks\runBrokeredEditorialJob($b,$provider,$b->policy,90000,$release),'Consumed authorization reused');brokerCheck($calls===$provider->calls,'Consumed job never redispatches');
-$authorize($b);brokerReject(fn()=>$execute($b),'Unreviewed finished edition silently regenerated');
-LittleSparks\reviewEditorialDraft($b->db,$new['attempt_id'],$new['draft_sha256'],'rejected',$b->now);
-$authorize($b);[$third]=$execute($b);brokerCheck($third['status']==='awaiting_owner_review','Owner-rejected journalism can be regenerated without manual permit math');
+$originalDraft=$b->db->query('SELECT * FROM gazette_editor_drafts')->fetchAll();
+$authorize($b);[$third]=$execute($b);brokerCheck($third['status']==='awaiting_owner_review','Fresh paid approval refreshes a completed draft again on the same day');
+brokerCheck(array_slice($b->db->query('SELECT * FROM gazette_editor_drafts ORDER BY rowid')->fetchAll(),0,count($originalDraft))===$originalDraft,'Refresh preserves earlier private drafts without forced rejection');
 for($n=0;$n<7;$n++){
     LittleSparks\reviewEditorialDraft($b->db,$third['attempt_id'],$third['draft_sha256'],'rejected',$b->now);$authorize($b);[$third]=$execute($b);
 }
@@ -50,6 +60,9 @@ foreach(['daily_microusd','monthly_microusd','daily_requests'] as $limit){
     brokerCheck((int)$u->db->query('SELECT COUNT(*) FROM gazette_editor_jobs')->fetchColumn()===1,'Refused admission rolls back permit/job atomically');
 }
 $u=$freshOwner('attempt-cap');$upgrade($u);$authorize($u);$u->authorization['max_microusd']=29999;brokerReject(fn()=>$execute($u),'Per-attempt cap bypassed');
+$u=$freshOwner('migration-refusal');brokerReject(fn()=>$execute($u,'timeout'),'Synthetic timeout propagates');
+[$exit,$out,$error]=$upgradeCli($u->db->query('PRAGMA database_list')->fetch()['file']);
+brokerCheck($exit===1&&$error===''&&json_decode($out,true)['code']==='migration_refused'&&(int)$u->db->query('SELECT revision FROM gazette_editor_meta')->fetchColumn()===1,'Active uncertain editorial lease refuses migration with static reason and unchanged ledger');
 $u=$freshOwner('concurrent');$upgrade($u);$authorize($u);$path=$u->db->query('PRAGMA database_list')->fetch()['file'];
 $policyFile=$dir.'/owner-race-policy.json';$jobFile=$dir.'/owner-race-job.json';file_put_contents($policyFile,json_encode($u->policy));file_put_contents($jobFile,json_encode($u->authorization));chmod($policyFile,0600);chmod($jobFile,0600);
 $workers=[];for($n=0;$n<2;$n++){$process=proc_open([PHP_BINARY,__DIR__.'/gazette-owner-worker.php',$path,$policyFile,$jobFile],[1=>['pipe','w'],2=>['pipe','w']],$pipes);$workers[]=[$process,$pipes];}
@@ -63,6 +76,8 @@ $path=$u->db->query('PRAGMA database_list')->fetch()['file'];$day=LittleSparks\g
 $manifest=LittleSparks\publishEditorialDraft($u->read,$path,$published['attempt_id'],$published['draft_sha256'],null,$u->now);
 $paper=LittleSparks\readEditorialGazette($u->read,$path,$day);$upgrade($u);
 brokerCheck(LittleSparks\readEditorialGazette($u->read,$path,$day)===$paper&&LittleSparks\editorialManifests($path,$day)[0]===$manifest,'Upgrade retains approved moderated drafts and byte-exact historical publication bindings');
+$authorize($u);[$refreshed]=$execute($u);
+brokerCheck($refreshed['status']==='awaiting_owner_review'&&LittleSparks\readEditorialGazette($u->read,$path,$day)===$paper&&LittleSparks\editorialManifests($path,$day)[0]===$manifest,'Refreshing a published edition saves another moderated private draft without altering publication');
 $u=$freshOwner('preview');$upgrade($u);$u->now=strtotime('2026-10-29T23:00:00Z');$today='2026-10-29';$authorize($u,true,$today);
 // Domain clock fixture: exercise the exact three bound broker operations without
 // rewriting immutable history or changing the client's real wall-clock guard.

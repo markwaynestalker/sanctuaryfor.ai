@@ -4,6 +4,8 @@ No production access, persistent unit installation, account creation, timer or r
 """
 from contextlib import contextmanager
 import json
+import hashlib
+import importlib.util
 import os
 import pwd
 from pathlib import Path
@@ -106,6 +108,39 @@ def main():
             php([str(ROOT / ('scripts/migrate-' + phase + '.php')), '--database=' + str(seed / 'v6.sqlite')])
         php([str(ROOT / 'tests/gazette-core.php'), str(seed)])
         php([str(ROOT / 'scripts/migrate-gazette-editor.php'), '--database=' + str(seed / 'v6.sqlite'), '--confirm-drained=yes'])
+        # Exercise the actual installer bundle under its real 077 umask, then
+        # execute/resume the migration as the distinct DB UID, never as root.
+        spec=importlib.util.spec_from_file_location('owner',ROOT/'ops/gazette/gazette.py')
+        owner=importlib.util.module_from_spec(spec);spec.loader.exec_module(owner)
+        manifest=base/'manifest.json'
+        files={str(p.relative_to(release)):{'mode':stat.S_IMODE(p.stat().st_mode),'sha256':hashlib.sha256(p.read_bytes()).hexdigest()}
+               for folder in ['app','scripts','contracts'] for p in (release/folder).rglob('*') if p.is_file()}
+        files['.release-commit']={'mode':stat.S_IMODE((release/'.release-commit').stat().st_mode),'sha256':hashlib.sha256((release/'.release-commit').read_bytes()).hexdigest()}
+        manifest.write_text(json.dumps({'commit':sha,'files':files}));manifest.chmod(0o600)
+        installed=Path('/usr/local/lib')/prefix
+        assert not installed.exists()
+        migration_db=private/'installer.sqlite'
+        shutil.copyfile(seed/'v6.sqlite',migration_db);os.chown(migration_db,DB_UID,DB_UID);migration_db.chmod(0o600)
+        try:
+            mask=os.umask(0o077)
+            try:
+                bundle,_=owner.copy_owner_bundle(release,installed,manifest)
+                for folder in [installed,bundle.parent,bundle,bundle/'app',bundle/'scripts']:folder.chmod(0o700)
+                try:
+                    owner.migrate_bundle(bundle,migration_db,pwd.getpwuid(DB_UID).pw_name)
+                    raise AssertionError('Old root-only bundle unexpectedly traversable by DB UID')
+                except owner.InstallFailure as failure:
+                    assert failure.code=='migration_process_failed'
+                owner.copy_owner_bundle(release,installed,manifest)
+            finally:os.umask(mask)
+            owner.migrate_bundle(bundle,migration_db,pwd.getpwuid(DB_UID).pw_name)
+            owner.migrate_bundle(bundle,migration_db,pwd.getpwuid(DB_UID).pw_name)
+            php(['-r','$d=new PDO("sqlite:".$argv[1]); if((int)$d->query("SELECT revision FROM gazette_editor_meta")->fetchColumn()!==2)exit(1);',str(migration_db)])
+            assert stat.S_IMODE(private.stat().st_mode)==0o700 and stat.S_IMODE(migration_db.stat().st_mode)==0o600
+            print('PASS real root 077 bundle repair and distinct-UID migration/resume; database protections unchanged')
+        finally:
+            shutil.rmtree(installed)
+            for suffix in ['', '-wal', '-shm', '-journal']:Path(str(migration_db)+suffix).unlink(missing_ok=True)
         php([str(ROOT / 'scripts/upgrade-gazette-owner.php'), '--database=' + str(seed / 'v6.sqlite'), '--confirm-drained=yes'])
         php(['-r', 'require "app/village.php"; $d=LittleSparks\\connect($argv[1]); $d->query("PRAGMA journal_mode=WAL");', str(seed / 'v6.sqlite')])
         database = private / 'village.sqlite'
@@ -223,21 +258,14 @@ def main():
             assert (state / 'calls').read_text() == '2'
             run(['systemctl', 'restart', helper_socket]);trigger_epoch=time.monotonic();start()
             assert info() == [1, 2, 2, 30000, 0] and (state / 'calls').read_text() == '2'
-            # Real root-controlled owner request, distinct credential worker UID,
-            # exact-snapshot revision through the actual keyless helper/socket.
-            def db_identity():
-                os.setgroups([]);os.setgid(DB_UID);os.setuid(DB_UID)
-            review_code=('require dirname($argv[2])."/village.php"; require $argv[2]; $d=LittleSparks\\connect($argv[1]); '
-                         '$r=$d->query("SELECT a.id,d.sha256 FROM gazette_editor_attempts a JOIN gazette_editor_drafts d ON d.attempt_id=a.id LIMIT 1")->fetch(); '
-                         'LittleSparks\\reviewEditorialDraft($d,$r["id"],$r["sha256"],"rejected",time());')
-            reviewed=subprocess.run(['/usr/bin/php8.3','-r',review_code,str(database),str(release/'app/gazette_editor_publication.php')],preexec_fn=db_identity,capture_output=True,text=True)
-            assert reviewed.returncode==0, 'Synthetic review bootstrap failed: '+reviewed.stderr[-2000:]
+            # Fresh explicit approval refreshes the completed, unreviewed draft
+            # again on the same day through the actual authenticated socket.
             configure(practical=True)
             owner_file=owner_dir/'request.json'
             owner_file.write_text(json.dumps({'id':'c'*32,'date':'2026-10-29','preview':False,
                 'expires_at':int(time.time())+300,'max_microusd':50000,'release':sha}));owner_file.chmod(0o644)
-            start();assert status()['status']=='awaiting_owner_review' and info()==[2,4,4,60000,1]
-            start();assert info()==[2,4,4,60000,1] and (state/'calls').read_text()=='4', 'Consumed owner request must never dispatch again'
+            start();assert status()['status']=='awaiting_owner_review' and info()==[2,4,4,60000,0]
+            start();assert info()==[2,4,4,60000,0] and (state/'calls').read_text()=='4', 'Consumed owner request must never dispatch again'
             owner_file.unlink()
             # Real independent SQLite writer holds the lock during the completion observation.
             reset();configure(barrier=True);start(wait=False)

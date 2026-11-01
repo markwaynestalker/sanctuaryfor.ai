@@ -30,6 +30,54 @@ SOCKET = 'sanctuary-gazette-db.socket'
 PREFIX = 'LITTLE_SPARKS_GAZETTE_EDITOR_'
 
 
+class InstallFailure(ValueError):
+    def __init__(self, phase, code):
+        self.phase, self.code = phase, code
+        super().__init__('installation_failed')
+
+
+@contextmanager
+def install_phase(phase):
+    try:
+        yield
+    except InstallFailure:
+        raise
+    except (ValueError, OSError, KeyError, subprocess.SubprocessError) as error:
+        code = 'permission_denied' if isinstance(error, PermissionError) else (
+            'timeout' if isinstance(error, subprocess.TimeoutExpired) else phase + '_failed')
+        raise InstallFailure(phase, code) from None
+
+
+def code_directory(path):
+    """Only nonsecret, root-owned installed code; never database/config paths."""
+    path = Path(path)
+    if not path.exists():
+        if not path.parent.exists():
+            code_directory(path.parent)
+        else:
+            trusted(path.parent, directory=True)
+        path.mkdir(mode=0o755)
+    trusted(path, directory=True)
+    # mkdir's requested mode is masked by the private process umask. Repair old
+    # 0700 partial bundles too, after validating ownership and every ancestor.
+    path.chmod(0o755)
+
+
+def migrate_bundle(bundle, database, user):
+    result = run(['runuser', '-u', user, '--', '/usr/bin/php8.3',
+                  str(bundle / 'scripts/upgrade-gazette-owner.php'),
+                  '--database=' + str(database), '--confirm-drained=yes'], check=False)
+    if result.returncode:
+        try:
+            code = json.loads(result.stdout)['code']
+        except (ValueError, KeyError, TypeError):
+            code = 'migration_process_failed'
+        if code not in {'database_busy', 'migration_refused', 'schema_failure',
+                        'database_open_failed', 'integrity_failure'}:
+            code = 'migration_process_failed'
+        raise InstallFailure('migration', code)
+
+
 def run(argv, *, check=True, data=None):
     result = subprocess.run(argv, input=data, text=True, stdout=subprocess.PIPE,
                             stderr=subprocess.PIPE, timeout=180, check=False)
@@ -156,7 +204,9 @@ def edition(value, preview, now=None):
 def generation(args, cfg, code):
     if not args.approve_paid:
         raise ValueError('explicit_approve_paid_required')
-    date = edition(args.date, args.command == 'preview')
+    preview = args.command == 'preview' or (args.command == 'refresh' and
+        args.date in {'today', datetime.now(timezone.utc).astimezone(ZoneInfo('America/New_York')).date().isoformat()})
+    date = edition(args.date, preview)
     info = metadata(cfg, code)
     if info['ledger_revision'] != 2:
         raise ValueError('owner_ledger_upgrade_required')
@@ -185,7 +235,7 @@ def generation(args, cfg, code):
         else:
             raise ValueError('prior_owner_request_unknown_inspect_status')
     check(cfg, code)  # Real credential mount + readonly broker; no HTTP or SQL write.
-    job = {'id': secrets.token_hex(16), 'date': date, 'preview': args.command == 'preview',
+    job = {'id': secrets.token_hex(16), 'date': date, 'preview': preview,
            'expires_at': int(time.time()) + 300, 'max_microusd': args.max_attempt_microusd,
            'release': code.name}
     if job['max_microusd'] < 1:
@@ -291,9 +341,13 @@ def copy_owner_bundle(code, destination, manifest_file):
     manifest = json.loads(manifest_file.read_text())
     if manifest['commit'] != code.name:
         raise ValueError('manifest_commit_mismatch')
-    destination.mkdir(mode=0o755, parents=True, exist_ok=True); trusted(destination, directory=True)
+    code_directory(destination)
     bundle = destination / 'owner-code' / code.name
-    bundle.mkdir(mode=0o755, parents=True, exist_ok=True); trusted(bundle, directory=True)
+    code_directory(bundle.parent); code_directory(bundle)
+    # databasePath() requires the application public directory to exist before
+    # it can enforce that SQLite lies outside it. This nonserved code bundle
+    # needs that empty directory too; do not weaken the shared database guard.
+    code_directory(bundle / 'public')
     verified = {}
     for name, entry in manifest['files'].items():
         relative = Path(name)
@@ -308,8 +362,8 @@ def copy_owner_bundle(code, destination, manifest_file):
         if hashlib.sha256(raw).hexdigest() != entry['sha256']:
             raise ValueError('release_content_changed')
         if relative.parts[0] in {'app','scripts','contracts'} or name == '.release-commit':
-            target = bundle / relative; target.parent.mkdir(mode=0o755, parents=True, exist_ok=True)
-            trusted(target.parent, directory=True); write_file(target, raw.decode('utf-8'), 0o444)
+            target = bundle / relative; code_directory(target.parent)
+            write_file(target, raw.decode('utf-8'), 0o444)
         if name.startswith(('ops/gazette/','ops/systemd/')):
             verified[name] = raw.decode('utf-8')
     return bundle, verified
@@ -341,7 +395,8 @@ def install(args):
     if editor.pw_name != 'sanctuarygazette':
         raise ValueError('review_actual_editor_account')
     destination = Path('/usr/local/lib/sanctuary-gazette')
-    bundle, verified = copy_owner_bundle(code, destination, code.parent.parent / 'private' / (code.name + '.json'))
+    with install_phase('code_bundle'):
+        bundle, verified = copy_owner_bundle(code, destination, code.parent.parent / 'private' / (code.name + '.json'))
     # SQLite backup runs as the existing DB owner, includes WAL, and creates no
     # root-owned journals. No Director stop/restart or accounting modification.
     backup = str(database) + '.before-owner-' + secrets.token_hex(8) + '.sqlite'
@@ -350,9 +405,16 @@ def install(args):
                    'd=sqlite3.connect(sys.argv[2])\ns.backup(d)\n'
                    'if d.execute("PRAGMA integrity_check").fetchone()!=("ok",): raise SystemExit("Backup integrity refused")\n'
                    'd.close()\ns.close()\n')
-    run(['runuser', '-u', user.pw_name, '--', '/usr/bin/python3', '-c', backup_code, str(database), backup])
-    run(['runuser', '-u', user.pw_name, '--', '/usr/bin/php8.3',
-         str(bundle / 'scripts/upgrade-gazette-owner.php'), '--database=' + str(database), '--confirm-drained=yes'])
+    with install_phase('backup'):
+        run(['runuser', '-u', user.pw_name, '--', '/usr/bin/python3', '-c', backup_code, str(database), backup])
+    with install_phase('migration'):
+        migrate_bundle(bundle, database, user.pw_name)
+    with install_phase('installation'):
+        install_files(args, cfg, code, destination, verified, user, group)
+    print('Reviewed owner workflow installed; history/limits/credentials retained; timer stays disabled. Backup: ' + backup)
+
+
+def install_files(args, cfg, code, destination, verified, user, group):
     for name in ('run.py', 'db_helper.py'):
         write_file(destination / name, verified['ops/gazette/'+name], 0o755)
     write_file(Path('/usr/local/sbin/gazette'), verified['ops/gazette/gazette.py'], 0o755)
@@ -370,13 +432,12 @@ def install(args):
     write_file(CONFIG, json.dumps(cfg, indent=2) + '\n', stat.S_IMODE(CONFIG.stat().st_mode))
     run(['systemctl', 'daemon-reload'])
     run(['systemctl', 'start', 'sanctuary-gazette-runtime.service'])
-    print('Reviewed owner workflow installed; history/limits/credentials retained; timer stays disabled. Backup: ' + backup)
 
 
 def parser():
     root = argparse.ArgumentParser(prog='gazette')
     sub = root.add_subparsers(dest='command', required=True)
-    for name in ('generate', 'preview'):
+    for name in ('generate', 'preview', 'refresh'):
         item = sub.add_parser(name)
         item.add_argument('--date', required=name == 'generate', default='today')
         item.add_argument('--approve-paid', action='store_true')
@@ -404,11 +465,12 @@ def main():
         raise ValueError('local_root_owner_via_sudo_required')
     os.umask(0o077)
     if args.command == 'install':
-        install(args)
+        with install_phase('preflight'):
+            install(args)
         return
     cfg, code = config()
     with owner_lock():
-        if args.command in {'generate', 'preview'}: generation(args, cfg, code)
+        if args.command in {'generate', 'preview', 'refresh'}: generation(args, cfg, code)
         elif args.command == 'check': check(cfg, code)
         elif args.command == 'status': print(json.dumps(metadata(cfg, code, date=args.date)))
         elif args.command == 'configure': configure(args, cfg)
@@ -418,6 +480,10 @@ def main():
 if __name__ == '__main__':
     try:
         main()
+    except InstallFailure as error:
+        print(json.dumps({'status':'installation_failed','phase':error.phase,'code':error.code,
+                          'paid_calls':0}), file=sys.stderr)
+        sys.exit(1)
     except (ValueError, OSError, KeyError, subprocess.SubprocessError) as error:
         # No arbitrary exception, config, provider text or private draft in diagnostics.
         advice = {
@@ -429,7 +495,7 @@ if __name__ == '__main__':
             'maximum_attempt_cap':'The configured reservation exceeds --max-attempt-microusd; explicitly review that per-job cap.',
             'partial_preview_cannot_publish':'Partial previews cannot be published as finalized daily newspapers.',
             'existing_publication_requires_explicit_replace_current':'Use --replace-current only after reviewing a correction.',
-            'generation_not_ready_inspect_status_no_automatic_retry':'No ready draft. Inspect status. Only confirmed rejection permits a newly approved revision; never retry uncertain work.',
+            'generation_not_ready_inspect_status_no_automatic_retry':'No ready draft. Inspect status. Confirmed rejected/completed work may receive a fresh paid refresh approval; never retry uncertain work.',
             'editor_in_flight_do_not_restart':'An editor is running; let it finish. Do not restart it.',
             'prior_owner_request_unknown_inspect_status':'Previous owner request is not safely finished. Inspect status; do not clear it.',
         }
