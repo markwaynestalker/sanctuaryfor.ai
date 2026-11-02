@@ -1,5 +1,7 @@
 # Gazette operations and helper integration (#82/#84)
 
+See [natural conversation and optional published-Gazette context](GAZETTE_VILLAGE_CONTEXT.md) for the latest editorial style/context integration. Reading/exposure/influence remain distinct and all source/publication guards apply.
+
 The latest owner direction supports [automatic daily publication](GAZETTE_AUTOMATIC_PUBLICATION.md), enabled once through a root-owned standing policy. Historical daily human-approval requirements below apply only to manual mode; no production activation occurs during development.
 
 The latest [Gazette owner workflow](GAZETTE_OWNER_WORKFLOW.md) supersedes the manual per-edition overrides and permit calculations below. It provides one owner command, explicit proposed budget approval, authenticated brokered revisions after confirmed rejection, partial previews, and boot-safe socket provisioning. Historical setup/security notes below remain useful; no old activation text overrides the owner's newer approved development scope. No production action occurs automatically.

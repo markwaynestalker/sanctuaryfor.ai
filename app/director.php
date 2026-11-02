@@ -15,12 +15,13 @@ require_once __DIR__.'/director_transport.php';
 require_once __DIR__.'/director_staging.php';
 require_once __DIR__.'/director_access.php';
 
-function directorSession(PDO $db,array $registered,array $pair,string $runtime,int $now,string $contract='sanctuary.director.v1'):array
+function directorSession(PDO $db,array $registered,array $pair,string $runtime,int $now,string $contract='sanctuary.director.v1',?array $contextScope=null):array
 {
     $ids=array_column($pair,'id');sort($ids);$revisions=[];
     foreach($ids as $id){$q=$db->prepare('SELECT revision FROM resident_identities WHERE resident_id=?');$q->execute([$id]);$revisions[$id]=(int)$q->fetchColumn();}
     $scopeParts=[$ids,$revisions,$runtime];if($contract!=='sanctuary.director.v1')$scopeParts[]=$contract;
     if(str_ends_with($contract,'.v2'))$scopeParts[]=conversationConfiguration();
+    $scopeParts[]=$contextScope??['input_context'=>'sqlite-v6-4','published_reporting'=>null];
     $scope=hash('sha256',json_encode($scopeParts,JSON_THROW_ON_ERROR));
     $execution=directorExecutionConfiguration();
     $q=$db->prepare("SELECT * FROM director_sessions WHERE fingerprint=? AND scope=? AND state IN ('new','ready') AND turns<? AND created_at>=? ORDER BY rowid DESC LIMIT 1");
@@ -159,7 +160,7 @@ function simulateDirectorOpportunity(PDO $db,string $at,bool $allowPaid,?AiTrans
         if(bulletinCanPost($db,$claim['pair'][0]['id'],$now))$choices['post_notice']=['kind'=>'post_notice'];
         if($conversationOnly)$choices=['none'=>null];
         $prepared=($contextProvider??new SqliteDirectorContextProvider())->prepare($db,$claim['pair'],$choices,$claim,$cfg);
-        $db->exec('BEGIN IMMEDIATE');try{$session=directorSession($db,$registered,$claim['pair'],$cfg['runtime'],$now,$prepared['context']['contract']);$db->exec('COMMIT');}catch(\Throwable $e){$db->exec('ROLLBACK');throw $e;}
+        $db->exec('BEGIN IMMEDIATE');try{$session=directorSession($db,$registered,$claim['pair'],$cfg['runtime'],$now,$prepared['context']['contract'],$prepared['session_scope']??null);$db->exec('COMMIT');}catch(\Throwable $e){$db->exec('ROLLBACK');throw $e;}
         $body=$cfg['runtime']==='responses'?directorRequest($pricing,$registered,$prepared,$choices):null;
         $pricing['director_session']=$session['id'];$pricing['director_runtime']=$cfg['runtime'];
         $pricing['director_once']=$staging!==null;
@@ -185,6 +186,7 @@ function simulateDirectorOpportunity(PDO $db,string $at,bool $allowPaid,?AiTrans
             if(($proposal['world_action']??null)==='post_notice')$proposal['bulletin_approved']=true;
         }
         $proposal['operator_idea_ids']=$prepared['operator_idea_ids']??[];
+        $proposal['gazette_context_receipt']=$prepared['gazette_context_receipt']??null;
         $proposal['director_session']=$session['id'];$proposal['director_fingerprint']=$registered['fingerprint'];
         $result=applyActivity($db,$claim,$proposal,$choices,$now,$attempt,$usage);
         return $result;

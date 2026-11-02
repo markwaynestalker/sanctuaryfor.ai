@@ -16,7 +16,7 @@ try{
         $measurements[$limit]=narrativeContextStats($context);
         check(strlen($raw)<=$limit,'Configured context ceiling is respected');
         check(!str_contains($raw,'PRIVATE_CONTEXT_CANARY')&&!str_contains($raw,'FAILED_CONTEXT_CANARY'),'Private and unsuccessful conversations never enter context');
-        check($context['context_version']==='sqlite-v6-3','New input projection has an explicit version');
+        check($context['context_version']==='sqlite-v6-4','New input projection has an explicit version');
         check((bool)$context['shared_recent_conversations'],'Recent shared dialogue survives payload pressure');
         $latest=$context['shared_recent_conversations'][0];check($latest['id']===$fixture['conversations'][1],'Latest actual shared encounter is retained');
         check($latest['messages'][0]['text']==='I think gardening leaves room for surprises beyond our usual interests.','Retained dialogue is verbatim, not summarized or rewritten');

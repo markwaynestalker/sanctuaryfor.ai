@@ -2,7 +2,7 @@
 declare(strict_types=1);
 require __DIR__.'/../app/village.php';require __DIR__.'/../app/activity.php';require __DIR__.'/../app/director.php';require __DIR__.'/../app/bulletin_schema.php';require __DIR__.'/bulletin-test-support.php';
 require __DIR__.'/../app/commons.php';
-require __DIR__.'/../app/gazette_editor.php';
+require_once __DIR__.'/../app/gazette_editor.php';
 function check(bool $ok,string $why):void{if(!$ok)throw new RuntimeException($why);}
 final class BulletinCountingPdo extends PDO{
     public int $reads=0;
