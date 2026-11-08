@@ -9,7 +9,7 @@ final class FlowResponses implements LittleSparks\AiTransport
     {
         $this->calls[]=[$endpoint,$body];
         if($endpoint==='moderations'){
-            if($this->mode==='withdraw')$this->db->exec("UPDATE conversations SET visibility='private' WHERE id=".$this->db->quote($this->context['conversation_flow']['source_id']));
+            if($this->mode==='withdraw')$this->db->exec("UPDATE simulation_runs SET status='failed' WHERE id=(SELECT run_id FROM conversations WHERE id=".$this->db->quote($this->context['conversation_flow']['source_id']).')');
             return ['results'=>[['flagged'=>$this->mode==='flagged']]];
         }
         if($this->mode==='unknown')throw new RuntimeException('Offline uncertain dispatch');
@@ -64,6 +64,7 @@ try{
         $candidate=LittleSparks\conversationFlowCandidate($d,gmdate('Y-m-d'),LittleSparks\activityConfiguration(),time());check($candidate===null,'Silent/rejected/uncertain work breaks the chain '.$mode);
         check((int)$d->query("SELECT COUNT(*) FROM settings WHERE name LIKE 'director_conversation_flow:%'")->fetchColumn()===0,'No accepted lineage for failed/quiet/rolled-back speech '.$mode);
         check((int)$d->query('SELECT COUNT(*) FROM conversations')->fetchColumn()===1,'Failed or silent continuation adds no transcript '.$mode);
+        if($mode==='withdraw')check(count($mock->calls)===2&&$r['failure_category']==='apply_rejected'&&(int)$d->query("SELECT COUNT(*) FROM simulation_runs WHERE status='completed'")->fetchColumn()===0,'Source invalidation occurs after generation/moderation and rolls back accepted application');
         check((int)$d->query('SELECT COUNT(*) FROM ai_attempts')->fetchColumn()===2&&!(int)$d->query('SELECT COUNT(*) FROM ai_attempts WHERE reserved_microusd<=0')->fetchColumn(),'Reservations remain charged for rejected and uncertain work '.$mode);
     }
     $d=$freshFlow('guards');$generateFlow($d);$cfg=LittleSparks\activityConfiguration();$day=gmdate('Y-m-d');
@@ -74,7 +75,7 @@ try{
         $d->beginTransaction();$d->prepare('UPDATE simulation_opportunities SET outcome=?')->execute([$outcome]);
         check(LittleSparks\conversationFlowCandidate($d,$day,$cfg,time())===null,'Never scan backward past latest '.$outcome.' outcome');$d->rollBack();
     }
-    $d->beginTransaction();$d->exec("UPDATE conversations SET visibility='private'");check(LittleSparks\conversationFlowCandidate($d,$day,$cfg,time())===null,'Private source cannot supply pair continuity');$d->rollBack();
+    $d->beginTransaction();$d->exec("UPDATE simulation_runs SET status='failed'");check(LittleSparks\conversationFlowCandidate($d,$day,$cfg,time())===null,'Invalidated completed source cannot supply pair continuity');$d->rollBack();
     putenv('LITTLE_SPARKS_AI_DAILY_REQUESTS=2');[$r,$mock]=$generateFlow($d);check($r['status']==='failed'&&!$mock->calls&&$r['failure_category']==='daily_request_cap','Continuation never bypasses Director daily request cap');putenv('LITTLE_SPARKS_AI_DAILY_REQUESTS=1000');
     $d=$freshFlow('managed');putenv('LITTLE_SPARKS_DIRECTOR_RUNTIME=agents');$m1=new MultiMessageMock(3);$at=gmdate('Y-m-d\TH:i:00\Z',$anchor);
     check(LittleSparks\simulateDirectorOpportunity($d,$at,true,null,$m1,null,null,false,null,true)['status']==='completed','Managed initial encounter succeeds');
