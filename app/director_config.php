@@ -75,7 +75,7 @@ function directorSchema(array $choices,bool $multi=false):array
         if(aiRequestByteLimit()<2*memoryConfiguration()['context_bytes']+$cfg['max']*768+4096)throw new AiGuard('configuration_invalid');
         $schema['properties']['contract']['enum']=[array_key_exists('post_notice',$choices)?'sanctuary.director.bulletin.v2':'sanctuary.director.v2'];
         $schema['properties']['messages']['maxItems']=$cfg['max'];
-        $schema['properties']['messages']['description']='For conversation, choose '.$cfg['min'].' to '.$cfg['max'].' original messages. Alternate participants strictly, beginning with the first supplied participant; either may finish. End naturally without padding. Other outcomes have no messages.';
+        $schema['properties']['messages']['description']='For conversation, choose '.$cfg['min'].' to '.$cfg['max'].' original messages. Alternate participants strictly, beginning with the first supplied participant; either may finish. Choose the length the interaction needs, not a fixed four-message sketch or the maximum. A saved segment need not resolve the discussion or end with a joke. Other outcomes have no messages.';
         $schema['properties']['notes']['items']['properties']['sequence']['maximum']=$cfg['max']-1;
         unset($schema['properties']['notes']['items']['properties']['sequence']['enum']);
     }

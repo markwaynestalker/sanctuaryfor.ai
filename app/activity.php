@@ -3,6 +3,7 @@ declare(strict_types=1);
 namespace LittleSparks;
 use PDO;
 require_once __DIR__.'/ai_simulation.php';
+require_once __DIR__.'/conversation_continuity.php';
 
 function simulationInterval(): int
 {
@@ -61,10 +62,12 @@ function parseActivityProposal(array $response,array $choices): array
 
 // Called under the claim write lock. Lifetime opportunity counts prevent yesterday's
 // favorites from monopolizing today; same-day claims count even if they later fail.
-function selectActivityResidents(PDO $db,string $day,?array $cfg=null,?int $now=null): array
+function selectActivityResidents(PDO $db,string $day,?array $cfg=null,?int $now=null,?array &$continuation=null): array
 {
+    $continuation=null;
     if(villageSleepingAt($now??time()))return [];
     $cfg??=activityConfiguration();$now??=time();
+    if($candidate=conversationFlowCandidate($db,$day,$cfg,$now)){$continuation=$candidate['flow'];return $candidate['pair'];}
     $query=$db->prepare("SELECT r.id,r.personality,
         (SELECT COUNT(*) FROM simulation_opportunities o WHERE o.resident_a=r.id OR o.resident_b=r.id) AS turns,
         (SELECT MAX(created_at) FROM simulation_opportunities o WHERE o.resident_a=r.id OR o.resident_b=r.id) AS last_turn
@@ -142,12 +145,12 @@ function claimActivity(PDO $db,string $at,int $now): array
         $day=gmdate('Y-m-d',$now);$q=$db->prepare('SELECT COUNT(*) FROM simulation_opportunities WHERE day=?');$q->execute([$day]);
         if((int)$q->fetchColumn()>=$cfg['daily_opportunities'])throw new Problem(429,'The village is resting at its configured daily ceiling.');
         $resting=villageSleepingAt($now)||villageSleepingAt(strtotime($at));
-        $pair=$resting?[]:selectActivityResidents($db,$day,$cfg,$now);$time=gmdate('Y-m-d\TH:i:s\Z',$now);
+        $continuation=null;$pair=$resting?[]:selectActivityResidents($db,$day,$cfg,$now,$continuation);$time=gmdate('Y-m-d\TH:i:s\Z',$now);
         $db->prepare("INSERT INTO simulation_opportunities(id,scheduled_at,day,resident_a,resident_b,outcome,expires_at,created_at) VALUES (?,?,?,?,?,'pending',?,?)")
             ->execute([$id,$at,$day,$pair[0]['id']??null,$pair[1]['id']??null,$now+directorExecutionConfiguration()['lease_seconds'],$time]);
         if($resting)$db->prepare('INSERT INTO settings(name,value) VALUES (?,?)')->execute(['activity_rest:'.$id,'night_rest']);
         if($weather=captureVillageWeather($db,$now))$db->prepare('INSERT INTO settings(name,value) VALUES (?,?)')->execute(['village_weather:opportunity:'.$id,json_encode($weather,JSON_THROW_ON_ERROR)]);
-        $db->exec('COMMIT');return ['id'=>$id,'pair'=>$pair,'created_at'=>$time];
+        $db->exec('COMMIT');return ['id'=>$id,'pair'=>$pair,'created_at'=>$time]+($continuation?['continuation'=>$continuation]:[]);
     }catch(\Throwable $e){$db->exec('ROLLBACK');throw $e;}
 }
 
@@ -227,7 +230,8 @@ function applyActivity(PDO $db,array $claim,array $proposal,array $choices,int $
             $db->prepare('INSERT INTO director_runs VALUES (?,?,?,?,?,?)')->execute([$run,$proposal['director_session'],$proposal['director_fingerprint'],$conversation??null,$proposal['topic'],$time]);
             if($proposal['world_action']==='post_notice')saveBulletinNotice($db,$proposal,$pair,$run,$now);
             if($outcome==='conversation'){verifyDirectorDialogue($db,$run,$conversation,$proposal);saveDirectorMemory($db,$conversation,$proposal,$pair,$time);saveOperatorIdeaExposures($db,$conversation,$proposal['operator_idea_ids']??[],$time);
-                saveDirectorGazetteExposure($db,$run,$conversation,$pair,$proposal['gazette_context_receipt']??null,$time);}
+                saveDirectorGazetteExposure($db,$run,$conversation,$pair,$proposal['gazette_context_receipt']??null,$time);
+                saveConversationFlow($db,$claim,$run,$conversation);}
             $db->prepare("UPDATE director_sessions SET state='ready' WHERE id=? AND runtime='agents'")->execute([$proposal['director_session']]);
         }elseif($outcome==='conversation'&&memoryEnabled($db))conversationMemory($db,$conversation,$proposal['shared_receipt']??null);
         if($outcome==='quiet'&&$pair)event($db,$pair[0]['id'],null,'quiet_time','simulation',$time,'activity:'.$claim['id'].':quiet',$run);

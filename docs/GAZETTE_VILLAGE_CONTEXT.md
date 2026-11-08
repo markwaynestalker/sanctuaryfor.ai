@@ -1,5 +1,7 @@
 # Natural conversations and the morning Gazette
 
+The later [conversation continuity change](CONVERSATION_CONTINUITY.md) advances fresh input/session scope to `sqlite-v6-5`, permits blunt fragments and unresolved anger, and omits newspaper articles during bounded same-pair follow-ups. Other reporting/provenance rules below remain in force.
+
 The owner approved one focused change: let conversation emerge from personalities and replies, make published newspaper articles optional village context, and let the Gazette sound like a newspaper while preserving evidence and attribution. This changes application guidance and a bounded public-data projection. It does not alter hosted instructions, publish an edition, generate a paid evaluation, change production or create a newspaper-reading world event.
 
 ## Conversation and editorial guidance
