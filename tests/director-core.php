@@ -155,4 +155,5 @@ require __DIR__.'/director-personality-core.php';
 require __DIR__.'/director-truncation-core.php';
 require __DIR__.'/director-allowance-core.php';
 require __DIR__.'/director-multimessage-core.php';
+require __DIR__.'/director-continuity-core.php';
 require __DIR__.'/director-lifecycle-core.php';

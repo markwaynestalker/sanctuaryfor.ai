@@ -21,7 +21,7 @@ function directorSession(PDO $db,array $registered,array $pair,string $runtime,i
     foreach($ids as $id){$q=$db->prepare('SELECT revision FROM resident_identities WHERE resident_id=?');$q->execute([$id]);$revisions[$id]=(int)$q->fetchColumn();}
     $scopeParts=[$ids,$revisions,$runtime];if($contract!=='sanctuary.director.v1')$scopeParts[]=$contract;
     if(str_ends_with($contract,'.v2'))$scopeParts[]=conversationConfiguration();
-    $scopeParts[]=$contextScope??['input_context'=>'sqlite-v6-4','published_reporting'=>null];
+    $scopeParts[]=$contextScope??['input_context'=>'sqlite-v6-5','published_reporting'=>null];
     $scope=hash('sha256',json_encode($scopeParts,JSON_THROW_ON_ERROR));
     $execution=directorExecutionConfiguration();
     $q=$db->prepare("SELECT * FROM director_sessions WHERE fingerprint=? AND scope=? AND state IN ('new','ready') AND turns<? AND created_at>=? ORDER BY rowid DESC LIMIT 1");

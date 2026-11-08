@@ -1,0 +1,33 @@
+# Conversation continuity and room for disagreement
+
+The November 8 owner review found short, frequently rotated sketches rather than sustained interaction. The owner approved continuity before rotation, less creative direction, and personality-consistent anger and arguments. This supersedes the earlier complete-sentence/100-130-character writing guidance. It preserves the 160-character validation ceiling, strict speaker alternation, configured message limits and original words.
+
+## Behavior
+
+On V6 databases with the existing multi-message add-on, the latest accepted public Director conversation can supply the pair for the next normal scheduled opportunity. There may be at most three segments in one window (the original plus two follow-ups). The immediately preceding opportunity must be a successful conversation, its source must be no more than 30 minutes old, and its accounting day must match the current UTC day. Selection uses the existing claim write lock. No new timer, provider loop, extra generation, retry or catch-up dispatch is introduced.
+
+This offers the pair a chance to continue; it does not infer from prose that they want to continue. The existing output contract has no explicit continue/finished field. The fresh guidance allows quiet or none instead of requiring more speech. Quiet, none, action, failed, pending and uncertain outcomes break the window rather than looking backward for an older successful exchange. At the segment bound the existing least-served selection resumes. With two eligible residents, fresh selection can naturally choose that same pair again; the system does not fabricate another partner. Fairness is bounded postponement, not unrestricted model partner selection.
+
+All existing resident/day, global/day, relationship capacity, resident/pair cooldowns, sleep, eligibility, leases, daily/monthly request/cost limits and uncertain holds still apply. Continuation never overrides a configured rest or allowance. Claims continue counting in the existing fairness and accounting ledger even when they fail. Each accepted segment remains one encounter, one submission/generation and one existing relationship increment. Anger is not converted into a positive or negative sentiment score; historical relationship semantics remain unchanged.
+
+The next first speaker is the other person from the preceding last saved message. Odd segment lengths therefore no longer make the same person speak twice at the boundary. Strict alternation within each segment remains unchanged.
+
+## Grounding and persistence
+
+Fresh input `sqlite-v6-5` has a server-derived `conversation_flow` containing the exact source ID, root ID, segment ordinal and complete previous public transcript. This anchored transcript appears once and is mandatory, ahead of optional memory/history; byte pressure cannot quietly remove what the model is supposed to answer. If the core cannot fit the configured context bound, preparation fails before provider dispatch rather than truncating speech or identity. Gazette articles are omitted for continuation opportunities. Other personal history retains its normal bounded provenance rules.
+
+The source is checked against canonical public completed-run/event/Director provenance and actual speakers. Source and root visibility/pair binding are rechecked inside the successful conversation transaction. Accepted continuation lineage is inserted as `settings.director_conversation_flow:RUN_ID` with identifiers and ordinals only. A withdrawal rolls back new speech, lineage, memories and relationship changes together; existing dispatched accounting stays committed. Quiet, rejected, failed and replayed work creates no accepted lineage. No historical rows, notes, source aliases, world facts or memory receipts are rewritten or manufactured.
+
+The input version scopes new/reused managed sessions, preserving old session rows and the hosted definition. Output shapes and v1/v2 database contract constraints are unchanged, so no migration is required. Both adapters carry the same fresh guidance. Existing physical Gazette release pins and editorial publication controls are unaffected.
+
+## Creative guidance and limits
+
+Residents may get angry, argue, refuse, misunderstand, remain unconvinced or leave a disagreement unresolved. Conflict, apologies, agreement, forgiveness, lessons and punchlines are never required. Ordinary talk and affection remain possible. Short reactions, fragments and blunt replies are valid; the parser does not enforce grammar or punctuation. Every message is still 1-160 Unicode characters, unchanged through moderation and persistence. No hostility quota, sentiment classifier, topic rotation or scripted line is added. Child interactions remain age-appropriate; existing moderation and protections against threats, harassment and persistent bullying remain.
+
+No production ENV or hosted instructions were inspected or edited during implementation. The supplied CSV establishes that saved exchanges never exceeded four messages; it does not establish the effective configured maximum or the model's reason for stopping. This change does not silently raise production message or output-token limits. An owner can inspect existing protected configuration without disclosing credentials; any allowance change remains separately reviewed. Contradictory hosted guidance may still affect writing and needs an owner-reviewed export before editing it.
+
+## Verification and rollout
+
+Run all 27 offline suites and exact-commit Ubuntu CI, including real separate-UID/systemd integration. Synthetic regressions cover same-pair selection ahead of underserved neighbors, bounded fairness return, odd/even handoff, complete anchored context/byte pressure, both adapters, exact angry speech, moderation, source withdrawal rollback, quiet/failed/uncertain chain breaks, replay, cooldowns, daily requests and retained accounting. Existing sleep and concurrency suites remain mandatory. Offline mocks demonstrate plumbing and guards, not literary quality or that a live model will sustain an argument. No live quality evaluation or paid call is authorized or performed.
+
+Deploy only through the existing separately reviewed exact-SHA release procedure. No schema migration, permission change, ENV edit, credential change, hosted-agent edit or timer restart is required by this implementation. After owner deployment, observe ordinary saved encounters for meaningful replies, natural stopping and distinct voices; do not replay historical opportunities or regenerate rejected work to evaluate it. Existing archives remain individual immutable encounter records; this PR changes generation continuity, not the public reader layout or historical export format.

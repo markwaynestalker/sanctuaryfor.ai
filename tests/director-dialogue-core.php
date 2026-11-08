@@ -5,7 +5,7 @@ try{
     $schema=LittleSparks\directorSchema(['none'=>null]);$textRule=$schema['properties']['messages']['items']['properties']['text'];
     $guidance=$textRule['description'];
     check($textRule['minLength']===1&&$textRule['maxLength']===160,'Short replies remain valid; 160 is still the hard ceiling');
-    check(str_contains($guidance,'100–130')&&str_contains($guidance,'complete, natural sentences')&&str_contains($guidance,'not a target'),'Contract encourages complete concise speech without targeting the ceiling');
+    check(!str_contains($guidance,'100–130')&&str_contains($guidance,'Brief reactions, fragments and blunt replies')&&str_contains($guidance,'not a target'),'Contract permits brief and blunt speech without a character target');
     foreach(['No, I disagree.','I would rather be left alone.','That plan sounds ridiculous.','Perhaps','Shall we?','“A lovely idea.”','Maybe…','Lovely 🌻',str_repeat('é',159),str_repeat('é',160),str_repeat('x',155).' and'] as $line){
         // Deliberately unfinished wording is not rewritten or judged by a brittle punctuation heuristic.
         $proposal=$recorded;$proposal['notes']=[];$proposal['messages'][0]['text']=$line;
@@ -53,5 +53,5 @@ try{
     $request=LittleSparks\directorRequest(LittleSparks\aiConfiguration(time()),$registered,['context'=>$context],['none'=>null]);
     check(json_decode($request['input'],true)['dialogue_guidance']===$guidance&&$request['instructions']===$registered['instructions'],'Responses adapter carries the same guidance without replacing owner instructions');
     check(json_decode($request['input'],true)['encounter_guidance']===LittleSparks\directorEncounterGuidance(),'Responses receives identical encounter guidance');
-    echo "PASS concise complete-sentence guidance on new/reused managed sessions and Responses; unchanged Unicode ceiling, natural endings, exact moderation/save and request counts (offline)\n";
+    echo "PASS natural brief-reaction guidance on new/reused managed sessions and Responses; unchanged Unicode ceiling, natural endings, exact moderation/save and request counts (offline)\n";
 }catch(Throwable $e){fwrite(STDERR,$e->getMessage()."\n".$e->getTraceAsString()."\n");exit(1);}

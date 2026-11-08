@@ -118,7 +118,7 @@ try{
             $second=new MultiMessageMock(3);$r=LittleSparks\simulateDirectorOpportunity($d,gmdate('Y-m-d\TH:i:00\Z',time()-60),true,null,$second,null,null,false,null,true);
             check($r['status']==='completed','Second v2 encounter succeeds');
             check(!array_filter($second->inner->calls,fn($c)=>$c[0]==='POST'&&$c[1]==='agents/sessions'),'V2 reuses the actual hosted session with one fresh encounter submission');
-            check($second->context['shared_recent_conversations'][0]['messages']===$mock->proposal['messages'],'Reused v2 input contains complete preceding dialogue');
+            check($second->context['conversation_flow']['previous_exchange']['messages']===$mock->proposal['messages'],'Reused v2 input anchors complete preceding dialogue');
         }
     }
     $path=$dir.'/multi-responses.sqlite';copy($itemsBase,$path);$d=LittleSparks\connect($path);$d->beginTransaction();LittleSparks\migrateConversationMessages($d);$d->commit();

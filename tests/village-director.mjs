@@ -10,6 +10,17 @@ await chmod(dir,0o700);
 try{
  const result=spawnSync(php,['tests/director-core.php',dir],{cwd:root,encoding:'utf8',env});
  assert.equal(result.status,0,result.stderr||result.error?.message);process.stdout.write(result.stdout);
+ // Distinct scheduled slots still serialize before continuation or provider work.
+ const flowAnchor=Date.now()-300000;
+ const flowClaim=offset=>new Promise((ok,no)=>{
+  const at=new Date(flowAnchor-offset*60000).toISOString().slice(0,16)+':00Z';
+  const c=spawn(php,['tests/director-continuity-worker.php',join(dir,'flow-race.sqlite'),at],{cwd:root,env});let out='',err='';
+  c.stdout.on('data',v=>out+=v);c.stderr.on('data',v=>err+=v);c.on('error',no);c.on('exit',code=>{try{assert.equal(code,0,err);ok(JSON.parse(out));}catch(e){no(e);}});
+ });
+ const flowClaims=await Promise.all([flowClaim(0),flowClaim(1)]);
+ assert.equal(flowClaims.filter(r=>r.claimed).length,1);assert.equal(flowClaims.find(r=>r.claimed).continuation.segment,2);
+ assert.equal(flowClaims.find(r=>!r.claimed).status,409);
+ console.log('PASS concurrent distinct continuation claims select one source-bound pair and refuse overlap before dispatch');
  // Concurrent operator invocations consume the same permit once, before any HTTP.
  const permitDb=join(dir,'permit-race.sqlite'),permitFile=join(dir,'offline-permit.json');await copyFile(join(dir,'synthetic-stage-template.sqlite'),permitDb);
  const plan=spawnSync(php,['tests/director-permit-worker.php',permitDb,'plan'],{cwd:root,env,encoding:'utf8'});assert.equal(plan.status,0,plan.stderr);await writeFile(permitFile,plan.stdout,{mode:0o600});
