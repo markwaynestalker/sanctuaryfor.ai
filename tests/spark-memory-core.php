@@ -2,6 +2,12 @@
 declare(strict_types=1);
 require __DIR__.'/../app/village.php';require __DIR__.'/../app/activity.php';require __DIR__.'/../app/director.php';require_once __DIR__.'/../app/conversation_archive.php';
 function sparkCheck(bool $ok,string $why):void{if(!$ok)throw new RuntimeException($why);}
+final class SparkCountingPdo extends PDO
+{
+    public int $reads=0;
+    public function query(string $query,?int $fetchMode=null,mixed ...$args):PDOStatement|false{$this->reads++;return $fetchMode===null?parent::query($query):parent::query($query,$fetchMode,...$args);}
+    public function prepare(string $query,array $options=[]):PDOStatement|false{$this->reads++;return parent::prepare($query,$options);}
+}
 function sparkFixtureEpisode(PDO $db,string $a,string $b,string $time,string $first,string $second,string $visibility='public',string $status='completed'):string
 {
     $id=bin2hex(random_bytes(16));$run=bin2hex(random_bytes(16));
@@ -84,6 +90,9 @@ try{
     [$r,$next]=$generate($db);sparkCheck($r['status']==='completed'&&isset($next->contexts[0]['conversation_flow']),'Continuation preserves exact source speech across independent actors');
     $latest=$db->query('SELECT id FROM conversations ORDER BY rowid DESC LIMIT 1')->fetchColumn();$archive=LittleSparks\conversationArchive($db,['conversation'=>$latest]);sparkCheck(isset($archive['conversations'][0]['continuation']['source_id']),'Reader can follow the preserved public predecessor');
     $db->exec('VACUUM INTO '.$db->quote($dir.'/reader.sqlite'));
+    $counting=new SparkCountingPdo('sqlite:'.$dir.'/reader.sqlite',null,null,[PDO::ATTR_DEFAULT_FETCH_MODE=>PDO::FETCH_ASSOC,PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION]);$counting->exec('PRAGMA query_only=ON');
+    LittleSparks\conversationArchive($counting,['size'=>'100']);$batchReads=$counting->reads;$counting->reads=0;LittleSparks\conversationArchive($counting,['conversation'=>$latest]);
+    sparkCheck($batchReads===10&&$counting->reads===10,'Eight existing multi-message archive reads plus two lineage batches stay constant for full page and one continuation: '.$batchReads.'/'.$counting->reads);$counting=null;
     $parent=$archive['conversations'][0]['continuation']['source_id'];$db->prepare("UPDATE simulation_runs SET status='failed' WHERE id=(SELECT run_id FROM conversations WHERE id=?)")->execute([$parent]);
     sparkCheck(LittleSparks\publicConversationLineage($db,[$latest])===[],'Unavailable predecessor identifiers never leak through lineage links');
     foreach(['quiet','flagged','wrong_holder','extra','incomplete','unknown','usage','expired'] as $mode){
