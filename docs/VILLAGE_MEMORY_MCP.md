@@ -150,6 +150,14 @@ or replacing a backup. Review the unmanaged source privately against the shared
 archive authorization and tracked replacement. This PR cannot certify unprovided
 production code or its old browser-route configuration.
 
+**A backup does not repair a dirty release manifest.** Because the reader was
+manually added inside the active release, the immutable-release helper may refuse
+that release with exit 20 even after this backup. Stop and preserve the active
+pointer, source and manifest for a separately reviewed owner recovery; do not
+delete the extra file, rewrite its manifest, force a pointer switch or bypass
+the helper. This PR supplies the managed replacement and clean-release routing,
+not authorization to repair the existing production release in place.
+
 Deploy only the reviewed **exact current-main SHA**, after owner approval, using
 the existing protected workflow/local `activate-reviewed` procedure in
 [TORONTO_DEPLOYMENT.md](TORONTO_DEPLOYMENT.md). Set `REVIEWED_SHA` to that actual

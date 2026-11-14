@@ -50,7 +50,7 @@ function mcpAccept(string $header):bool
 /** Returns one JSON-RPC response, or null for a notification (never runs a tool). */
 function mcpDispatch(mixed $message,string $version,callable $search):?array
 {
-    if(!$message instanceof \stdClass||($message->jsonrpc??null)!=='2.0'||!is_string($message->method??null)
+    if(!($message instanceof \stdClass)||($message->jsonrpc??null)!=='2.0'||!is_string($message->method??null)
         ||strlen($message->method)>128||array_diff(array_keys(get_object_vars($message)),['jsonrpc','id','method','params'])
         ||(property_exists($message,'params')&&!($message->params instanceof \stdClass)))return mcpError(null,-32600,'Invalid Request');
     if(!property_exists($message,'id'))return null;
@@ -71,7 +71,7 @@ function mcpDispatch(mixed $message,string $version,callable $search):?array
     }
     if($message->method!=='tools/call')return mcpError($id,-32601,'Method not found');
     if(array_diff(array_keys(get_object_vars($params)),['name','arguments','_meta'])||($params->name??null)!=='search_village_conversations'
-        ||(property_exists($params,'arguments')&&!$params->arguments instanceof \stdClass))return mcpError($id,-32602,'Invalid tool name or call parameters');
+        ||(property_exists($params,'arguments')&&!($params->arguments instanceof \stdClass)))return mcpError($id,-32602,'Invalid tool name or call parameters');
     try{
         $arguments=publicMemoryArguments(get_object_vars($params->arguments??new \stdClass()));$data=$search($arguments);
         $result=['content'=>[['type'=>'text','text'=>mcpJson($data)]],'isError'=>false];
@@ -97,12 +97,12 @@ function mcpHttp(array $server,callable $readBody,callable $search):array
     $authorization=$server['HTTP_AUTHORIZATION']??'';
     if(!is_string($authorization)||!preg_match('/\ABearer ([a-f0-9]{64})\z/i',$authorization,$m)||!hash_equals($token,$m[1]))return $reply(401,['error'=>'Unauthorized'],['WWW-Authenticate'=>'Bearer realm="sanctuary-village-memory"']);
     if(($server['QUERY_STRING']??'')!=='')return $reply(400,['error'=>'Query parameters are not accepted']);
+    $version=$server['HTTP_MCP_PROTOCOL_VERSION']??'2025-03-26';
+    if(!in_array($version,MCP_VERSIONS,true))return $reply(400,mcpError(null,-32600,'Unsupported MCP-Protocol-Version; supported: '.implode(', ',MCP_VERSIONS)));
     if(($server['REQUEST_METHOD']??'')!=='POST')return $reply(405,['error'=>'Use MCP POST; standalone SSE and sessions are not supported'],['Allow'=>'POST']);
     if(strtolower(trim(explode(';',$server['CONTENT_TYPE']??'')[0]))!=='application/json')return $reply(415,['error'=>'Send application/json']);
     if(!mcpAccept($server['HTTP_ACCEPT']??''))return $reply(406,['error'=>'Accept application/json and text/event-stream']);
     if(isset($server['CONTENT_LENGTH'])&&(!preg_match('/\A[0-9]+\z/',(string)$server['CONTENT_LENGTH'])||(int)$server['CONTENT_LENGTH']>MCP_REQUEST_BYTES))return $reply(413,['error'=>'Request too large']);
-    $version=$server['HTTP_MCP_PROTOCOL_VERSION']??'2025-03-26';
-    if(!in_array($version,MCP_VERSIONS,true))return $reply(400,mcpError(null,-32600,'Unsupported MCP-Protocol-Version; supported: '.implode(', ',MCP_VERSIONS)));
     $raw=$readBody(MCP_REQUEST_BYTES+1);
     if(!is_string($raw)||strlen($raw)>MCP_REQUEST_BYTES)return $reply(413,['error'=>'Request too large']);
     try{$message=json_decode($raw,false,16,JSON_THROW_ON_ERROR);}catch(\JsonException){return $reply(400,mcpError(null,-32700,'Parse error'));}

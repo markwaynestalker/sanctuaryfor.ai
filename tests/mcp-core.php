@@ -19,11 +19,16 @@ try{
         ['QUERY_STRING'=>'token='.$token,'expected'=>400],['REQUEST_METHOD'=>'GET','expected'=>405],['REQUEST_METHOD'=>'DELETE','expected'=>405],
         ['CONTENT_TYPE'=>'text/plain','expected'=>415],['HTTP_ACCEPT'=>'application/json','expected'=>406],
         ['HTTP_ACCEPT'=>'application/json;q=0, text/event-stream','expected'=>406],['HTTP_MCP_PROTOCOL_VERSION'=>'2099-01-01','expected'=>400],
+        ['REQUEST_METHOD'=>'GET','HTTP_MCP_PROTOCOL_VERSION'=>'2099-01-01','expected'=>400],
         ['CONTENT_LENGTH'=>'8193','expected'=>413]
     ] as $case){$expected=$case['expected'];unset($case['expected']);$before=$reads;$reply=LittleSparks\mcpHttp(array_replace($headers,$case),$read,$search);check($reply['status']===$expected&&$reads===$before&&$calls===0,'Reject unauthorized/invalid transport before body and database access');}
     putenv('LITTLE_SPARKS_MCP_TOKEN_FILE');check(LittleSparks\mcpHttp($headers,$read,$search)['status']===404,'Disabled by default');
     putenv('LITTLE_SPARKS_MCP_TOKEN_FILE='.$file);check(LittleSparks\mcpToken($file)===$token,'Protected external token');
-    if(PHP_OS_FAMILY!=='Windows'){chmod($file,0644);check(LittleSparks\mcpHttp($headers,$read,$search)['status']===503,'World-readable token refuses');chmod($file,0600);}
+    if(PHP_OS_FAMILY!=='Windows'){
+        chmod($file,0644);check(LittleSparks\mcpHttp($headers,$read,$search)['status']===503,'World-readable token refuses');chmod($file,0600);
+        $link=$dir.'/mcp-token-link';symlink($file,$link);putenv('LITTLE_SPARKS_MCP_TOKEN_FILE='.$link);check(LittleSparks\mcpHttp($headers,$read,$search)['status']===503,'Symlink token refuses');putenv('LITTLE_SPARKS_MCP_TOKEN_FILE='.$file);
+        chmod($dir,0770);check(LittleSparks\mcpHttp($headers,$read,$search)['status']===503,'Writable token directory refuses');chmod($dir,0700);
+    }
     try{LittleSparks\mcpToken(__FILE__);throw new LogicException('Code-tree secret accepted');}catch(RuntimeException){}
     foreach(LittleSparks\MCP_VERSIONS as $version){$body=LittleSparks\mcpJson(['jsonrpc'=>'2.0','id'=>'init','method'=>'initialize','params'=>['protocolVersion'=>$version,'capabilities'=>new stdClass(),'clientInfo'=>['name'=>'offline','version'=>'1']]]);$reply=LittleSparks\mcpHttp(array_replace($headers,['HTTP_MCP_PROTOCOL_VERSION'=>$version]),$read,$search);check(json_decode($reply['body'],true)['result']['protocolVersion']===$version,'Negotiate each supported version without database');}
     $bad=['null','[]','[{}]','{"jsonrpc":"2.0","id":null,"method":"ping"}','{"jsonrpc":"1.0","id":1,"method":"ping"}','{"jsonrpc":"2.0","id":1,"method":"ping","params":null}','{"jsonrpc":"2.0","id":1,"result":{}}'];
