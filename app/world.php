@@ -70,7 +70,7 @@ function journal(PDO $db, int $before = 0): array
     $dialogue=[];
     $ids=array_column(array_filter($rows,fn($row)=>in_array($row['kind'],['conversation','quiet_time'],true)),'id');
     if($ids){
-        $hasAi=(int)$db->query('PRAGMA user_version')->fetchColumn()>=3;
+        $version=(int)$db->query('PRAGMA user_version')->fetchColumn();$hasAi=$version>=3;
         $source=$hasAi?"CASE WHEN ai.conversation_id IS NOT NULL THEN 'openai' ELSE 'scripted' END":"'scripted'";
         $aiJoin=$hasAi?'LEFT JOIN ai_conversations ai ON ai.conversation_id=c.id':'';
         // Batch only this event page. Both participants disambiguate multi-pair runs;
@@ -97,6 +97,10 @@ function journal(PDO $db, int $before = 0): array
             $dialogue[$eventId][$conversationId]['messages'][]=['resident_id'=>$line['resident_id'],'name'=>$line['name'],'body'=>$line['body']];
         }
     }
+    require_once __DIR__.'/conversation_archive.php';
+    $conversationIds=[];foreach($dialogue as $group)foreach($group as $c)$conversationIds[]=$c['id'];
+    $lineage=publicConversationLineage($db,array_slice(array_values(array_unique($conversationIds)),0,100),$version??0);
+    foreach($dialogue as &$group)foreach($group as &$c)if(isset($lineage[$c['id']]))$c['continuation']=$lineage[$c['id']];unset($group,$c);
     foreach ($rows as &$row){
         $row['description']=EVENT_TEXT[$row['kind']];
         $row['conversations']=array_values($dialogue[$row['id']]??[]);

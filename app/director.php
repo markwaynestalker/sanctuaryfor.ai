@@ -14,6 +14,7 @@ interface DirectorTransport
 require_once __DIR__.'/director_transport.php';
 require_once __DIR__.'/director_staging.php';
 require_once __DIR__.'/director_access.php';
+require_once __DIR__.'/spark_dialogue.php';
 
 function directorSession(PDO $db,array $registered,array $pair,string $runtime,int $now,string $contract='sanctuary.director.v1',?array $contextScope=null):array
 {
@@ -21,7 +22,7 @@ function directorSession(PDO $db,array $registered,array $pair,string $runtime,i
     foreach($ids as $id){$q=$db->prepare('SELECT revision FROM resident_identities WHERE resident_id=?');$q->execute([$id]);$revisions[$id]=(int)$q->fetchColumn();}
     $scopeParts=[$ids,$revisions,$runtime];if($contract!=='sanctuary.director.v1')$scopeParts[]=$contract;
     if(str_ends_with($contract,'.v2'))$scopeParts[]=conversationConfiguration();
-    $scopeParts[]=$contextScope??['input_context'=>'sqlite-v6-5','published_reporting'=>null];
+    $scopeParts[]=$contextScope??['input_context'=>'sqlite-v6-6','published_reporting'=>null];
     $scope=hash('sha256',json_encode($scopeParts,JSON_THROW_ON_ERROR));
     $execution=directorExecutionConfiguration();
     $q=$db->prepare("SELECT * FROM director_sessions WHERE fingerprint=? AND scope=? AND state IN ('new','ready') AND turns<? AND created_at>=? ORDER BY rowid DESC LIMIT 1");
@@ -151,6 +152,8 @@ function simulateDirectorOpportunity(PDO $db,string $at,bool $allowPaid,?AiTrans
     $configuredManaged=$configuredManaged||$liveManaged;
     if($stagingContinueAfter!==null&&(!$configuredManaged||!$conversationOnly||$staging!==null))throw new AiGuard('configuration_invalid');
     $registered=registeredDirector($db,$cfg);$pricing=aiConfiguration($now);if($registered['model']!==$pricing['model'])throw new AiGuard('model_unpriced');
+    $independent=sparkDialogueMode()==='independent';$sparkCfg=$independent?sparkDialogueConfiguration($db,$cfg,$pricing):null;
+    if($independent&&($managed!==null||$staging!==null||$configuredManaged||$stagingContinueAfter!==null))throw new AiGuard('configuration_invalid');
     simulationInterval();memoryConfiguration();
     $claim=claimActivity($db,$at,$now);if(isset($claim['replay']))return $claim['replay']+['replayed'=>true];
     $attempt=null;$usage=null;
@@ -159,9 +162,10 @@ function simulateDirectorOpportunity(PDO $db,string $at,bool $allowPaid,?AiTrans
         $choices=aiActionChoices($db,$claim['pair'][0]['id'],$claim['pair'][1]['id'],$now);
         if(bulletinCanPost($db,$claim['pair'][0]['id'],$now))$choices['post_notice']=['kind'=>'post_notice'];
         if($conversationOnly)$choices=['none'=>null];
+        if($independent)$choices=['none'=>null];
         $prepared=($contextProvider??new SqliteDirectorContextProvider())->prepare($db,$claim['pair'],$choices,$claim,$cfg);
         $db->exec('BEGIN IMMEDIATE');try{$session=directorSession($db,$registered,$claim['pair'],$cfg['runtime'],$now,$prepared['context']['contract'],$prepared['session_scope']??null);$db->exec('COMMIT');}catch(\Throwable $e){$db->exec('ROLLBACK');throw $e;}
-        $body=$cfg['runtime']==='responses'?directorRequest($pricing,$registered,$prepared,$choices):null;
+        $body=$cfg['runtime']==='responses'&&!$independent?directorRequest($pricing,$registered,$prepared,$choices):null;
         $pricing['director_session']=$session['id'];$pricing['director_runtime']=$cfg['runtime'];
         $pricing['director_once']=$staging!==null;
         $pricing['director_context']=hash('sha256',json_encode($prepared['context'],JSON_THROW_ON_ERROR|JSON_UNESCAPED_UNICODE));
@@ -170,8 +174,11 @@ function simulateDirectorOpportunity(PDO $db,string $at,bool $allowPaid,?AiTrans
         if($configuredManaged)$pricing['director_slots']=8; // Bounded wire lifecycle, not a daily ceiling.
         if($stagingContinueAfter!==null)$pricing['staging_continue_after']=$stagingContinueAfter;
         if($staging!==null){$staging->assertEncounter($db,$at,$registered,$prepared);$pricing['director_slots']=8;$pricing['staging_allocation']=100000;}
+        if($independent){$pricing['spark_generation_calls']=$sparkCfg['generation_calls'];$pricing['director_slots']=2;$pricing['max_output']=SPARK_REPLY_OUTPUT_TOKENS;}
         $attempt=reserveAi($db,$claim['id'],$claim['pair'],$pricing,$now);
-        if($managed!==null){
+        if($independent){
+            $responses??=new OpenAiTransport();$proposal=independentSparkEncounter($db,$responses,$attempt,$prepared,$pricing,$sparkCfg,$usage);
+        }elseif($managed!==null){
             $result=($staging!==null||$configuredManaged)?stagingManagedEncounter($db,$managed,$attempt,$session,$registered,$prepared,$choices,null,null,$conversationOnly,$staging===null):managedDirectorEncounter($db,$managed,$attempt,$session,$registered,$prepared,$choices);$proposal=$result['proposal'];
             if($configuredManaged&&$staging===null&&!$result['usage_uncertain'])$proposal['managed_commitment']=$attempt['reserved'];
             // Best-effort usage is not final billing. Successful configured calls

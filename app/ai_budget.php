@@ -4,6 +4,7 @@ namespace LittleSparks;
 use PDO;
 use RuntimeException;
 require_once __DIR__.'/director_access.php';
+require_once __DIR__.'/spark_accounting.php';
 
 final class AiGuard extends RuntimeException
 {
@@ -45,7 +46,7 @@ function aiInputTokenLimit():int{return aiBoundedInteger('LITTLE_SPARKS_AI_MAX_I
 function aiOutputTokenLimit():int{return aiBoundedInteger('LITTLE_SPARKS_AI_MAX_OUTPUT_TOKENS',512,1,1000000000);}
 function aiRequestByteLimit():int{return aiBoundedInteger('LITTLE_SPARKS_AI_MAX_REQUEST_BYTES',16384,1,1048576);}
 function aiManagedMinimumCommitment():int{return aiBoundedInteger('LITTLE_SPARKS_DIRECTOR_MIN_COMMITMENT_MICROUSD',10000,0,1000000);}
-function aiDayBoundaryGuard():int{return aiBoundedInteger('LITTLE_SPARKS_AI_DAY_BOUNDARY_GUARD_SECONDS',90,directorExecutionConfiguration()['lease_seconds'],86400);}
+function aiDayBoundaryGuard():int{$lease=directorExecutionConfiguration()['lease_seconds'];return aiBoundedInteger('LITTLE_SPARKS_AI_DAY_BOUNDARY_GUARD_SECONDS',getenv('LITTLE_SPARKS_DIALOGUE_MODE')==='independent'?max(90,$lease):90,$lease,86400);}
 function aiHttpConfiguration():array{return ['connect_seconds'=>aiBoundedInteger('LITTLE_SPARKS_AI_HTTP_CONNECT_SECONDS',5,1,45),'timeout_seconds'=>aiBoundedInteger('LITTLE_SPARKS_AI_HTTP_TIMEOUT_SECONDS',15,1,45)];}
 function aiMonthlyBudget():int
 {
@@ -125,9 +126,15 @@ function reserveAi(PDO $db,string $period,array $pair,array $config,int $now): a
         $query=$db->prepare('SELECT COALESCE(SUM(request_slots),0) FROM ai_attempts WHERE day=?');$query->execute([$day]);
         $used=(int)$query->fetchColumn();$slots=$config['director_slots']??2;
         if(directorEnabled($db)){$q=$db->prepare('SELECT COALESCE(SUM(request_slots-2),0) FROM director_attempts WHERE day=?');$q->execute([$day]);$used+=(int)$q->fetchColumn();}
-        $used+=directorAccessReservedRequests($db,$day);
+        $used+=directorAccessReservedRequests($db,$day)+sparkExtraRequests($db,$day);
+        $sparkCalls=$config['spark_generation_calls']??null;
+        if($sparkCalls!==null){
+            if(!is_int($sparkCalls)||$sparkCalls<2||$sparkCalls>576||($config['director_runtime']??null)!=='responses'||$slots!==2||!sparkLedgerInstalled($db))throw new AiGuard('configuration_invalid');
+            if($used>$config['daily_requests']-($sparkCalls+1))throw new AiGuard('daily_request_cap');
+        }
         if(!is_int($slots)||$slots<2||$slots>8||$used>$config['daily_requests']-$slots)throw new AiGuard('daily_request_cap');
         $reserved=estimatedAiCost(aiInputTokenLimit(),$config['max_output'],$config['input_rate'],$config['output_rate']);
+        if($sparkCalls!==null){$reserved*=$sparkCalls;if($reserved>1000000)throw new AiGuard('configuration_invalid');}
         if(($config['director_runtime']??null)==='agents')$reserved=max($reserved,aiManagedMinimumCommitment()); // application hold, not a proven provider billing maximum
         if(isset($config['staging_allocation'])){
             if($config['staging_allocation']!==100000||($config['director_once']??null)!==true||$slots!==8||($config['director_runtime']??null)!=='agents')throw new AiGuard('configuration_invalid');
@@ -142,6 +149,7 @@ function reserveAi(PDO $db,string $period,array $pair,array $config,int $now): a
         if(isset($config['director_session']))$db->prepare("INSERT INTO director_attempts(id,period,session_id,day,month,runtime,context_sha256,contract_version,request_slots,reserved_microusd,state,created_at) VALUES (?,?,?,?,?,?,?,'sanctuary.director.v1',?,?,'reserved',?)")
             ->execute([$id,$period,$config['director_session'],$day,$month,$config['director_runtime'],$config['director_context'],$slots,$reserved,gmdate('Y-m-d\TH:i:s\Z',$now)]);
         if(isset($config['director_output_contract'])&&str_ends_with($config['director_output_contract'],'.v2'))$db->prepare('INSERT INTO conversation_attempt_contracts VALUES (?,?)')->execute([$id,$config['director_output_contract']]);
+        if($sparkCalls!==null)$db->prepare("INSERT INTO spark_encounters(attempt_id,generation_limit,reserved_extra_slots,state,created_at) VALUES (?,?,?,'reserved',?)")->execute([$id,$sparkCalls,$sparkCalls-1,gmdate('Y-m-d\TH:i:s\Z',$now)]);
         if($continuation!==null)$db->prepare('INSERT INTO settings(name,value) VALUES (?,?)')->execute(['director_rejected_create_continuation:'.$continuation,$id]);
         $db->exec('COMMIT');return ['id'=>$id,'day'=>$day,'month'=>$month,'expires'=>$expires,'reserved'=>$reserved];
     }catch(\Throwable $error){$db->exec('ROLLBACK');throw $error;}

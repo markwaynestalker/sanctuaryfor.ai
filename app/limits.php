@@ -31,11 +31,12 @@ function activityConfiguration():array
 function residentFriendshipLimit():int{return unsignedEnvironmentInteger('LITTLE_SPARKS_RESIDENT_FRIENDSHIP_MAX',8);}
 function directorExecutionConfiguration():array
 {
-    // These must fit the existing 50-second systemd unit and eight-slot V6 ledger.
-    // Unsupported values are rejected, never silently clamped to these bounds.
-    $run=boundedEnvironmentInteger('LITTLE_SPARKS_DIRECTOR_RUN_SECONDS',45,20,45);
+    // Independent mode needs its separately reviewed 300-second service drop-in.
+    // Existing Director defaults/envelope are unchanged; never silently clamp.
+    $independent=getenv('LITTLE_SPARKS_DIALOGUE_MODE')==='independent';
+    $run=boundedEnvironmentInteger('LITTLE_SPARKS_DIRECTOR_RUN_SECONDS',$independent?180:45,20,$independent?240:45);
     $finish=boundedEnvironmentInteger('LITTLE_SPARKS_DIRECTOR_FINISH_RESERVE_SECONDS',15,5,$run-1);
-    $lease=boundedEnvironmentInteger('LITTLE_SPARKS_AI_LEASE_SECONDS',60,$run+$finish,PHP_INT_MAX-time());
+    $lease=boundedEnvironmentInteger('LITTLE_SPARKS_AI_LEASE_SECONDS',$independent?$run+$finish+15:60,$run+$finish,PHP_INT_MAX-time());
     return ['run_seconds'=>$run,'finish_reserve_seconds'=>$finish,'lease_seconds'=>$lease,
         'http_timeout_seconds'=>boundedEnvironmentInteger('LITTLE_SPARKS_DIRECTOR_HTTP_TIMEOUT_SECONDS',8,1,$run),
         'poll_timeout_seconds'=>boundedEnvironmentInteger('LITTLE_SPARKS_DIRECTOR_POLL_TIMEOUT_SECONDS',4,1,$run-$finish),

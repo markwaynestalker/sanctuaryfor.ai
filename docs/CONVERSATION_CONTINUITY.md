@@ -1,5 +1,7 @@
 # Conversation continuity and room for disagreement
 
+The later [personal memory/independent-reply change](SPARK_MEMORY_AND_AGENCY.md) adds public predecessor links and opt-in per-Spark generation, while retaining the pairing window and historical records described here. Fresh context advances to sqlite-v6-6; independent calls use their own additive ledger rather than altering managed eight-slot history.
+
 The November 8 owner review found short, frequently rotated sketches rather than sustained interaction. The owner approved continuity before rotation, less creative direction, and personality-consistent anger and arguments. This supersedes the earlier complete-sentence/100-130-character writing guidance. It preserves the 160-character validation ceiling, strict speaker alternation, configured message limits and original words.
 
 ## Behavior

@@ -1,6 +1,7 @@
 <?php
 declare(strict_types=1);
 namespace LittleSparks;
+require_once __DIR__.'/spark_memory.php';
 use PDO;
 
 function directorConfiguration():array
@@ -69,7 +70,7 @@ function directorSchema(array $choices,bool $multi=false):array
     }
     if($multi){
         $cfg=conversationConfiguration();
-        if(aiOutputTokenLimit()<$cfg['max']*768+1024)throw new AiGuard('configuration_invalid');
+        if(sparkDialogueMode()==='director'&&aiOutputTokenLimit()<$cfg['max']*768+1024)throw new AiGuard('configuration_invalid');
         // Moderation includes the entire fresh context and proposal inside a JSON
         // string. Reserve for worst-case context escaping and four-byte text.
         if(aiRequestByteLimit()<2*memoryConfiguration()['context_bytes']+$cfg['max']*768+4096)throw new AiGuard('configuration_invalid');
