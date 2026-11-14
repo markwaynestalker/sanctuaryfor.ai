@@ -78,7 +78,7 @@ function sparkUsage(array $r,array $pricing):array
 function independentSparkEncounter(PDO $db,AiTransport $transport,array $attempt,array $prepared,array $pricing,array $cfg,?array &$usage):array
 {
     $end=min($attempt['expires']-3,time()+directorExecutionConfiguration()['run_seconds']);$generationEnd=$end-directorExecutionConfiguration()['finish_reserve_seconds'];
-    $messages=[];$notes=[];$receipts=[];$recalled=[[],[]];$recalls=0;$speaker=0;$topic='A quiet moment';
+    $messages=[];$notes=[];$receipts=[];$recalled=[[],[]];$willing=[true,true];$recalls=0;$speaker=0;$topic='A quiet moment';
     try{
         for($call=0;$call<$cfg['generation_calls'];$call++){
             if($messages&&villageSleepingAt(time()))break;
@@ -97,7 +97,8 @@ function independentSparkEncounter(PDO $db,AiTransport $transport,array $attempt
             if($p['mode']==='stop')break;
             $sequence=count($messages);$messages[]=['resident_id'=>$resident,'text'=>$p['text']];if($sequence===0)$topic=$p['topic'];
             if($p['remember']&&count($notes)<2)$notes[]=['resident_id'=>$resident,'sequence'=>$sequence,'quote'=>$p['text'],'classification'=>'interpretation'];
-            if(count($messages)>=$cfg['max']||(!$p['keep_talking']&&count($messages)>=$cfg['min']))break;
+            $willing[$speaker]=$p['keep_talking'];
+            if(count($messages)>=$cfg['max']||(count($messages)>=2&&in_array(false,$willing,true)))break;
             $speaker=1-$speaker;$recalls=0;
         }
         $conversation=count($messages)>=$cfg['min'];

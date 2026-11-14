@@ -37,6 +37,7 @@ final class PersonalSparkMock implements LittleSparks\AiTransport
         elseif($this->mode==='quiet'){$p['mode']='stop';$p['text']='';$p['remember']=false;$p['keep_talking']=false;}
         else{$this->said++;$this->speech[]=['resident_id'=>$self,'text'=>$p['text']];}
         if($this->mode==='wrong_holder')$p['resident_id']=$c['listener']['id'];
+        if($this->mode==='first_stop'&&$this->said===1)$p['keep_talking']=false;
         if($this->mode==='extra')$p['world_action']='plant_tree';
         if($this->mode==='expired')$this->db->exec('UPDATE ai_lease SET expires_at=0 WHERE owner IS NOT NULL');
         $r=['status'=>'completed','model'=>'gpt-6-luna','service_tier'=>'default','usage'=>['input_tokens'=>1500,'output_tokens'=>150,'total_tokens'=>1650],
@@ -84,6 +85,8 @@ try{
         $count=count($mock->calls);$again=LittleSparks\simulateDirectorOpportunity($db,$op,true,$mock);sparkCheck($again['replayed']&&count($mock->calls)===$count,'Completed opportunity never repeats independent calls');
         $beforeCalls=$calls;try{$db->exec('DELETE FROM spark_calls');throw new LogicException('Audit deletion accepted');}catch(PDOException){}sparkCheck($db->query('SELECT * FROM spark_calls ORDER BY sequence')->fetchAll()===$beforeCalls,'Call history is immutable');
     }
+    $db=$fresh('first-stop');[$r,$mock]=$generate($db,'first_stop',16);sparkCheck($r['status']==='completed'&&count($mock->speech)===2,'The first Spark\'s refusal prevents another reply even if the counterpart wants to continue');
+    $db=$fresh('first-stop-min');putenv('LITTLE_SPARKS_CONVERSATION_MIN_MESSAGES=8');[$r,$mock]=$generate($db,'first_stop',16);sparkCheck($r['status']==='completed'&&$r['outcome']==='quiet'&&count($mock->speech)===2,'A configured long minimum cannot force a refusing Spark to keep speaking');putenv('LITTLE_SPARKS_CONVERSATION_MIN_MESSAGES');
     $db=$fresh('recall');$old=sparkFixtureEpisode($db,$a,$b,'2026-10-20T12:00:00Z','We disagreed about scorched lasagna.','Ask before changing my oven.');
     [$r,$mock]=$generate($db,'recall');sparkCheck($r['status']==='completed'&&$mock->contexts[1]['recalled_episodes'][0]['id']===$old,'A resident asks for and receives its older source-bound memory');
     sparkCheck((int)$db->query("SELECT COUNT(*) FROM settings WHERE name LIKE 'spark_memory_context:%'")->fetchColumn()===2,'Each accepted participant has an exposure receipt, not shared omniscience');
