@@ -39,9 +39,20 @@ try{
     }
     $q=$db->prepare('SELECT COALESCE(SUM(estimated_microusd),0) AS known_estimated_microusd,COALESCE(SUM(CASE WHEN estimated_microusd IS NULL THEN reserved_microusd ELSE 0 END),0) AS unknown_committed_microusd FROM ai_attempts WHERE month=?');$q->execute([$month]);
     $report['monthly_billing']=['values_are_application_estimates'=>true]+$q->fetch();
+    $report['monthly_billing']['provider_billed_microusd']=null;
+    $report['monthly_billing']['provider_billing_source']='not_imported';
+    $report['monthly_billing']['application_committed_microusd']=$report['monthly_committed_microusd'];
+    $report['monthly_billing']['cap_applies_to']='application_estimates_and_unresolved_holds';
+    $report['monthly_billing']['legacy_estimates_may_include_full_reservations']=true;
+    $report['monthly_billing']['known_and_unknown_totals_basis']='raw_ledger_before_explicit_settlements; use application_committed_microusd for admission';
     $report['recent_provider_failures']=$db->query("SELECT state,error_code,created_at FROM ai_attempts WHERE error_code IS NOT NULL OR state IN ('rejected','uncertain') ORDER BY created_at DESC,id DESC LIMIT 10")->fetchAll();
     if($version>=6){
         require_once __DIR__.'/../app/director.php';
+        $q=$db->prepare('SELECT COALESCE(SUM(maximum),0) FROM (SELECT MAX(o.estimated_microusd) AS maximum FROM director_usage_observations o JOIN ai_attempts a ON a.id=o.attempt_id WHERE a.month=? GROUP BY o.attempt_id)');$q->execute([$month]);
+        $report['monthly_billing']['managed_observed_estimate_microusd']=(int)$q->fetchColumn();
+        $report['monthly_billing']['managed_observations_are_final_billing']=false;
+        $q=$db->prepare("SELECT COUNT(*) FROM director_billing_reviews r JOIN settings s ON s.name='director_billing_settlement:'||r.attempt_id JOIN ai_attempts a ON a.id=r.attempt_id WHERE a.month=? AND json_valid(s.value) AND r.review_id=json_extract(s.value,'$.review_id')");$q->execute([$month]);
+        $report['monthly_billing']['explicit_owner_settlements']=(int)$q->fetchColumn();
         $report['daily']['reserved_requests']=(int)$report['daily']['reserved_requests']+LittleSparks\directorAccessReservedRequests($db,$day);
         $q=$db->prepare("SELECT COALESCE(SUM(request_slots-2),0) AS extra_slots,COALESCE(SUM(CASE WHEN runtime='agents' THEN started_requests ELSE 0 END),0) AS managed_started FROM director_attempts WHERE day=?");$q->execute([$day]);$extra=$q->fetch();
         $report['daily']['reserved_requests']=(int)$report['daily']['reserved_requests']+(int)$extra['extra_slots'];

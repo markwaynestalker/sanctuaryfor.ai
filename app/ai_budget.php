@@ -81,7 +81,15 @@ function assertRejectedCreateContinuation(PDO $db,string $ids):void
 function aiCommittedTotal(PDO $db,string $month,?string $exclude=null):int
 {
     $base="CASE WHEN a.state IN ('reserved','uncertain','settled') THEN MAX(a.reserved_microusd,COALESCE(a.estimated_microusd,0)) ELSE COALESCE(a.estimated_microusd,a.reserved_microusd) END";
-    if(directorEnabled($db))$base="MAX(($base),COALESCE((SELECT MAX(estimated_microusd) FROM director_usage_observations WHERE attempt_id=a.id),0),COALESCE((SELECT MAX(commitment_microusd) FROM director_billing_reviews WHERE attempt_id=a.id),0))";
+    if(directorEnabled($db)){
+        $observed="COALESCE((SELECT MAX(estimated_microusd) FROM director_usage_observations WHERE attempt_id=a.id),0)";
+        $base="MAX(($base),$observed,COALESCE((SELECT MAX(commitment_microusd) FROM director_billing_reviews WHERE attempt_id=a.id),0))";
+        // Only an explicit, snapshot-bound owner settlement can supersede a
+        // historical reservation. Old rows and reviews remain unchanged.
+        $settlement="(SELECT r.commitment_microusd FROM director_billing_reviews r JOIN settings s ON s.name='director_billing_settlement:'||a.id WHERE json_valid(s.value) AND json_extract(s.value,'$.schema')='sanctuary.managed-billing-settlement.v1' AND r.attempt_id=a.id AND r.review_id=json_extract(s.value,'$.review_id') AND r.outcome='reviewed' AND r.evidence_sha256=json_extract(s.value,'$.evidence_sha256'))";
+        $reviewedAmount="COALESCE((SELECT MAX(amount_microusd) FROM director_billing_reviews WHERE attempt_id=a.id),0)";
+        $base="CASE WHEN $settlement IS NOT NULL THEN MAX($settlement,$observed,$reviewedAmount) ELSE $base END";
+    }
     $q=$db->prepare("SELECT COALESCE(SUM($base),0) FROM ai_attempts a WHERE a.month=?".($exclude===null?'':' AND a.id<>?'));$q->execute($exclude===null?[$month]:[$month,$exclude]);
     return (int)$q->fetchColumn()+directorExternalCommitment($db,$month);
 }

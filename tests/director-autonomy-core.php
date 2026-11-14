@@ -14,7 +14,7 @@ try{
         $q->execute([$id]);check($q->fetch()===$old,'Original uncertainty, cost and dispatch fields unchanged: '.$mode);
         check((int)$d->query('SELECT SUM(request_slots) FROM director_attempts')->fetchColumn()===16,'Both full eight-slot reservations retained');
         check((int)$d->query('SELECT COUNT(*) FROM messages')->fetchColumn()===2,'Only actual accepted subsequent dialogue saved');
-        check(LittleSparks\aiCommittedTotal($d,gmdate('Y-m'))>=20000,'Uncertain and successful commitments both counted');
+        check(LittleSparks\aiCommittedTotal($d,gmdate('Y-m'))===10325,'Full uncertain hold and successful usage estimate both counted');
         LittleSparks\recordSchedulerResult($d,$success);$d->exec('PRAGMA query_only=ON');$d->beginTransaction();$health=LittleSparks\operationalStatus($d,time());$d->commit();$d->exec('PRAGMA query_only=OFF');
         check($health['scheduler']['operational']&&$health['director_configured']&&$health['future_opportunities_eligible'],'Historical failure does not make health permanently broken');
         check($health['last_failed_opportunity']['id']===$failed['opportunity_id']&&$health['last_successful_ai_conversation']!==null,'Health distinguishes previous failure from successful saved conversation');
@@ -39,7 +39,7 @@ try{
     $n=count($next->calls);$run($d,$op(10),$next);check(count($next->calls)===$n,'Recovered failed opportunity is never replayed');
     // A later observation larger than the original hold must still prevent overspend.
     LittleSparks\observeManagedUsage($d,$held,'turn_expired',['input_tokens'=>200000,'output_tokens'=>100000,'total_tokens'=>300000],$pricing);
-    check(LittleSparks\aiCommittedTotal($d,gmdate('Y-m'))>=85000,'Higher uncertain observed cost remains charged without operator review');
+    check(LittleSparks\aiCommittedTotal($d,gmdate('Y-m'))===75325,'Higher uncertain observed cost plus the successful usage estimate remain charged without operator review');
     // Drive the real scheduler through its already-failed current slot with missing credentials.
     $d=$stageFresh();$due=LittleSparks\dueOpportunity(time());$failed=$run($d,$due,new StagingMock('lost'));$path=$d->query('PRAGMA database_list')->fetch()['file'];
     $before=$d->query('SELECT * FROM ai_attempts ORDER BY id')->fetchAll();$oldDir=getenv('CREDENTIALS_DIRECTORY');$oldDb=getenv('LITTLE_SPARKS_DB');
