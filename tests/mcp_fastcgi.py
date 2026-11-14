@@ -78,12 +78,14 @@ def main():
     config = work / 'nginx.conf'
     config.write_text('daemon off;\nmaster_process off;\npid ' + str(work / 'nginx.pid') + ';\n'
         'error_log ' + str(work / 'nginx.log') + ' notice;\nevents { worker_connections 64; }\nhttp {\n'
-        + (ROOT / 'ops/nginx/mcp-http.conf').read_text() + '\nclient_body_temp_path ' + str(work / 'body')
+        + (ROOT / 'ops/nginx/mcp-http.conf').read_text() + '\naccess_log off;\nclient_body_temp_path ' + str(work / 'body')
         + ';\nfastcgi_temp_path ' + str(work / 'fastcgi-temp') + ';\nserver {\nlisten 127.0.0.1:'
         + str(port) + ' ssl;\nserver_name localhost;\nssl_certificate ' + str(certificate)
         + ';\nssl_certificate_key ' + str(key) + ';\nroot ' + str(current / 'public')
         + ';\nallow 127.0.0.2;\ndeny all;\nauth_basic "Inherited fixture gate";\nauth_basic_user_file ' + str(work / 'unused-passwords') + ';\n' + server + '\n}\n}\n')
-    subprocess.run([nginx, '-t', '-p', str(work), '-c', str(config)], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
+    checked = subprocess.run([nginx, '-e', str(work / 'nginx.log'), '-t', '-p', str(work), '-c', str(config)], stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
+    if checked.returncode:
+        raise RuntimeError('Disposable nginx configuration failed: ' + checked.stderr.decode('utf-8', 'replace'))
     children = []
     def request(message=None, authorization=True, route='/mcp', method='POST', extra=None):
         headers = {'Accept': 'application/json, text/event-stream', 'Content-Type': 'application/json', 'MCP-Protocol-Version': '2025-11-25'}
@@ -106,7 +108,7 @@ def main():
             if children[0].poll() is not None:
                 raise RuntimeError('Disposable FPM failed: ' + (work / 'fpm.log').read_text())
             time.sleep(0.05)
-        children.append(subprocess.Popen([nginx, '-p', str(work), '-c', str(config)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL))
+        children.append(subprocess.Popen([nginx, '-e', str(work / 'nginx.log'), '-p', str(work), '-c', str(config)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL))
         for _ in range(100):
             try:
                 with socket.create_connection(('127.0.0.1', port), timeout=0.1):
