@@ -19,6 +19,7 @@ LittleSparks\pageStart('While you were away');
             <?php foreach($entry['conversations'] as $conversation): ?>
             <figure data-transcript class="journal-conversation" aria-label="Saved conversation">
                 <figcaption class="journal-dialogue-source"><?= $conversation['provider']==='openai'?'AI-generated dialogue · moderated before saving':'Scripted dialogue' ?></figcaption>
+                <?php if(isset($conversation['continuation'])): $flow=$conversation['continuation']; ?><p class="field-help">Conversation continued · part <?= (int)$flow['segment'] ?>. <a href="conversations.php?conversation=<?= e($flow['source_id']) ?>&amp;open=<?= e($flow['source_id']) ?>">Read the preceding exchange</a><?php if($flow['root_id']!==$flow['source_id']): ?> · <a href="conversations.php?conversation=<?= e($flow['root_id']) ?>&amp;open=<?= e($flow['root_id']) ?>">Read from the beginning</a><?php endif; ?></p><?php endif; ?>
                 <?php if(count($conversation['messages'])>4): ?><details><summary>Read <?= count($conversation['messages']) ?> saved messages</summary><?php endif; ?>
                 <button type="button" class="small-button" data-read-aloud aria-pressed="false" hidden>Read aloud</button>
                 <ol class="journal-messages" aria-label="Conversation messages">

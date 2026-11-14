@@ -231,7 +231,8 @@ function applyActivity(PDO $db,array $claim,array $proposal,array $choices,int $
             if($proposal['world_action']==='post_notice')saveBulletinNotice($db,$proposal,$pair,$run,$now);
             if($outcome==='conversation'){verifyDirectorDialogue($db,$run,$conversation,$proposal);saveDirectorMemory($db,$conversation,$proposal,$pair,$time);saveOperatorIdeaExposures($db,$conversation,$proposal['operator_idea_ids']??[],$time);
                 saveDirectorGazetteExposure($db,$run,$conversation,$pair,$proposal['gazette_context_receipt']??null,$time);
-                saveConversationFlow($db,$claim,$run,$conversation);}
+                saveConversationFlow($db,$claim,$run,$conversation);
+                saveSparkMemoryContext($db,$run,$conversation,$pair,$proposal['spark_memory_receipts']??[]);}
             $db->prepare("UPDATE director_sessions SET state='ready' WHERE id=? AND runtime='agents'")->execute([$proposal['director_session']]);
         }elseif($outcome==='conversation'&&memoryEnabled($db))conversationMemory($db,$conversation,$proposal['shared_receipt']??null);
         if($outcome==='quiet'&&$pair)event($db,$pair[0]['id'],null,'quiet_time','simulation',$time,'activity:'.$claim['id'].':quiet',$run);

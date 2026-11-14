@@ -66,7 +66,7 @@ function inspectDirectorProvider(PDO $db,string $id,string $inspection,?Director
         $q=$db->prepare('SELECT COUNT(*) FROM director_attempts d JOIN director_sessions s ON s.id=d.session_id WHERE s.provider_session_id=?');$q->execute([$sid]);
         $sessions=(int)$q->fetchColumn();$q->closeCursor();if($sessions!==1)throw new AiGuard('session_ambiguous');
         $day=gmdate('Y-m-d');$q=$db->prepare('SELECT COALESCE(SUM(request_slots),0) FROM ai_attempts WHERE day=?');$q->execute([$day]);$used=(int)$q->fetchColumn();$q->closeCursor();
-        $q=$db->prepare('SELECT COALESCE(SUM(request_slots-2),0) FROM director_attempts WHERE day=?');$q->execute([$day]);$used+=(int)$q->fetchColumn();$q->closeCursor();$used+=directorAccessReservedRequests($db,$day);
+        $q=$db->prepare('SELECT COALESCE(SUM(request_slots-2),0) FROM director_attempts WHERE day=?');$q->execute([$day]);$used+=(int)$q->fetchColumn();$q->closeCursor();$used+=directorAccessReservedRequests($db,$day)+sparkExtraRequests($db,$day);
         if($used>aiDailyRequestLimit()-3)throw new AiGuard('daily_request_cap');
         for($n=1;$n<=3;$n++){$key=substr(hash('sha256',$inspection.':'.$n),0,32);appendReconciliation($db,'director_access_request:'.$key,
             ['check_id'=>$key,'day'=>$day,'http_requests_reserved'=>1,'purpose'=>'director_reconciliation','method'=>'GET','attempt_id'=>$id,'inspection_id'=>$inspection]);}

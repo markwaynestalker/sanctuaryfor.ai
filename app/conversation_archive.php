@@ -2,6 +2,7 @@
 declare(strict_types=1);
 namespace LittleSparks;
 use PDO;
+require_once __DIR__.'/conversation_lineage.php';
 
 function archiveParameters(array $input):array
 {
@@ -54,13 +55,13 @@ function conversationPublicSource(PDO $db):array
     // Materialize public event authorization once per query. SQLite can build a
     // transient run-id lookup instead of rescanning the full event log per row.
     $prefix="WITH archive_events AS MATERIALIZED (SELECT run_id,actor_id,target_id,dedupe_key FROM events WHERE visibility='public' AND kind IN ('conversation','quiet_time') AND target_id IS NOT NULL) ";
-    return compact('prefix','sql','source','topic','messageTable');
+    return compact('prefix','sql','source','topic','messageTable','version');
 }
 /** Bounded public projection only. Never call a provider, session, writer or migration. */
 function conversationArchive(PDO $db,array $input):array
 {
     $filters=archiveParameters($input);
-    ['prefix'=>$prefix,'sql'=>$sql,'source'=>$source,'topic'=>$topic,'messageTable'=>$messageTable]=conversationPublicSource($db);
+    $publicSource=conversationPublicSource($db);['prefix'=>$prefix,'sql'=>$sql,'source'=>$source,'topic'=>$topic,'messageTable'=>$messageTable,'version'=>$version]=$publicSource;
     $values=[];
     if($filters['conversation']!==''){$sql.=' AND c.id=:conversation';$values[':conversation']=$filters['conversation'];}
     if($filters['resident']!==''){$sql.=' AND (a.resident_id=:resident OR b.resident_id=:resident)';$values[':resident']=$filters['resident'];}
@@ -95,6 +96,8 @@ function conversationArchive(PDO $db,array $input):array
         }
         $transcripts=conversationMessageBatch($db,array_column($conversations,'id'));
         foreach($conversations as &$conversation){$conversation['messages']=array_map(static function($m){unset($m['sequence']);return $m;},$transcripts[$conversation['id']]??[]);}unset($conversation);
+        $lineage=publicConversationLineage($db,array_column($conversations,'id'),$version,$publicSource);
+        foreach($conversations as &$conversation)if(isset($lineage[$conversation['id']]))$conversation['continuation']=$lineage[$conversation['id']];unset($conversation);
         if($filters['resident']!==''&&!isset($residents[$filters['resident']])){
             $q=$db->prepare('SELECT id,substr(name,1,64) AS name FROM residents WHERE id=?');$q->execute([$filters['resident']]);$selected=$q->fetch();
             if($selected)$residents[$selected['id']]=$selected;

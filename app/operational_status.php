@@ -30,6 +30,12 @@ function operationalStatus(PDO $db,int $now):array
             if(!$director['enabled'])$out['blocking_reasons'][]='director_disabled';
             if(!$out['director_configured'])$out['blocking_reasons'][]='model_unpriced';
             if($director['runtime']==='agents'){$slots=8;$reserve=max($reserve,aiManagedMinimumCommitment());}
+            if(sparkDialogueMode()==='independent'){
+                $spark=sparkDialogueConfiguration($db,$director,$pricing);$slots=$spark['generation_calls']+1;
+                $reserve=estimatedAiCost(aiInputTokenLimit(),SPARK_REPLY_OUTPUT_TOKENS,$pricing['input_rate'],$pricing['output_rate'])*$spark['generation_calls'];
+                if($reserve>1000000)throw new AiGuard('configuration_invalid');
+                $out['spark']=['mode'=>'independent','generation_limit'=>$spark['generation_calls'],'per_reply_output_tokens'=>SPARK_REPLY_OUTPUT_TOKENS,'configured_messages'=>[$spark['min'],$spark['max']]];
+            }
             if($db->query('SELECT 1 FROM director_staging_permits LIMIT 1')->fetchColumn())$out['blocking_reasons'][]='experimental_permit_consumed';
             $http=$db->query('SELECT http_status,outcome,finished_at FROM director_http_calls ORDER BY rowid DESC LIMIT 1')->fetch();
             if($http&&$http['finished_at']!==null){
@@ -38,7 +44,7 @@ function operationalStatus(PDO $db,int $now):array
             }
         }
         $day=gmdate('Y-m-d',$now);$month=gmdate('Y-m',$now);
-        $q=$db->prepare('SELECT COALESCE(SUM(request_slots),0) FROM ai_attempts WHERE day=?');$q->execute([$day]);$used=(int)$q->fetchColumn()+directorAccessReservedRequests($db,$day);
+        $q=$db->prepare('SELECT COALESCE(SUM(request_slots),0) FROM ai_attempts WHERE day=?');$q->execute([$day]);$used=(int)$q->fetchColumn()+directorAccessReservedRequests($db,$day)+sparkExtraRequests($db,$day);
         if(directorEnabled($db)){$q=$db->prepare('SELECT COALESCE(SUM(request_slots-2),0) FROM director_attempts WHERE day=?');$q->execute([$day]);$used+=(int)$q->fetchColumn();}
         $committed=aiCommittedTotal($db,$month);
         $out['allowance']=['day_utc'=>$day,'month_utc'=>$month,'daily_limit'=>$pricing['daily_requests'],'reserved_requests'=>$used,'remaining_requests'=>max(0,$pricing['daily_requests']-$used),
