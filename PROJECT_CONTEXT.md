@@ -1,5 +1,9 @@
 # SanctuaryFor.AI
 
+## Read-only public-history MCP
+
+Read docs/VILLAGE_MEMORY_MCP.md. The repository-managed standalone reader and one authenticated Streamable HTTP tool reuse conversationArchive() without copied conversation SQL. SQLite is read-only/query-only; private Spark notes, credentials, prompts, state and accounting remain inaccessible. External protected bearer file, exact limited nginx route, bounded isolated pool in existing PHP-FPM, strict Origin/arguments/protocol/byte limits and realpath release paths are required. No production configuration, deployment, service activation, paid call, Director/session/tool-registration or scheduler change. Existing Director tools=[] checks stay intact; any future hosted connection requires separate coordinated approval. Run every offline suite and required Ubuntu nginx/FPM/UID/systemd CI. Preserve the unmanaged production reader privately during any separately approved release; never overwrite/reset the active release.
+
 ## Managed accounting correction (#96)
 
 Read docs/MANAGED_ACCOUNTING.md. Successful routine managed turns use a conservative maximum observed usage estimate only after terminal/final retrieval, moderation and atomic persistence, while retaining original reservation fields and all HTTP slots. Usage estimates are not final provider bills; cumulative turn counts are independent of per-call request limits. Missing/malformed/regressing/overrun, experimental and failed attempts retain holds. Historical holds never release on deployment: a separate explicit snapshot-bound owner CLI requires attempt-attributed final billing, preserves original rows and appends review/settlement receipts. Status distinguishes application commitments from unknown provider billing. No production/configuration/timer/credential changes, cap increases, paid calls, migration, deployment or independent Spark activation. Run all offline suites and require Ubuntu CI.
