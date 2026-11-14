@@ -1,5 +1,11 @@
 # Operational limits audit (#30)
 
+Managed accounting correction: [MANAGED_ACCOUNTING.md](MANAGED_ACCOUNTING.md)
+supersedes the historical full-reservation policy for newly successful routine
+managed turns. Historical uncertainty retains its hold unless explicitly settled
+by the owner with attributable final billing evidence. Monthly limits remain
+application admission controls, not a display of provider-billed spending.
+
 Current owner direction supersedes earlier documentation describing a $1 monthly maximum or a 200-request ceiling. Daily HTTP slots and monthly application allocation are explicitly configured, with **no PHP quota default or chosen upper ceiling**. Existing reservations, uncertain billing commitments, imported metadata reservations and original accounting periods remain unchanged. Increasing ENV creates headroom; it never refunds history or retries an old opportunity.
 
 All integer values below use canonical decimal notation: no signs, whitespace, leading zeros, fractions, exponent notation or overflow. An invalid explicit value fails closed, never falls back or silently clamps. `INT_MAX` means the PHP runtime's representable integer maximum (9223372036854775807 on 64-bit Toronto), not an operator recommendation. Budgets are application reservations/estimates, not guaranteed limits on provider invoices.

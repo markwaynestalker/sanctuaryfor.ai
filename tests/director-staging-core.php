@@ -112,7 +112,7 @@ try{
     $attempt=LittleSparks\reserveAi($stage,$claim['id'],$claim['pair'],$pricing,$now);$mock=new StagingMock('deadline',$grant);$ticks=$now;
     try{LittleSparks\stagingManagedEncounter($stage,$mock,$attempt,$s,$reg,$prepared,$choices,static function()use(&$ticks){return $ticks;},static function(int $seconds)use(&$ticks){$ticks+=$seconds;});throw new LogicException('Unfinished deadline outcome accepted');}catch(LittleSparks\AiGuard){}
     check(count(array_filter($mock->calls,fn($c)=>str_ends_with($c[1],'/events')))===1,'Observation cutoff retains a single cancellation attempt before deadline');
-    $over=['input_tokens'=>2200,'output_tokens'=>700,'total_tokens'=>2900];check(LittleSparks\observeManagedUsage($stage,$attempt,'turn_stage',$over,$pricing)===null,'Excessive usage fails closed');$last=$stage->query('SELECT output_tokens,status FROM director_usage_observations ORDER BY id DESC LIMIT 1')->fetch();check((int)$last['output_tokens']===700&&$last['status']==='unknown','Retain measurable excessive usage without accepting billing');
+    $over=['input_tokens'=>2200,'output_tokens'=>700,'total_tokens'=>2900];check(LittleSparks\observeManagedUsage($stage,$attempt,'turn_stage',$over,$pricing)!==null,'Cumulative turn usage is independent of per-call output allowance');$last=$stage->query('SELECT output_tokens,status FROM director_usage_observations ORDER BY id DESC LIMIT 1')->fetch();check((int)$last['output_tokens']===700&&$last['status']==='observed','Retain measurable usage without claiming final billing');
     $stage=$stageFresh();$grant=LittleSparks\StagingPermit::consume($stage,$approved($stage));$mock=new StagingMock('good',$grant);$r=LittleSparks\simulateDirectorOpportunity($stage,$at,true,null,$mock,null,null,true,$grant);
     LittleSparks\recordManagedOutcome($stage,['id'=>$r['id']],'session_stage','turn_stage','unresolved');
     try{LittleSparks\reviewManagedBilling($stage,$r['id'],str_repeat('4',32),0,str_repeat('e',64));throw new LogicException('Stale terminal evidence accepted');}catch(LittleSparks\AiGuard $e){check($e->reason==='accounting_unresolved','Latest provider outcome must be terminal');}
@@ -143,10 +143,10 @@ try{
         $n=count($mock->calls);LittleSparks\simulateDirectorOpportunity($stage,$op,true,null,$mock,null,null,false,null,true);check(count($mock->calls)===$n,'No duplicate generation on replay');
     }
     check((int)$stage->query('SELECT COUNT(*) FROM director_staging_permits')->fetchColumn()===0,'Routine mode does not create experimental permits');
-    check((int)$stage->query('SELECT SUM(estimated_microusd) FROM ai_attempts')->fetchColumn()===20000,'Routine commitments retain full reservations; no refunds');
+    check((int)$stage->query('SELECT SUM(estimated_microusd) FROM ai_attempts')->fetchColumn()===650,'Successful routine turns commit conservative usage estimates instead of full reservations');
     putenv('LITTLE_SPARKS_AI_DAILY_REQUESTS=200');$mock=new StagingMock('good');
     $r=LittleSparks\simulateDirectorOpportunity($stage,gmdate('Y-m-d\TH:i:00\Z',time()-180),true,null,$mock,null,null,false,null,true);
-    check(!$mock->calls&&$r['status']==='failed','Configured monthly allocation blocks next routine encounter');
+    check($mock->calls&&$r['status']==='completed','Released successful reservation headroom admits the next routine encounter within the same unchanged allocation');
     putenv('LITTLE_SPARKS_AI_MONTHLY_MICROUSD=1000000');
     foreach(['flagged','validation_400'] as $mode){
         $stage=$stageFresh();$mock=new StagingMock($mode);$r=LittleSparks\simulateDirectorOpportunity($stage,$at,true,null,$mock,null,null,false,null,true);

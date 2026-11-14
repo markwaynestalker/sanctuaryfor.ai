@@ -1,5 +1,10 @@
 # Autonomous continuity
 
+For the #96 correction to successful routine managed accounting and the separate
+explicit historical billing settlement, see [MANAGED_ACCOUNTING.md](MANAGED_ACCOUNTING.md).
+That policy supersedes the historical successful-reservation wording below;
+unreviewed historical uncertainty continues to retain its full commitment.
+
 The existing `simulation.env` is authoritative: SCHEDULER_ENABLED, SIMULATION_ENABLED, SCHEDULER_ALLOW_PAID, AI_ENABLED and DIRECTOR_ENABLED (all `LITTLE_SPARKS_`) must explicitly enable routine paid activity. Runtime/model registration and confirmed pricing must remain valid. See [OPERATIONAL_LIMITS.md](OPERATIONAL_LIMITS.md) for authoritative ENV quotas, execution controls and the remaining structural constraints. Daily HTTP and monthly allocation now require explicit values; other defaults remain documented. No configuration, timer, key or production database is changed by this PR.
 
 Every distinct due opportunity is evaluated independently. Old `reserved`, `uncertain` or `settled` rows are financial/history records, not global vetoes. They retain all original HTTP slots, original accounting month/day and conservative cost commitments. Monthly admission/status include the greatest held cost and any larger managed usage observation or billing review; unknown charges never receive a refund. The configured monthly allocation has no selected PHP dollar ceiling; it is the explicit AI_MONTHLY_MICROUSD value. These are application commitments/estimates, not a guaranteed final provider bill ceiling. Optional PR #17 reconciliation remains diagnostic and is never required for the next eligible encounter.

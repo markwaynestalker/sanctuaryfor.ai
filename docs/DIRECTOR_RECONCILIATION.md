@@ -1,5 +1,10 @@
 # Owner-run reconciliation of an uncertain managed attempt
 
+This original inspector/reconciliation retains full holds. The separate explicit
+owner settlement introduced for #96 is documented in [MANAGED_ACCOUNTING.md](MANAGED_ACCOUNTING.md).
+Its evidence requirements cannot be satisfied by a rounded project dashboard
+total or by best-effort usage observations alone.
+
 This workflow is optional diagnostics, not a scheduler prerequisite. Distinct eligible encounters proceed while historical uncertainty retains its cost/request commitments. See [autonomous continuity](AUTONOMOUS_VILLAGE.md). No migration, generation, cancellation, dialogue import, retry, timer change or accounting reset is involved. This workflow is for a failed V6 managed encounter with a saved provider session; an explicit final-billing review can resolve the selected uncertainty without altering its failed history.
 
 The reported production target is attempt `20c638ec0a26a1898941c6db83b69e4c`, session `sess_0f4bf01502ac2f4d006ade71594744819682bfd9f36975b016`, opportunity `op:2026-10-25T21:15:00Z`. Its failed run and `usage_unknown` error remain historical evidence. A completed provider trace does not establish a final charge and will not create a successful Sanctuary conversation.

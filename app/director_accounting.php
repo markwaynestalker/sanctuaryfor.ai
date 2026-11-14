@@ -101,14 +101,39 @@ function observeManagedUsage(PDO $db,array $attempt,string $turn,mixed $usage,ar
     $cached=is_array($usage)?($usage['input_tokens_details']['cached_tokens']??0):0;$reasoning=is_array($usage)?($usage['output_tokens_details']['reasoning_tokens']??0):0;
     $measurable=$measurable&&is_int($cached)&&is_int($reasoning)&&$cached>=0&&$cached<=$usage['input_tokens']&&$reasoning>=0&&$reasoning<=$usage['output_tokens'];
     $cost=$measurable?estimatedAiCost($usage['input_tokens'],$usage['output_tokens'],$pricing['input_rate'],$pricing['output_rate']):null;
-    $valid=$measurable&&$usage['input_tokens']>0&&$usage['input_tokens']<=aiInputTokenLimit()&&$usage['output_tokens']>0&&$usage['output_tokens']<=$pricing['max_output'];
-    if($cost!==null&&$cost>$attempt['reserved'])$valid=false;
+    // Managed turn totals may cover several model calls. Per-call request limits
+    // are not a usage schema, and a measurable overrun must remain observable.
+    $valid=$measurable&&$usage['input_tokens']>0&&$usage['output_tokens']>0;
     $db->prepare('INSERT INTO director_usage_observations(attempt_id,turn_id,input_tokens,output_tokens,cached_tokens,reasoning_tokens,estimated_microusd,status,observed_at) VALUES (?,?,?,?,?,?,?,?,?)')
         ->execute([$attempt['id'],$turn,$measurable?$usage['input_tokens']:null,$measurable?$usage['output_tokens']:null,$measurable?$cached:null,$measurable?$reasoning:null,$cost,$valid?'observed':'unknown',gmdate('Y-m-d\TH:i:s\Z')]);
     if(!$valid)return null;
     // Observations never settle billing or release the original reservation.
     $db->prepare('UPDATE director_attempts SET input_tokens=?,output_tokens=? WHERE id=?')->execute([$usage['input_tokens'],$usage['output_tokens'],$attempt['id']]);
-    return ['input_tokens'=>$usage['input_tokens'],'output_tokens'=>$usage['output_tokens'],'observed_estimated_microusd'=>$cost];
+    return ['input_tokens'=>$usage['input_tokens'],'output_tokens'=>$usage['output_tokens'],'observed_estimated_microusd'=>$cost,'observation_id'=>(int)$db->lastInsertId()];
+}
+
+/** Called only inside the successful world transaction, after final retrieval. */
+function applyManagedUsageEstimate(PDO $db,array $attempt,array $receipt):void
+{
+    $q=$db->prepare('SELECT * FROM director_usage_observations WHERE attempt_id=? ORDER BY id');$q->execute([$attempt['id']]);$rows=$q->fetchAll();
+    $selected=[];$maximum=0;
+    foreach($rows as $row){
+        if($row['turn_id']!==$receipt['turn_id'])throw new AiGuard('accounting_unresolved');
+        $maximum=max($maximum,(int)($row['estimated_microusd']??0));
+        if(in_array((int)$row['id'],$receipt['observation_ids'],true))$selected[]=$row;
+    }
+    if(count($selected)!==2||count(array_unique($receipt['observation_ids']))!==2||$maximum>$attempt['reserved'])throw new AiGuard('accounting_unresolved');
+    foreach($selected as $row)if($row['status']!=='observed')throw new AiGuard('accounting_unresolved');
+    if((int)$selected[1]['id']!==(int)end($rows)['id'])throw new AiGuard('accounting_unresolved');
+    $q=$db->prepare('SELECT turn_id,status FROM director_managed_outcomes WHERE attempt_id=? ORDER BY id DESC LIMIT 1');$q->execute([$attempt['id']]);$terminal=$q->fetch();
+    if(!$terminal||$terminal['status']!=='completed'||$terminal['turn_id']!==$receipt['turn_id'])throw new AiGuard('accounting_unresolved');
+    $evidence=['schema'=>'sanctuary.managed-usage-estimate.v1','turn_id'=>$receipt['turn_id'],'observation_ids'=>$receipt['observation_ids'],
+        'estimated_microusd'=>$maximum,'is_final_provider_bill'=>false,'pricing_version'=>AI_PRICING_VERSION];
+    $db->prepare('INSERT INTO settings(name,value) VALUES (?,?)')->execute(['director_usage_estimate:'.$attempt['id'],json_encode($evidence,JSON_THROW_ON_ERROR)]);
+    $last=end($selected);
+    foreach(['ai_attempts','director_attempts'] as $table)$db->prepare("UPDATE $table SET input_tokens=?,output_tokens=?,estimated_microusd=? WHERE id=?")
+        ->execute([$last['input_tokens'],$last['output_tokens'],$maximum,$attempt['id']]);
+    $db->prepare("UPDATE director_attempts SET state='applied' WHERE id=?")->execute([$attempt['id']]);
 }
 function reviewManagedBilling(PDO $db,string $attemptId,string $reviewId,int $amount,string $evidenceHash):array
 {

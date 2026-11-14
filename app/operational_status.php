@@ -48,7 +48,8 @@ function operationalStatus(PDO $db,int $now):array
         if(directorEnabled($db)){$q=$db->prepare('SELECT COALESCE(SUM(request_slots-2),0) FROM director_attempts WHERE day=?');$q->execute([$day]);$used+=(int)$q->fetchColumn();}
         $committed=aiCommittedTotal($db,$month);
         $out['allowance']=['day_utc'=>$day,'month_utc'=>$month,'daily_limit'=>$pricing['daily_requests'],'reserved_requests'=>$used,'remaining_requests'=>max(0,$pricing['daily_requests']-$used),
-            'monthly_limit_microusd'=>$pricing['monthly_cap'],'committed_microusd'=>$committed,'remaining_microusd'=>max(0,$pricing['monthly_cap']-$committed),'next_encounter_slots'=>$slots,'next_encounter_commitment_microusd'=>$reserve];
+            'monthly_limit_microusd'=>$pricing['monthly_cap'],'committed_microusd'=>$committed,'remaining_microusd'=>max(0,$pricing['monthly_cap']-$committed),'next_encounter_slots'=>$slots,'next_encounter_commitment_microusd'=>$reserve,
+            'commitment_is_provider_bill'=>false,'commitment_basis'=>'application_estimates_and_unresolved_holds'];
         if($used>$pricing['daily_requests']-$slots)$out['blocking_reasons'][]='daily_request_cap';
         if($committed>$pricing['monthly_cap']-$reserve)$out['blocking_reasons'][]='monthly_budget_cap';
         $lease=$db->query('SELECT owner,expires_at FROM ai_lease WHERE singleton=1')->fetch();

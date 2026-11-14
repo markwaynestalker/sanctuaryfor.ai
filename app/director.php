@@ -180,9 +180,9 @@ function simulateDirectorOpportunity(PDO $db,string $at,bool $allowPaid,?AiTrans
             $responses??=new OpenAiTransport();$proposal=independentSparkEncounter($db,$responses,$attempt,$prepared,$pricing,$sparkCfg,$usage);
         }elseif($managed!==null){
             $result=($staging!==null||$configuredManaged)?stagingManagedEncounter($db,$managed,$attempt,$session,$registered,$prepared,$choices,null,null,$conversationOnly,$staging===null):managedDirectorEncounter($db,$managed,$attempt,$session,$registered,$prepared,$choices);$proposal=$result['proposal'];
-            if($configuredManaged&&$staging===null&&!$result['usage_uncertain'])$proposal['managed_commitment']=$attempt['reserved'];
-            // Best-effort usage is not final billing. Successful configured calls
-            // retain their full commitment; experimental/failed outcomes keep holds.
+            if($configuredManaged&&$staging===null&&!$result['usage_uncertain'])$proposal['managed_usage_estimate']=$result['usage_estimate_receipt'];
+            // Successful routine turns use an application estimate, not a final bill.
+            // Experimental/failed/missing-usage outcomes retain their full holds.
             $usage=null; // Best-effort observations must remain uncertain even if apply later fails.
         }else{
             $responses??=new OpenAiTransport();startAiRequest($db,$attempt,'responses_started');$result=$responses->post('responses',$body,$attempt['expires']);
