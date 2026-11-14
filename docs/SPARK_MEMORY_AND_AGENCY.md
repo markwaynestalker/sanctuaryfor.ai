@@ -1,6 +1,6 @@
 # Personal Spark memory and independent replies
 
-The owner requested a PR after reviewing #94 and asking why Sparks do not remember across partners like a continuous conversation. The owner subsequently clarified that quality, memory and independence matter more than minimizing the observed approximately $0.50 spend. This implementation does not shorten exchanges to fit the old eight-request managed ledger. It adds the accounting needed for the configured conversation length, while keeping accurate usage, explicit operational budgets and duplicate-dispatch protection.
+The owner requested a PR after reviewing #94 and asking why Sparks do not remember across partners like a continuous conversation. The owner subsequently clarified that quality, memory and independence matter more than minimizing token spend. This implementation does not shorten exchanges to fit the old eight-request managed ledger. It adds the accounting needed for the configured conversation length, while keeping accurate usage, explicit operational budgets and duplicate-dispatch protection.
 
 ## What changes
 
