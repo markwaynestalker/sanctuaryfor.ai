@@ -5,6 +5,7 @@ use PDO;
 use RuntimeException;
 require_once __DIR__.'/director_access.php';
 require_once __DIR__.'/spark_accounting.php';
+require_once __DIR__.'/selection_accounting.php';
 
 final class AiGuard extends RuntimeException
 {
@@ -91,7 +92,7 @@ function aiCommittedTotal(PDO $db,string $month,?string $exclude=null):int
         $base="CASE WHEN $settlement IS NOT NULL THEN MAX($settlement,$observed,$reviewedAmount) ELSE $base END";
     }
     $q=$db->prepare("SELECT COALESCE(SUM($base),0) FROM ai_attempts a WHERE a.month=?".($exclude===null?'':' AND a.id<>?'));$q->execute($exclude===null?[$month]:[$month,$exclude]);
-    return (int)$q->fetchColumn()+directorExternalCommitment($db,$month);
+    return (int)$q->fetchColumn()+directorExternalCommitment($db,$month)+selectionCommitted($db,$month);
 }
 // Caller holds BEGIN IMMEDIATE. Expiry fences old workers: their next HTTP/apply
 // lease check fails. Their generation, history and reserved headroom are not replayed.
@@ -118,7 +119,7 @@ function reserveAi(PDO $db,string $period,array $pair,array $config,int $now): a
     $db->exec('BEGIN IMMEDIATE');
     try{
         if(identityEnabled($db)&&!directorEnabled($db))throw new AiGuard('migration_required');
-        recoverExpiredAiLease($db,$now);
+        recoverExpiredAiLease($db,$now);recoverSelectionReservations($db,$now);if(selectionLeaseActive($db,$now))throw new AiGuard('simulation_busy');
         $lease=$db->query('SELECT owner FROM ai_lease WHERE singleton=1')->fetchColumn();
         if($lease!==null && $lease!==false)throw new AiGuard('simulation_busy');
         $unresolved=$db->query("SELECT id FROM ai_attempts WHERE state IN ('reserved','uncertain','settled') ORDER BY id")->fetchAll(PDO::FETCH_COLUMN);
@@ -134,7 +135,7 @@ function reserveAi(PDO $db,string $period,array $pair,array $config,int $now): a
         $query=$db->prepare('SELECT COALESCE(SUM(request_slots),0) FROM ai_attempts WHERE day=?');$query->execute([$day]);
         $used=(int)$query->fetchColumn();$slots=$config['director_slots']??2;
         if(directorEnabled($db)){$q=$db->prepare('SELECT COALESCE(SUM(request_slots-2),0) FROM director_attempts WHERE day=?');$q->execute([$day]);$used+=(int)$q->fetchColumn();}
-        $used+=directorAccessReservedRequests($db,$day)+sparkExtraRequests($db,$day);
+        $used+=directorAccessReservedRequests($db,$day)+sparkExtraRequests($db,$day)+selectionReservedRequests($db,$day);
         $sparkCalls=$config['spark_generation_calls']??null;
         if($sparkCalls!==null){
             if(!is_int($sparkCalls)||$sparkCalls<2||$sparkCalls>576||($config['director_runtime']??null)!=='responses'||$slots!==2||!sparkLedgerInstalled($db))throw new AiGuard('configuration_invalid');

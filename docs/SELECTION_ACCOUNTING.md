@@ -1,0 +1,7 @@
+# Selection accounting foundation
+
+This additive V6 ledger reserves one selection request independently of resident IDs. It has no active scheduler or provider caller. The reservation and unique dispatch intent are committed under SQLite write locks; expired work becomes uncertain and retains its full commitment. Completion also retains the conservative selection commitment. Existing conversation attempts reserve their own costs and slots, so each stage is charged once. This conservative policy does not reconcile a selection to a lower actual bill.
+
+Migration: after separately approved backup and writer drain, run php scripts/migrate-selection-accounting.php --database=/approved/private/village.sqlite; verify integrity and foreign keys. Never run automatically on deployment. No environment flag or activation exists in this foundation. Rollback means deploying compatible code with no caller; retain the ledger and its charges. Older code cannot count this ledger, so reverting to an older accounting build after use is unsafe.
+
+No participant choice, provider request, binding, continuation, or combined reservation for selection and conversation is implemented. A future integration must reserve both stages before the first dispatch, bind the selected pair transactionally, validate selection, and preserve one-shot accounting and uncertain holds. This PR does not complete #100.

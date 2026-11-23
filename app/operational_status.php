@@ -44,7 +44,7 @@ function operationalStatus(PDO $db,int $now):array
             }
         }
         $day=gmdate('Y-m-d',$now);$month=gmdate('Y-m',$now);
-        $q=$db->prepare('SELECT COALESCE(SUM(request_slots),0) FROM ai_attempts WHERE day=?');$q->execute([$day]);$used=(int)$q->fetchColumn()+directorAccessReservedRequests($db,$day)+sparkExtraRequests($db,$day);
+        $q=$db->prepare('SELECT COALESCE(SUM(request_slots),0) FROM ai_attempts WHERE day=?');$q->execute([$day]);$used=(int)$q->fetchColumn()+directorAccessReservedRequests($db,$day)+sparkExtraRequests($db,$day)+selectionReservedRequests($db,$day);
         if(directorEnabled($db)){$q=$db->prepare('SELECT COALESCE(SUM(request_slots-2),0) FROM director_attempts WHERE day=?');$q->execute([$day]);$used+=(int)$q->fetchColumn();}
         $committed=aiCommittedTotal($db,$month);
         $out['allowance']=['day_utc'=>$day,'month_utc'=>$month,'daily_limit'=>$pricing['daily_requests'],'reserved_requests'=>$used,'remaining_requests'=>max(0,$pricing['daily_requests']-$used),
