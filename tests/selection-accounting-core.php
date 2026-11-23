@@ -22,7 +22,7 @@ try{
     $now=time();if(86400-$now%86400<120)$now-=180;
     $q=$db->prepare("INSERT INTO simulation_opportunities VALUES (?,'pending',NULL,NULL,?)");foreach(['one','two','three','four'] as $id)$q->execute([$id,$now+300]);
     $db->exec('BEGIN IMMEDIATE');migrateSelectionLedger($db);$db->exec('ROLLBACK');check(!selectionLedgerInstalled($db),'migration rollback');
-    $db->exec('BEGIN IMMEDIATE');migrateSelectionLedger($db);$db->exec('COMMIT');$db->exec('BEGIN IMMEDIATE');migrateSelectionCapacity($db);$db->exec('ROLLBACK');check(!selectionCapacityInstalled($db),'capacity migration rollback');$db->exec('BEGIN IMMEDIATE');migrateSelectionCapacity($db);$db->exec('COMMIT');
+    $db->exec('BEGIN IMMEDIATE');migrateSelectionLedger($db);$db->exec('COMMIT');$db->exec('BEGIN IMMEDIATE');migrateSelectionCapacity($db);$db->exec('ROLLBACK');check(!selectionCapacityInstalled($db),'capacity migration rollback');$db->exec('BEGIN IMMEDIATE');migrateSelectionCapacity($db);$db->exec('COMMIT');$db->exec('BEGIN IMMEDIATE');migrateManagedSelection($db);$db->exec('ROLLBACK');check(!managedSelectionInstalled($db),'managed selection migration rollback');$db->exec('BEGIN IMMEDIATE');migrateManagedSelection($db);$db->exec('COMMIT');
     $cfg=['daily_requests'=>10,'monthly_cap'=>1000,'max_output'=>100,'input_rate'=>1,'output_rate'=>1,'lease_seconds'=>120,'director_runtime'=>'responses','director_slots'=>2];
     $r=reserveSelection($db,'one',$cfg,$now);check(selectionCommitted($db,gmdate('Y-m',$now))===100,'monthly commitment');
     check(selectionReservedRequests($db,gmdate('Y-m-d',$now))===1,'daily capacity');

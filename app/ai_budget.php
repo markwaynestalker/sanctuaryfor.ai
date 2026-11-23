@@ -124,7 +124,7 @@ function reserveAi(PDO $db,string $period,array $pair,array $config,int $now): a
         if($handoffId!==null){
             if(!is_string($handoffId)||!selectionCapacityInstalled($db)||count($pair)!==2||!isset($config['director_session'])||isset($config['spark_generation_calls'])||isset($config['staging_allocation'])||isset($config['staging_continue_after']))throw new AiGuard('configuration_invalid');
             $q=$db->prepare("SELECT s.*,c.reserved_microusd AS conversation_amount,c.request_slots AS conversation_slots FROM selection_reservations s JOIN selection_conversation_capacity c ON c.selection_id=s.id LEFT JOIN selection_capacity_transfers t ON t.selection_id=s.id WHERE s.id=? AND s.opportunity_id=? AND s.state='completed' AND s.expires_at>? AND t.selection_id IS NULL");
-            $q->execute([$handoffId,$period,$now]);$handoff=$q->fetch();if(!$handoff||$handoff['day']!==gmdate('Y-m-d',$now))throw new AiGuard('apply_rejected');
+            $q->execute([$handoffId,$period,$now]);$handoff=$q->fetch();if(!$handoff||$handoff['day']!==gmdate('Y-m-d',$now))throw new AiGuard('apply_rejected');if(managedSelectionInstalled($db)){$mq=$db->prepare('SELECT 1 FROM managed_selection_reservations WHERE selection_id=?');$mq->execute([$handoffId]);if($mq->fetchColumn()&&(int)$handoff['expires_at']<=time())throw new AiGuard('apply_rejected');}
             $ids=array_column($pair,'id');
             if(count($ids)!==2||!is_string($ids[0])||!is_string($ids[1])||$ids[0]===$ids[1])throw new AiGuard('invalid_proposal');
             $q=$db->prepare("SELECT 1 FROM residents r JOIN resident_states s ON s.resident_id=r.id WHERE r.id=? AND s.activity='available'");
