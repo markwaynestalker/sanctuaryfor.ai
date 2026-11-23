@@ -57,8 +57,8 @@ try{
         $q=$db->prepare("SELECT COALESCE(SUM(request_slots-2),0) AS extra_slots,COALESCE(SUM(CASE WHEN runtime='agents' THEN started_requests ELSE 0 END),0) AS managed_started FROM director_attempts WHERE day=?");$q->execute([$day]);$extra=$q->fetch();
         $report['daily']['reserved_requests']=(int)$report['daily']['reserved_requests']+(int)$extra['extra_slots'];
         $report['daily']['started_requests']=(int)$report['daily']['started_requests']+(int)$extra['managed_started'];
-        $report['daily']['reserved_requests']+=LittleSparks\sparkExtraRequests($db,$day);
-        $report['daily']['started_requests']+=LittleSparks\sparkExtraStarts($db,$day);
+        $report['daily']['reserved_requests']+=LittleSparks\sparkExtraRequests($db,$day)+LittleSparks\selectionReservedRequests($db,$day);
+        $report['daily']['started_requests']+=LittleSparks\sparkExtraStarts($db,$day)+LittleSparks\selectionStartedRequests($db,$day);
         $report['spark']=['mode'=>LittleSparks\sparkDialogueMode(),'ledger_installed'=>LittleSparks\sparkLedgerInstalled($db)];
         if($report['spark']['ledger_installed'])$report['spark']['recent_calls']=$db->query('SELECT attempt_id,sequence,resident_id,kind,state,response_id,input_tokens,output_tokens,cost_microusd,created_at,finished_at FROM spark_calls ORDER BY rowid DESC LIMIT 20')->fetchAll();
         $admission=LittleSparks\managedLiveAdmission();
