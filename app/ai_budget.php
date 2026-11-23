@@ -119,7 +119,27 @@ function reserveAi(PDO $db,string $period,array $pair,array $config,int $now): a
     $db->exec('BEGIN IMMEDIATE');
     try{
         if(identityEnabled($db)&&!directorEnabled($db))throw new AiGuard('migration_required');
-        recoverExpiredAiLease($db,$now);recoverSelectionReservations($db,$now);if(selectionLeaseActive($db,$now))throw new AiGuard('simulation_busy');
+        recoverExpiredAiLease($db,$now);recoverSelectionReservations($db,$now);
+        $handoff=null;$handoffId=$config['selection_handoff']??null;
+        if($handoffId!==null){
+            if(!is_string($handoffId)||!selectionCapacityInstalled($db)||count($pair)!==2||!isset($config['director_session'])||isset($config['spark_generation_calls'])||isset($config['staging_allocation'])||isset($config['staging_continue_after']))throw new AiGuard('configuration_invalid');
+            $q=$db->prepare("SELECT s.*,c.reserved_microusd AS conversation_amount,c.request_slots AS conversation_slots FROM selection_reservations s JOIN selection_conversation_capacity c ON c.selection_id=s.id LEFT JOIN selection_capacity_transfers t ON t.selection_id=s.id WHERE s.id=? AND s.opportunity_id=? AND s.state='completed' AND s.expires_at>? AND t.selection_id IS NULL");
+            $q->execute([$handoffId,$period,$now]);$handoff=$q->fetch();if(!$handoff||$handoff['day']!==gmdate('Y-m-d',$now))throw new AiGuard('apply_rejected');
+            $ids=array_column($pair,'id');
+            if(count($ids)!==2||!is_string($ids[0])||!is_string($ids[1])||$ids[0]===$ids[1])throw new AiGuard('invalid_proposal');
+            $q=$db->prepare("SELECT 1 FROM residents r JOIN resident_states s ON s.resident_id=r.id WHERE r.id=? AND s.activity='available'");
+            foreach($ids as $resident){$q->execute([$resident]);if(!$q->fetchColumn())throw new AiGuard('invalid_proposal');}
+            $q=$db->prepare("SELECT 1 FROM simulation_opportunities WHERE id=? AND outcome='pending' AND resident_a IS NULL AND resident_b IS NULL AND expires_at>?");
+            $q->execute([$period,$now]);if(!$q->fetchColumn())throw new AiGuard('apply_rejected');
+            $contract=$config['director_output_contract']??'sanctuary.director.v1';$scope=$config['selection_context_scope']??null;
+            if(!is_string($contract)||($scope!==null&&!is_array($scope))||!is_string($config['director_runtime']??null))throw new AiGuard('configuration_invalid');
+            $expectedScope=selectionDirectorScope($db,$pair,$config['director_runtime'],$contract,$scope,true);
+            $q=$db->prepare("SELECT 1 FROM director_sessions s JOIN director_registry r ON r.fingerprint=s.fingerprint WHERE s.id=? AND s.runtime=? AND s.scope=? AND s.state IN ('new','ready') AND r.model=?");
+            $q->execute([$config['director_session'],$config['director_runtime'],$expectedScope,$config['model']]);if(!$q->fetchColumn())throw new AiGuard('session_unavailable');
+            $limits=activityConfiguration();$q=$db->prepare('SELECT COUNT(*) FROM simulation_opportunities WHERE day=? AND (resident_a=? OR resident_b=?)');
+            foreach($ids as $resident){$q->execute([gmdate('Y-m-d',$now),$resident,$resident]);if((int)$q->fetchColumn()>=$limits['resident_daily'])throw new AiGuard('apply_rejected');}
+            if(!conversationCooldownAllows($db,$ids[0],$ids[1],$limits,$now)||!hasSocialRoom($db,$ids[0],$ids[1]))throw new AiGuard('apply_rejected');
+        }elseif(selectionLeaseActive($db,$now))throw new AiGuard('simulation_busy');
         $lease=$db->query('SELECT owner FROM ai_lease WHERE singleton=1')->fetchColumn();
         if($lease!==null && $lease!==false)throw new AiGuard('simulation_busy');
         $unresolved=$db->query("SELECT id FROM ai_attempts WHERE state IN ('reserved','uncertain','settled') ORDER BY id")->fetchAll(PDO::FETCH_COLUMN);
@@ -135,7 +155,7 @@ function reserveAi(PDO $db,string $period,array $pair,array $config,int $now): a
         $query=$db->prepare('SELECT COALESCE(SUM(request_slots),0) FROM ai_attempts WHERE day=?');$query->execute([$day]);
         $used=(int)$query->fetchColumn();$slots=$config['director_slots']??2;
         if(directorEnabled($db)){$q=$db->prepare('SELECT COALESCE(SUM(request_slots-2),0) FROM director_attempts WHERE day=?');$q->execute([$day]);$used+=(int)$q->fetchColumn();}
-        $used+=directorAccessReservedRequests($db,$day)+sparkExtraRequests($db,$day)+selectionReservedRequests($db,$day);
+        $used+=directorAccessReservedRequests($db,$day)+sparkExtraRequests($db,$day)+selectionReservedRequests($db,$day);if($handoff)$used-=(int)$handoff['conversation_slots'];
         $sparkCalls=$config['spark_generation_calls']??null;
         if($sparkCalls!==null){
             if(!is_int($sparkCalls)||$sparkCalls<2||$sparkCalls>576||($config['director_runtime']??null)!=='responses'||$slots!==2||!sparkLedgerInstalled($db))throw new AiGuard('configuration_invalid');
@@ -149,7 +169,8 @@ function reserveAi(PDO $db,string $period,array $pair,array $config,int $now): a
             if($config['staging_allocation']!==100000||($config['director_once']??null)!==true||$slots!==8||($config['director_runtime']??null)!=='agents')throw new AiGuard('configuration_invalid');
             $reserved=100000;
         }
-        if(aiCommittedTotal($db,$month)>$config['monthly_cap']-$reserved)throw new AiGuard('monthly_budget_cap');
+        if($handoff&&((int)$handoff['conversation_amount']!==$reserved||(int)$handoff['conversation_slots']!==$slots))throw new AiGuard('configuration_invalid');
+        if(aiCommittedTotal($db,$month)-($handoff?(int)$handoff['conversation_amount']:0)>$config['monthly_cap']-$reserved)throw new AiGuard('monthly_budget_cap');
         $id=bin2hex(random_bytes(16));$expires=$now+($config['lease_seconds']??directorExecutionConfiguration()['lease_seconds']);
         $db->prepare("INSERT INTO ai_attempts(id,period,day,month,resident_a,resident_b,model,pricing_version,input_rate,output_rate,reserved_microusd,state,created_at)
             VALUES (?,?,?,?,?,?,?,?,?,?,?,'reserved',?)")
@@ -157,6 +178,11 @@ function reserveAi(PDO $db,string $period,array $pair,array $config,int $now): a
         $db->prepare('UPDATE ai_lease SET owner=?,expires_at=? WHERE singleton=1')->execute([$id,$expires]);
         if(isset($config['director_session']))$db->prepare("INSERT INTO director_attempts(id,period,session_id,day,month,runtime,context_sha256,contract_version,request_slots,reserved_microusd,state,created_at) VALUES (?,?,?,?,?,?,?,'sanctuary.director.v1',?,?,'reserved',?)")
             ->execute([$id,$period,$config['director_session'],$day,$month,$config['director_runtime'],$config['director_context'],$slots,$reserved,gmdate('Y-m-d\TH:i:s\Z',$now)]);
+        if($handoff){
+            $q=$db->prepare("UPDATE simulation_opportunities SET resident_a=?,resident_b=? WHERE id=? AND outcome='pending' AND resident_a IS NULL AND resident_b IS NULL");
+            $q->execute([$pair[0]['id'],$pair[1]['id'],$period]);if($q->rowCount()!==1)throw new AiGuard('apply_rejected');
+            $db->prepare('INSERT INTO selection_capacity_transfers VALUES (?,?,?)')->execute([$handoffId,$id,gmdate('Y-m-d\TH:i:s\Z',$now)]);
+        }
         if(isset($config['director_output_contract'])&&str_ends_with($config['director_output_contract'],'.v2'))$db->prepare('INSERT INTO conversation_attempt_contracts VALUES (?,?)')->execute([$id,$config['director_output_contract']]);
         if($sparkCalls!==null)$db->prepare("INSERT INTO spark_encounters(attempt_id,generation_limit,reserved_extra_slots,state,created_at) VALUES (?,?,?,'reserved',?)")->execute([$id,$sparkCalls,$sparkCalls-1,gmdate('Y-m-d\TH:i:s\Z',$now)]);
         if($continuation!==null)$db->prepare('INSERT INTO settings(name,value) VALUES (?,?)')->execute(['director_rejected_create_continuation:'.$continuation,$id]);
