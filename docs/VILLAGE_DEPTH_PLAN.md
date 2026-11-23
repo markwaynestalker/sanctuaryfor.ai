@@ -94,6 +94,12 @@ Restore verified sharing only under a distinct reviewed capability. The server m
 
 **Affected components:** relationships, friendship identities, project evidence, recall/context and eventual profiles. **Migration:** likely additive milestone records; no reset/recalculation of old affinity. **Risks:** making every interaction a reward, saturation, unsupported emotional claims, repeatedly counting one event. **Tests / exit:** one unique supported milestone per source; counterpart-specific retrieval; no milestone for failed/quiet encounters or mere suggestions; replay/multiple quotes cannot multiply it; original pair scores/history and exact speech remain unchanged unless an explicit separately approved rule applies.
 
+**Initial relationship policy (#99):** Set `LITTLE_SPARKS_RELATIONSHIP_EVIDENCE_ENABLED=1` in a test runner to enable it. Accepted opportunities increase familiarity within its existing cap and preserve affinity. Explicit world actions retain their existing effects. Scripted, independent Spark and Director encounters share the same transaction. Older daily runners retain their existing behavior.
+
+Each new accepted conversation records one observation keyed to its canonical conversation ID. Director and independent Spark context surface it only with the bounded, validated shared transcript for that pair. The observation establishes that an exchange occurred. The saved speakers and their exact words supply the evidence for any expressed attitude. Automatic classification, score changes based on speech, and collaboration milestones are future work.
+
+The policy defaults off. Unset the flag or set it to `0` to restore legacy conversation scoring and omit the observations from context. Previously recorded observations remain available if re-enabled. No migration or backfill is required.
+
 ## D7 — Make village progress readable from saved evidence
 
 **Priority:** P3; can deliver a small goals-only view after D2. **Complexity:** medium. **Dependencies:** backend records for whatever is displayed; coordinate with #63 independently.

@@ -37,6 +37,20 @@ try{
     }
     echo 'MEASURE synthetic narrative context bytes: '.json_encode($measurements,JSON_THROW_ON_ERROR)." (no token/billing claim)\n";
     putenv('LITTLE_SPARKS_MEMORY_CONTEXT_BYTES=8192');
+    $source=$fixture['conversations'][1];
+    $db->prepare('INSERT INTO settings(name,value) VALUES (?,?)')->execute(['relationship_exchange:'.$source,'1']);
+    $disabled=LittleSparks\prepareDirectorEncounter($db,$fixture['pair'],['none'=>null],$fixture['claim'],$cfg)['context'];
+    check(!isset($disabled['shared_recent_conversations'][0]['social_observation'])&&!isset($disabled['relationship_guidance']),'Default context hides saved relationship observations');
+    putenv('LITTLE_SPARKS_RELATIONSHIP_EVIDENCE_ENABLED=1');
+    $enabled=LittleSparks\prepareDirectorEncounter($db,$fixture['pair'],['none'=>null],$fixture['claim'],$cfg)['context'];
+    $observed=$enabled['shared_recent_conversations'][0];
+    check($observed['id']===$source&&$observed['social_observation']==='exchange_observed'
+        &&$observed['messages']===$disabled['shared_recent_conversations'][0]['messages'],'Director observation stays attached to its original speakers and words');
+    check(!isset($enabled['shared_recent_conversations'][1]['social_observation']),'Historical exchanges are not backfilled');
+    $independent=LittleSparks\sparkActorContext(['context'=>$enabled],1,[],[],false);
+    check($independent['shared_recent_conversations'][0]===$observed
+        &&$independent['relationship_guidance']===$enabled['relationship_guidance'],'Independent Spark receives the same attributed evidence');
+    putenv('LITTLE_SPARKS_RELATIONSHIP_EVIDENCE_ENABLED');
     $neutral=LittleSparks\recallMemories($db,$fixture['pair'][1]['id'],$fixture['pair'][0]['id'],false);
     $legacyRecall=LittleSparks\recallMemories($db,$fixture['pair'][1]['id'],$fixture['pair'][0]['id']);
     check($neutral[0]['story']['topic']==='garden'&&$legacyRecall[0]['story']['topic']==='stars','Owner-described residents are not biased toward a stale legacy interest; V5 default recall is unchanged');

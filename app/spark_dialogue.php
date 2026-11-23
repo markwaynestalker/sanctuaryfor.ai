@@ -31,6 +31,7 @@ function sparkActorContext(array $prepared,int $speaker,array $messages,array $r
         'at'=>$full['at'],'self'=>$self,'listener'=>['id'=>$other['id'],'name'=>$other['name']],
         'shared_recent_conversations'=>$full['shared_recent_conversations'],'current_exchange'=>$messages,'recalled_episodes'=>$recalled,'can_recall'=>$canRecall,
         'knowledge_policy'=>'These are your experiences or attributed reports, not the listener\'s private context. Preserve who said what, dates, hearsay and uncertainty; repetition does not establish truth. Public source visibility is not proof everyone read it.'];
+    if(isset($full['relationship_guidance']))$c['relationship_guidance']=$full['relationship_guidance'];
     if(isset($full['conversation_flow']))$c['conversation_flow']=$full['conversation_flow'];
     if(isset($full['village_weather']))$c['village_weather']=$full['village_weather'];
     // No global continuity, newspaper, other resident's identity/memory/goals or operator suggestions.

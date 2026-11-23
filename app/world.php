@@ -160,6 +160,11 @@ function hasSocialRoom(PDO $db, string $a, string $b): bool
     return true;
 }
 
+function relationshipEvidenceEnabled(): bool
+{
+    return getenv('LITTLE_SPARKS_RELATIONSHIP_EVIDENCE_ENABLED')==='1';
+}
+
 function strengthen(PDO $db,string $a,string $b,int $delta,string $time): void
 {
     if (strcmp($a,$b)>0) [$a,$b]=[$b,$a];

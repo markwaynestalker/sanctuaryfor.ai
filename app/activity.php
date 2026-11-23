@@ -206,7 +206,9 @@ function applyActivity(PDO $db,array $claim,array $proposal,array $choices,int $
             $a=$pair[0]['id'];$b=$pair[1]['id'];$topic=isset($proposal['director'])?'welcome':$proposal['topic'];
             $multi=isset($proposal['director'])&&str_ends_with($proposal['contract'],'.v2');
             if($multi&&!multiMessageInstalled($db))throw new AiGuard('configuration_invalid');
-            strengthen($db,$a,$b,$topic==='quiet'?-1:2,$time);$conversation=bin2hex(random_bytes(16));
+            $evidencePolicy=relationshipEvidenceEnabled();
+            strengthen($db,$a,$b,$evidencePolicy?0:($topic==='quiet'?-1:2),$time);
+            $conversation=bin2hex(random_bytes(16));
             $db->prepare("INSERT INTO conversations(id,run_id,topic,visibility,created_at) VALUES (?,?,?,'public',?)")->execute([$conversation,$run,$topic,$time]);
             if($ai)$db->prepare('INSERT INTO ai_conversations VALUES (?,?)')->execute([$conversation,$run]);
             foreach([$a,$b] as $sequence=>$resident){
@@ -221,6 +223,8 @@ function applyActivity(PDO $db,array $claim,array $proposal,array $choices,int $
                 foreach($proposal['messages'] as $sequence=>$message)$db->prepare('INSERT INTO extended_messages VALUES (?,?,?,?)')->execute([$conversation,$sequence,$message['resident_id'],$message['text']]);
             }
             event($db,$a,$b,'conversation','simulation',$time,'activity:'.$claim['id'].':conversation',$run);
+            if($evidencePolicy)$db->prepare('INSERT INTO settings(name,value) VALUES (?,?)')
+                ->execute(['relationship_exchange:'.$conversation,'1']);
         }
         if($proposal['world_action']!=='none'&&$proposal['world_action']!=='post_notice'){
             if(!$pair||!isset($choices[$proposal['world_action']]))throw new AiGuard('invalid_proposal');
