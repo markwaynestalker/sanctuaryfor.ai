@@ -19,6 +19,7 @@ function preserved(array $before,PDO $db,array $skip=[]):void{
 }
 try{
     $dir=$argv[1]??'';check(is_dir($dir)&&str_starts_with(basename($dir),'little-sparks-v2-test-'),'Disposable fixtures only');
+    putenv('LITTLE_SPARKS_RELATIONSHIP_EVIDENCE_ENABLED');
     putenv('OPENAI_API_KEY');putenv('LITTLE_SPARKS_SIMULATION_ENABLED=0');putenv('LITTLE_SPARKS_AI_ENABLED=0');
     putenv('LITTLE_SPARKS_AI_PRICING_CONFIRMED='.LittleSparks\AI_PRICING_VERSION);putenv('LITTLE_SPARKS_AI_MODEL=gpt-6-luna');putenv('LITTLE_SPARKS_AI_MONTHLY_MICROUSD=1000000');putenv('LITTLE_SPARKS_AI_DAILY_REQUESTS=200');putenv('LITTLE_SPARKS_AI_MAX_OUTPUT_TOKENS=512');
     $base=$dir.'/activity.sqlite';copy($dir.'/http-fixture.sqlite',$base);$db=LittleSparks\connect($base);$before=snapshot($db);$digest=LittleSparks\activityPreservationDigest($db);$db=null;
@@ -62,6 +63,30 @@ try{
     try{$db->exec("UPDATE messages SET body='rewritten'");throw new LogicException('History rewrite accepted');}catch(PDOException){}
     try{LittleSparks\simulateOptionalAiDay($db,gmdate('Y-m-d',time()-2*86400),true,$mock);throw new LogicException('Legacy runner bypassed V4 limits');}catch(LittleSparks\Problem $e){check($e->status===422,'Legacy new-day runs cannot bypass opportunity limits');}
     echo "PASS V3→V4 populated migration/repeat/rollback, immutable history, legacy replay, interval controls, multiple AI encounters, natural saved dialogue and idempotency\n";
+    $observations=static fn(PDO $db):array=>$db->query("SELECT name FROM settings WHERE name GLOB 'relationship_exchange:*' ORDER BY name")->fetchAll(PDO::FETCH_COLUMN);
+    check($observations($db)===[],'Default policy adds no observations');
+    $conversation=$db->prepare('SELECT c.id,p.resident_a,p.resident_b FROM conversations c JOIN simulation_opportunities p ON p.run_id=c.run_id WHERE c.run_id=?');
+    $conversation->execute([$first['id']]);$legacyPair=$conversation->fetch();
+    $original=LittleSparks\pair(LittleSparks\connect($base),$legacyPair['resident_a'],$legacyPair['resident_b']);
+    check(LittleSparks\pair($db,$legacyPair['resident_a'],$legacyPair['resident_b'])['affinity']>($original['affinity']??0),'Default policy still increments affinity');
+    putenv('LITTLE_SPARKS_RELATIONSHIP_EVIDENCE_ENABLED=1');
+    foreach(['disagreement','friendship','unresolved'] as $mode){
+        $db=$fresh();
+        $db->exec('UPDATE relationships SET affinity=40');
+        $beforePairs=$db->query('SELECT * FROM relationships ORDER BY resident_a,resident_b')->fetchAll();
+        $mock=new ActivityMock($mode,$db);$result=LittleSparks\simulateOpportunity($db,$at(1),true,$mock);
+        check($result['outcome']==='conversation','Accepted '.$mode.' exchange');
+        $conversation=$db->prepare('SELECT id FROM conversations WHERE run_id=?');$conversation->execute([$result['id']]);
+        $source=$conversation->fetchColumn();
+        check($observations($db)===['relationship_exchange:'.$source],'Exactly one observation links to saved '.$mode.' evidence');
+        $afterPairs=$db->query('SELECT * FROM relationships ORDER BY resident_a,resident_b')->fetchAll();
+        foreach($beforePairs as $relationship)check(
+            LittleSparks\pair($db,$relationship['resident_a'],$relationship['resident_b'])['affinity']===40,'Existing affinity is preserved for '.$mode);
+        check(array_diff(array_column($afterPairs,'affinity'),[0,40])===[],'New relationships start with neutral affinity for '.$mode);
+        check(array_sum(array_column($afterPairs,'familiarity'))===array_sum(array_column($beforePairs,'familiarity'))+1,'Only one familiarity increment for '.$mode);
+        check(LittleSparks\simulateOpportunity($db,$at(1),true,$mock)['replayed']&&$observations($db)===['relationship_exchange:'.$source]
+            &&$db->query('SELECT * FROM relationships ORDER BY resident_a,resident_b')->fetchAll()===$afterPairs,'Replay adds neither observations nor familiarity');
+    }
     foreach(['quiet','none','action'] as $mode){
         $db=$fresh();$mock=new ActivityMock($mode,$db);$events=(int)$db->query('SELECT COUNT(*) FROM events')->fetchColumn();$convs=(int)$db->query('SELECT COUNT(*) FROM conversations')->fetchColumn();
         $result=LittleSparks\simulateOpportunity($db,$at(1),true,$mock);check($result['outcome']===$mode,'Optional '.$mode.' outcome');
@@ -70,7 +95,7 @@ try{
     }
     foreach(['invalid','html','label_only','extra','quiet_text','flagged','timeout','unknown','moderation_timeout','lease_expired','collision'] as $mode){
         $db=$fresh();$mock=new ActivityMock($mode,$db);$snapshot=snapshot($db);$result=LittleSparks\simulateOpportunity($db,$at(1),true,$mock);
-        check($result['status']==='failed','Reject '.$mode);$after=snapshot($db);
+        check($result['status']==='failed','Reject '.$mode);check($observations($db)===[],'No partial observation for '.$mode);$after=snapshot($db);
         foreach(['relationships','conversations','messages','memories'] as $table)check($snapshot[$table]===$after[$table],'No partial social change for '.$mode);
         if($mode!=='collision')check($snapshot['world_objects']===$after['world_objects']&&$snapshot['events']===$after['events'],'No fabricated world changes for '.$mode);
         check(!str_contains(json_encode($after),'PRIVATE_CANARY'),'No raw failures stored');
@@ -81,6 +106,11 @@ try{
         }
     }
     echo "PASS quiet/no-action, owned actions, moderation, hostile output, failed/uncertain calls, collision rollback and no automatic charge retries\n";
+    putenv('LITTLE_SPARKS_RELATIONSHIP_EVIDENCE_ENABLED=0');
+    $db=$fresh();$mock=new ActivityMock('conversation',$db);
+    LittleSparks\simulateOpportunity($db,$at(1),true,$mock);
+    check($observations($db)===[],'Disabling the policy stops recording observations');
+    echo "PASS evidence policy preserves affinity across angry disagreement, friendship and unresolved exchanges; familiarity, replay and rollback verified offline\n";
     $db=$fresh();$mock=new ActivityMock('conversation',$db);putenv('LITTLE_SPARKS_AI_DAILY_REQUESTS=2');
     // The fixture already contains today's V2B generation/moderation pair: new work shares its ledger.
     $result=LittleSparks\simulateOpportunity($db,$at(1),true,$mock);check(!$mock->calls&&$result['ai_blocked']==='daily_request_cap','Legacy requests count against the same daily ceiling');

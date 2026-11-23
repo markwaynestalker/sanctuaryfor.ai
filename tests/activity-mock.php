@@ -27,6 +27,16 @@ final class ActivityMock implements LittleSparks\AiTransport
         $outcome=in_array($this->mode,['action','quiet','none'],true)?$this->mode:'conversation';
         $p=['outcome'=>$outcome,'topic'=>'garden','first'=>$outcome==='conversation'?'A: A quiet walk sounds like a bright little adventure.':'',
             'second'=>$outcome==='conversation'?'B: Curious—shall we leave room for a new friend?':'','world_action'=>'none'];
+        $dialogue=match($this->mode){
+            'disagreement'=>['I am angry about that idea!', 'I still disagree.'],
+            'friendship'=>['I am glad we are friends.', 'So am I.'],
+            'unresolved'=>['Should we decide now?', 'I need more time.'],
+            default=>null,
+        };
+        if($dialogue!==null){
+            [$p['first'],$p['second']]=$dialogue;
+            if($this->mode==='disagreement')$p['topic']='quiet';
+        }
         if(in_array($this->mode,['action','collision'],true))$p['world_action']=in_array('plant_flowers',$context['available_actions'],true)?'plant_flowers':'none';
         if($this->mode==='invalid')$p['world_action']='execute_shell';
         if($this->mode==='html')$p['first']='A: <script>bad</script>';
