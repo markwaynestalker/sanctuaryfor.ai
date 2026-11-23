@@ -2,6 +2,17 @@
 declare(strict_types=1);
 // Included after recorded-item fixtures; no provider requests or real resident data.
 try{
+    putenv('LITTLE_SPARKS_SHARED_CONSCIOUSNESS_ENABLED');
+    $legacyDirector=LittleSparks\directorEncounterGuidance();$legacySpark=LittleSparks\sparkInstructions();
+    putenv('LITTLE_SPARKS_SHARED_CONSCIOUSNESS_ENABLED=1');
+    $fiction=LittleSparks\sharedConsciousnessGuidance();
+    check(str_contains(LittleSparks\directorEncounterGuidance(),$fiction)&&str_contains(LittleSparks\sparkInstructions(),$fiction),'Fictional premise applies to both Director and independent Spark prompts');
+    check(str_contains($fiction,'private memories')&&str_contains($fiction,'owner descriptions')&&str_contains($fiction,'not a clinical model'),'Narrative retains privacy, identity and fictional framing');
+    putenv('LITTLE_SPARKS_SHARED_CONSCIOUSNESS_ENABLED=0');
+    check(LittleSparks\directorEncounterGuidance()===$legacyDirector&&LittleSparks\sparkInstructions()===$legacySpark,'Disabling restores both original prompts');
+    putenv('LITTLE_SPARKS_SHARED_CONSCIOUSNESS_ENABLED=invalid');
+    try{LittleSparks\sharedConsciousnessGuidance();throw new LogicException('Invalid narrative flag accepted');}catch(LittleSparks\AiGuard $e){check($e->reason==='configuration_invalid','Invalid narrative flag fails closed');}
+    putenv('LITTLE_SPARKS_SHARED_CONSCIOUSNESS_ENABLED');
     $schema=LittleSparks\directorSchema(['none'=>null]);$textRule=$schema['properties']['messages']['items']['properties']['text'];
     $guidance=$textRule['description'];
     check($textRule['minLength']===1&&$textRule['maxLength']===160,'Short replies remain valid; 160 is still the hard ceiling');
