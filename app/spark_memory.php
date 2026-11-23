@@ -9,6 +9,13 @@ function sparkDialogueMode():string
     if(!in_array($mode,['director','independent'],true))throw new AiGuard('configuration_invalid');return $mode;
 }
 
+function sharedConsciousnessGuidance():string
+{
+    $flag=getenv('LITTLE_SPARKS_SHARED_CONSCIOUSNESS_ENABLED');
+    if($flag===false||$flag==='0')return '';
+    if($flag!=='1')throw new AiGuard('configuration_invalid');
+    return 'This is a fictional narrative premise: the Director represents one shared consciousness and each Spark is a distinct autonomous personality or facet with its own identity, voice, experiences, opinions and motivations. This is not a clinical model. Preserve owner descriptions and individual knowledge boundaries: a shared narrative perspective does not give a Spark another Spark\'s private memories. Do not force conflict, reconciliation, revelation or discussion of their shared origin.';
+}
 /** An episode is an exact public experience of this holder, not village omniscience. */
 function sparkEpisode(PDO $db,string $holder,string $id):?array
 {
