@@ -12,9 +12,9 @@ require __DIR__.'/../app/selection_accounting.php';
 $db=new PDO('sqlite:'.$argv[1]);$db->setAttribute(PDO::ATTR_ERRMODE,PDO::ERRMODE_EXCEPTION);$db->exec('PRAGMA busy_timeout=5000');
 $now=(int)$argv[3];
 if($argv[2]==='setup'){
- $db->exec("CREATE TABLE simulation_opportunities(id TEXT PRIMARY KEY,outcome TEXT,resident_a TEXT,resident_b TEXT,expires_at INTEGER);CREATE TABLE ai_lease(singleton INTEGER,owner TEXT);INSERT INTO ai_lease VALUES(1,NULL);CREATE TABLE ai_attempts(day TEXT,request_slots INTEGER);CREATE TABLE director_attempts(day TEXT,request_slots INTEGER)");
+ $db->exec("CREATE TABLE simulation_opportunities(id TEXT PRIMARY KEY,outcome TEXT,resident_a TEXT,resident_b TEXT,expires_at INTEGER);CREATE TABLE ai_lease(singleton INTEGER,owner TEXT);INSERT INTO ai_lease VALUES(1,NULL);CREATE TABLE ai_attempts(id TEXT PRIMARY KEY,day TEXT,request_slots INTEGER);CREATE TABLE director_attempts(day TEXT,request_slots INTEGER)");
  $q=$db->prepare("INSERT INTO simulation_opportunities VALUES (?,'pending',NULL,NULL,?)");foreach(['one','two'] as $id)$q->execute([$id,$now+300]);
- $db->exec('BEGIN IMMEDIATE');migrateSelectionLedger($db);$db->exec('COMMIT');exit;
+ $db->exec('BEGIN IMMEDIATE');migrateSelectionLedger($db);migrateSelectionCapacity($db);$db->exec('COMMIT');exit;
 }
-$cfg=['daily_requests'=>10,'monthly_cap'=>1000,'max_output'=>100,'input_rate'=>1,'output_rate'=>1,'lease_seconds'=>120];
-try{reserveSelection($db,$argv[2],$cfg,$now);echo 'reserved';}catch(AiGuard $e){echo $e->reason;}
+$cfg=['daily_requests'=>10,'monthly_cap'=>1000,'max_output'=>100,'input_rate'=>1,'output_rate'=>1,'lease_seconds'=>120,'director_runtime'=>'responses','director_slots'=>2];
+try{reserveSelection($db,$argv[2],$cfg,$now,$cfg);echo 'reserved';}catch(AiGuard $e){echo $e->reason;}

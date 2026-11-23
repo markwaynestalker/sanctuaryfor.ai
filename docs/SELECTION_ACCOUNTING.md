@@ -4,4 +4,13 @@ This additive V6 ledger reserves one selection request independently of resident
 
 Migration: after separately approved backup and writer drain, run php scripts/migrate-selection-accounting.php --database=/approved/private/village.sqlite; verify integrity and foreign keys. Never run automatically on deployment. No environment flag or activation exists in this foundation. Rollback means deploying compatible code with no caller; retain the ledger and its charges. Older code cannot count this ledger, so reverting to an older accounting build after use is unsafe.
 
-No participant choice, provider request, binding, continuation, or combined reservation for selection and conversation is implemented. A future integration must reserve both stages before the first dispatch, bind the selected pair transactionally, validate selection, and preserve one-shot accounting and uncertain holds. This PR does not complete #100.
+No participant choice, provider request, or scheduler integration is implemented. This milestone does not complete #100.
+## Two-stage capacity handoff (intermediate)
+
+The additive selection-capacity migration requires the earlier selection-accounting migration and a backed-up, drained V6 database. Run scripts/migrate-selection-capacity.php only as a separately approved owner operation. No migration is automatic. Disabled by default: no scheduler or provider caller invokes this mechanism.
+
+Passing a conversation configuration to reserveSelection atomically reserves selection plus a separately priced Director conversation and its request slots. This milestone supports Director responses and managed runtimes with 2–8 slots; independent Spark multi-call and staging allocation handoff are not implemented and fail closed. Selection holds and untransferred conversation capacity remain conservatively charged after expiry or uncertain selection. There is no refund or selection-specific billing settlement.
+
+After a known completed selection, reserveAi can accept the selection_handoff identifier. It validates distinct available resident IDs, current quotas and cooldowns, social capacity, the pending opportunity, expiry and a matching resident-scoped Director session. Under one write transaction it creates the existing AI/Director attempt, binds both residents, and transfers the capacity once. A database trigger protects the bound IDs. The selection and conversation commitments remain counted once each. An invalid handoff rolls back and retains capacity.
+
+This is an accounting interface, not an AI selection prompt or provider dispatch. The next milestone must supply an authorized candidate set, validate the actual returned choice against that set, reserve the two stages before sending selection, and integrate moderation and fail-closed quiet/uncertain handling. Keep both new ledgers when rolling back; old accounting builds cannot safely count their holds.
