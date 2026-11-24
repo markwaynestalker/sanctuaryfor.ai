@@ -158,6 +158,7 @@ function simulateDirectorOpportunity(PDO $db,string $at,bool $allowPaid,?AiTrans
         if($selection){
             require_once __DIR__.'/managed_director_selection.php';
             $context=prepareManagedSelectionContext($db,gmdate('Y-m-d',$now),$claim['created_at'],activityConfiguration());
+            [$context]=fitManagedSelectionRequest($context,$registered,str_repeat('0',32));
             $capacity=$pricing+['director_runtime'=>'agents','director_slots'=>8];
             $reservation=reserveSelection($db,$claim['id'],$pricing,$now,$capacity,true);
             $handoff=managedSelectionAndHandoff($db,$managed,$reservation,$registered,$context,$claim,$pricing,$now);

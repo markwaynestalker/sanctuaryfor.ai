@@ -6,10 +6,16 @@ require_once __DIR__.'/director.php';
 require_once __DIR__.'/director_selection.php';
 require_once __DIR__.'/managed_selection_accounting.php';
 
+/** Independent context ceiling; provider wire and token limits remain authoritative. */
+function selectionContextByteLimit():int
+{
+    return aiBoundedInteger('LITTLE_SPARKS_AI_SELECTION_CONTEXT_BYTES',32768,1024,262144);
+}
+
 /** Candidate identities and only their authorized public episodes; all text is untrusted data. */
 function prepareManagedSelectionContext(PDO $db,string $day,string $at,array $cfg):array
 {
-    $maximum=memoryConfiguration()['context_bytes'];
+    $maximum=selectionContextByteLimit();
     $candidates=directorSelectionCandidates($db,$day,$cfg,$maximum);
     if(count($candidates)<2)throw new AiGuard('configuration_invalid');
     $context=['contract'=>'sanctuary.selection.v1','at'=>$at,'candidates'=>$candidates,'personal_public_history'=>[],
@@ -19,7 +25,7 @@ function prepareManagedSelectionContext(PDO $db,string $day,string $at,array $cf
         if($episodes)$context['personal_public_history'][]=['holder_id'=>$candidate['id'],'episodes'=>$episodes];
     }
     while(strlen(json_encode($context,JSON_THROW_ON_ERROR|JSON_UNESCAPED_UNICODE))>$maximum&&$context['personal_public_history'])array_pop($context['personal_public_history']);
-    if(strlen(json_encode($context,JSON_THROW_ON_ERROR|JSON_UNESCAPED_UNICODE))>$maximum)throw new AiGuard('configuration_invalid');
+    if(strlen(json_encode($context,JSON_THROW_ON_ERROR|JSON_UNESCAPED_UNICODE))>$maximum)throw new AiGuard('selection_context_too_large');
     return $context;
 }
 function managedSelectionSchema(array $candidates):array
@@ -30,6 +36,26 @@ function managedSelectionSchema(array $candidates):array
         'contract'=>['type'=>'string','enum'=>['sanctuary.selection.v1']],
         'outcome'=>['type'=>'string','enum'=>['conversation','quiet']],
         'participants'=>['type'=>'array','items'=>['type'=>'string','enum'=>$ids],'minItems'=>0,'maxItems'=>2]]];
+}
+
+/** Retain complete candidate identities and descriptions; discard only optional history. */
+function fitManagedSelectionRequest(array $context,array $registered,string $reservationId):array
+{
+    $config=validateDirectorExport(json_decode($registered['configuration']??'',true,16,JSON_THROW_ON_ERROR));
+    $schema=managedSelectionSchema($context['candidates']);
+    do{
+        $body=['agent_id'=>$config['id'],'environment'=>['type'=>'none'],
+            'agent'=>['model'=>$config['model'],'reasoning'=>$config['reasoning'],'tools'=>[],'multi_agent'=>['enabled'=>false],'service_tier'=>'default',
+                'text'=>['format'=>['type'=>'json_schema','schema'=>$schema]]],
+            'input'=>[['role'=>'user','content'=>[['type'=>'input_text','text'=>json_encode($context,JSON_THROW_ON_ERROR|JSON_UNESCAPED_UNICODE)]]]],'stream'=>false,
+            'metadata'=>['sanctuary_selection_id'=>$reservationId,'contract'=>'sanctuary.selection.v1']];
+        // This is the same complete JSON encoding used by managedWireBody. The
+        // whole-wire bytes plus overhead conservatively bound reserved input tokens.
+        $wire=json_encode($body,JSON_THROW_ON_ERROR|JSON_UNESCAPED_UNICODE);
+        if(strlen($wire)<=aiRequestByteLimit()&&strlen($wire)+512<=aiInputTokenLimit())return [$context,$body];
+        if(!$context['personal_public_history'])throw new AiGuard('selection_context_too_large');
+        array_pop($context['personal_public_history']);
+    }while(true);
 }
 
 /** One fresh managed session; all requests use the resident-independent selection audit. */
@@ -44,14 +70,7 @@ function managedSelectionEncounter(PDO $db,DirectorTransport $transport,array $r
     if(($registered['fingerprint']??null)!==$fingerprint||($registered['agent_id']??null)!==$config['id']||($registered['model']??null)!==$config['model'])throw new AiGuard('configuration_invalid');
     $q=$db->prepare('SELECT 1 FROM director_registry WHERE fingerprint=? AND agent_id=? AND model=? AND configuration=?');$q->execute([$fingerprint,$config['id'],$config['model'],$encoded]);if(!$q->fetchColumn())throw new AiGuard('configuration_invalid');
     $q=$db->prepare('SELECT model FROM managed_selection_reservations WHERE selection_id=?');$q->execute([$reservation['id']??'']);if($q->fetchColumn()!==$config['model'])throw new AiGuard('model_unpriced');
-    $schema=managedSelectionSchema($context['candidates']);
-    $body=['agent_id'=>$config['id'],'environment'=>['type'=>'none'],
-        'agent'=>['model'=>$config['model'],'reasoning'=>$config['reasoning'],'tools'=>[],'multi_agent'=>['enabled'=>false],'service_tier'=>'default',
-            'text'=>['format'=>['type'=>'json_schema','schema'=>$schema]]],
-        'input'=>[['role'=>'user','content'=>[['type'=>'input_text','text'=>json_encode($context,JSON_THROW_ON_ERROR|JSON_UNESCAPED_UNICODE)]]]],'stream'=>false,
-        'metadata'=>['sanctuary_selection_id'=>$reservation['id'],'contract'=>'sanctuary.selection.v1']];
-    $wire=json_encode($body,JSON_THROW_ON_ERROR|JSON_UNESCAPED_UNICODE);
-    if(strlen($wire)>aiRequestByteLimit()||strlen($wire)+512>aiInputTokenLimit())throw new AiGuard('configuration_invalid');
+    [$context,$body]=fitManagedSelectionRequest($context,$registered,$reservation['id']);
     $execution=directorExecutionConfiguration();$finishBy=min($reservation['expires']-$execution['finish_reserve_seconds'],$clock()+$execution['run_seconds'],defined('LITTLE_SPARKS_SCHEDULED_DEADLINE')?constant('LITTLE_SPARKS_SCHEDULED_DEADLINE'):PHP_INT_MAX);
     $pollBy=$finishBy-$execution['finish_reserve_seconds'];$sid=null;$turnId=null;$terminal=false;$calls=0;
     $request=function(string $method,string $path,?array $payload=null,?string $kind=null,bool $recovery=false)use($db,$transport,$reservation,$execution,$finishBy,$pollBy,$clock,&$calls):array{
@@ -104,9 +123,10 @@ function managedSelectionAndHandoff(PDO $db,DirectorTransport $transport,array $
     if(sparkDialogueMode()!=='director')throw new AiGuard('configuration_invalid');$cfg=directorConfiguration();if($cfg['runtime']!=='agents')throw new AiGuard('configuration_invalid');
     $selectionCfg=activityConfiguration();
     $fresh=prepareManagedSelectionContext($db,$reservation['day'],$claim['created_at'],$selectionCfg);
+    [$fresh]=fitManagedSelectionRequest($fresh,$registered,$reservation['id']);
     if($fresh!==$context)throw new AiGuard('configuration_invalid');
     $decision=managedSelectionEncounter($db,$transport,$reservation,$registered,$context,$clock,$pause);
-    $current=directorSelectionCandidates($db,$reservation['day'],$selectionCfg,memoryConfiguration()['context_bytes']);
+    $current=directorSelectionCandidates($db,$reservation['day'],$selectionCfg,selectionContextByteLimit());
     parseDirectorSelection(['contract'=>'sanctuary.selection.v1','outcome'=>$decision['outcome'],'participants'=>$decision['participants']],$current);
     if($decision['outcome']==='quiet')return ['decision'=>$decision];
     $pair=[];$q=$db->prepare('SELECT id,personality FROM residents WHERE id=?');
