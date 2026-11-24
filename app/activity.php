@@ -128,7 +128,7 @@ function recoverActivityClaims(PDO $db,int $now): void
     }
 }
 
-function claimActivity(PDO $db,string $at,int $now): array
+function claimActivity(PDO $db,string $at,int $now,bool $directorSelection=false): array
 {
     if(!in_array((int)$db->query('PRAGMA user_version')->fetchColumn(),[4,5,6],true))throw new Problem(503,'Explicit V4 migration required.');
     $id=opportunityId($at);$db->exec('BEGIN IMMEDIATE');
@@ -145,7 +145,7 @@ function claimActivity(PDO $db,string $at,int $now): array
         $day=gmdate('Y-m-d',$now);$q=$db->prepare('SELECT COUNT(*) FROM simulation_opportunities WHERE day=?');$q->execute([$day]);
         if((int)$q->fetchColumn()>=$cfg['daily_opportunities'])throw new Problem(429,'The village is resting at its configured daily ceiling.');
         $resting=villageSleepingAt($now)||villageSleepingAt(strtotime($at));
-        $continuation=null;$pair=$resting?[]:selectActivityResidents($db,$day,$cfg,$now,$continuation);$time=gmdate('Y-m-d\TH:i:s\Z',$now);
+        $continuation=null;$pair=($resting||$directorSelection)?[]:selectActivityResidents($db,$day,$cfg,$now,$continuation);$time=gmdate('Y-m-d\TH:i:s\Z',$now);
         $db->prepare("INSERT INTO simulation_opportunities(id,scheduled_at,day,resident_a,resident_b,outcome,expires_at,created_at) VALUES (?,?,?,?,?,'pending',?,?)")
             ->execute([$id,$at,$day,$pair[0]['id']??null,$pair[1]['id']??null,$now+directorExecutionConfiguration()['lease_seconds'],$time]);
         if($resting)$db->prepare('INSERT INTO settings(name,value) VALUES (?,?)')->execute(['activity_rest:'.$id,'night_rest']);
