@@ -4,7 +4,8 @@ require_once __DIR__.'/../app/scheduler.php';require_once __DIR__.'/../app/opera
 try{
     foreach(['LITTLE_SPARKS_AI_ENABLED','LITTLE_SPARKS_DIRECTOR_ENABLED','LITTLE_SPARKS_SIMULATION_ENABLED','LITTLE_SPARKS_SCHEDULER_ENABLED','LITTLE_SPARKS_SCHEDULER_ALLOW_PAID'] as $flag)putenv($flag.'=1');
     putenv('LITTLE_SPARKS_DIRECTOR_RUNTIME=agents');putenv('LITTLE_SPARKS_AI_DAILY_REQUESTS=200');putenv('LITTLE_SPARKS_AI_MONTHLY_MICROUSD=1000000');
-    $op=static fn(int $offset)=>gmdate('Y-m-d\TH:i:00\Z',time()-$offset*60);
+    $referenceTime=time();
+    $op=static fn(int $offset)=>gmdate('Y-m-d\TH:i:00\Z',$referenceTime-$offset*60);
     $run=static fn(PDO $d,string $at,LittleSparks\DirectorTransport $t)=>LittleSparks\simulateDirectorOpportunity($d,$at,true,null,$t,null,null,false,null,true);
     foreach(['lost','invalid','flagged','validation_400'] as $mode){
         $d=$stageFresh();$first=new StagingMock($mode);$failed=$run($d,$op(8),$first);check($failed['status']==='failed','Individual failure recorded: '.$mode);
