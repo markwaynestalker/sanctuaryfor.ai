@@ -35,7 +35,7 @@ function startManagedSelectionHttp(PDO $db,array $reservation,string $method,str
     }
     $db->exec('BEGIN IMMEDIATE');
     try{
-        $q=$db->prepare("SELECT s.* FROM selection_reservations s JOIN managed_selection_reservations m ON m.selection_id=s.id WHERE s.id=? AND s.state IN ('reserved','dispatched') AND s.expires_at>?");
+        $q=$db->prepare("SELECT s.* FROM selection_reservations s JOIN managed_selection_reservations m ON m.selection_id=s.id JOIN simulation_opportunities o ON o.id=s.opportunity_id AND o.outcome='pending' WHERE s.id=? AND s.state IN ('reserved','dispatched') AND s.expires_at>?");
         $q->execute([$reservation['id']??'',$now]);$row=$q->fetch();if(!$row)throw new AiGuard('request_already_started');
         if($row['day']!==gmdate('Y-m-d',$now))throw new AiGuard('day_boundary');
         if(in_array($kind,['create','submit'],true)&&villageSleepingAt($now))throw new AiGuard('night_rest');

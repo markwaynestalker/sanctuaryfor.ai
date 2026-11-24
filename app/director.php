@@ -150,9 +150,20 @@ function simulateDirectorOpportunity(PDO $db,string $at,bool $allowPaid,?AiTrans
     $independent=sparkDialogueMode()==='independent';$sparkCfg=$independent?sparkDialogueConfiguration($db,$cfg,$pricing):null;
     if($independent&&($managed!==null||$staging!==null||$configuredManaged||$stagingContinueAfter!==null))throw new AiGuard('configuration_invalid');
     simulationInterval();memoryConfiguration();
-    $claim=claimActivity($db,$at,$now);if(isset($claim['replay']))return $claim['replay']+['replayed'=>true];
+    $selection=getenv('LITTLE_SPARKS_AI_SELECTION_ENABLED')==='1';
+    if($selection&&($cfg['runtime']!=='agents'||$managed===null||$independent||$staging!==null||$stagingContinueAfter!==null||$conversationOnly||$contextProvider!==null))throw new AiGuard('configuration_invalid');
+    $claim=claimActivity($db,$at,$now,$selection);if(isset($claim['replay']))return $claim['replay']+['replayed'=>true];
     $attempt=null;$usage=null;
     try{
+        if($selection){
+            require_once __DIR__.'/managed_director_selection.php';
+            $context=prepareManagedSelectionContext($db,gmdate('Y-m-d',$now),$claim['created_at'],activityConfiguration());
+            $capacity=$pricing+['director_runtime'=>'agents','director_slots'=>8];
+            $reservation=reserveSelection($db,$claim['id'],$pricing,$now,$capacity,true);
+            $handoff=managedSelectionAndHandoff($db,$managed,$reservation,$registered,$context,$claim,$pricing,$now);
+            if($handoff['decision']['outcome']==='quiet')return finalizeManagedSelectionQuiet($db,$claim,$reservation,$now);
+            $claim=$handoff['claim'];$choices=$handoff['choices'];$prepared=$handoff['prepared'];$session=$handoff['session'];$attempt=$handoff['attempt'];$pricing=$handoff['pricing'];
+        }else{
         if(count($claim['pair'])!==2)return applyActivity($db,$claim,['outcome'=>'none','topic'=>'quiet','first'=>'','second'=>'','world_action'=>'none'],['none'=>null],$now);
         $choices=aiActionChoices($db,$claim['pair'][0]['id'],$claim['pair'][1]['id'],$now);
         if(bulletinCanPost($db,$claim['pair'][0]['id'],$now))$choices['post_notice']=['kind'=>'post_notice'];
@@ -171,6 +182,7 @@ function simulateDirectorOpportunity(PDO $db,string $at,bool $allowPaid,?AiTrans
         if($staging!==null){$staging->assertEncounter($db,$at,$registered,$prepared);$pricing['director_slots']=8;$pricing['staging_allocation']=100000;}
         if($independent){$pricing['spark_generation_calls']=$sparkCfg['generation_calls'];$pricing['director_slots']=2;$pricing['max_output']=SPARK_REPLY_OUTPUT_TOKENS;}
         $attempt=reserveAi($db,$claim['id'],$claim['pair'],$pricing,$now);
+        }
         if($independent){
             $responses??=new OpenAiTransport();$proposal=independentSparkEncounter($db,$responses,$attempt,$prepared,$pricing,$sparkCfg,$usage);
         }elseif($managed!==null){

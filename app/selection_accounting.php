@@ -143,7 +143,7 @@ function selectionCommitted(PDO $db,string $month):int
 function selectionLeaseActive(PDO $db,int $now):bool
 {
     if(!selectionLedgerInstalled($db))return false;
-    $q=$db->prepare("SELECT 1 FROM selection_reservations WHERE state IN ('reserved','dispatched') AND expires_at>? LIMIT 1");$q->execute([$now]);if($q->fetchColumn())return true;if(!selectionCapacityInstalled($db))return false;$q=$db->prepare("SELECT 1 FROM selection_conversation_capacity c JOIN selection_reservations s ON s.id=c.selection_id LEFT JOIN selection_capacity_transfers t ON t.selection_id=c.selection_id WHERE t.selection_id IS NULL AND s.state='completed' AND s.expires_at>? LIMIT 1");$q->execute([$now]);return (bool)$q->fetchColumn();
+    $q=$db->prepare("SELECT 1 FROM selection_reservations s JOIN simulation_opportunities o ON o.id=s.opportunity_id WHERE s.state IN ('reserved','dispatched') AND s.expires_at>? AND o.outcome='pending' LIMIT 1");$q->execute([$now]);if($q->fetchColumn())return true;if(!selectionCapacityInstalled($db))return false;$q=$db->prepare("SELECT 1 FROM selection_conversation_capacity c JOIN selection_reservations s ON s.id=c.selection_id LEFT JOIN selection_capacity_transfers t ON t.selection_id=c.selection_id JOIN simulation_opportunities o ON o.id=s.opportunity_id WHERE t.selection_id IS NULL AND s.state='completed' AND s.expires_at>? AND o.outcome='pending' LIMIT 1");$q->execute([$now]);return (bool)$q->fetchColumn();
 }
 /** Caller owns the SQLite write lock. Never retries or releases a commitment. */
 function recoverSelectionReservations(PDO $db,int $now):void

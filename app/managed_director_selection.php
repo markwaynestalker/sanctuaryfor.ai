@@ -125,3 +125,16 @@ function managedSelectionAndHandoff(PDO $db,DirectorTransport $transport,array $
     $attempt=reserveAi($db,$claim['id'],$pair,$pricing,$now);
     return ['decision'=>$decision,'claim'=>$claim,'choices'=>$choices,'prepared'=>$prepared,'session'=>$session,'attempt'=>$attempt,'pricing'=>$pricing];
 }
+/** Commit a validated quiet decision without fabricating a conversation attempt. */
+function finalizeManagedSelectionQuiet(PDO $db,array $claim,array $reservation,int $now):array
+{
+    $db->exec('BEGIN IMMEDIATE');
+    try{
+        $current=time();$q=$db->prepare("SELECT 1 FROM selection_reservations s JOIN simulation_opportunities o ON o.id=s.opportunity_id LEFT JOIN selection_capacity_transfers t ON t.selection_id=s.id WHERE s.id=? AND o.id=? AND s.state='completed' AND s.expires_at>? AND s.day=? AND o.outcome='pending' AND o.expires_at>? AND o.resident_a IS NULL AND o.resident_b IS NULL AND t.selection_id IS NULL");
+        $q->execute([$reservation['id'],$claim['id'],$current,gmdate('Y-m-d',$current),$current]);if(!$q->fetchColumn())throw new AiGuard('apply_rejected');
+        $run=bin2hex(random_bytes(16));$time=gmdate('Y-m-d\TH:i:s\Z',$current);
+        $db->prepare("INSERT INTO simulation_runs(id,period,status,provider,started_at,finished_at,interaction_count,input_tokens,output_tokens,cost_microusd) VALUES (?,?,'completed','openai',?,?,0,0,0,0)")->execute([$run,$claim['id'],$claim['created_at'],$time]);
+        $q=$db->prepare("UPDATE simulation_opportunities SET run_id=?,outcome='quiet',finished_at=? WHERE id=? AND outcome='pending'");$q->execute([$run,$time,$claim['id']]);if($q->rowCount()!==1)throw new AiGuard('apply_rejected');
+        $db->exec('COMMIT');return activityResult($db,$claim['id'])+['replayed'=>false];
+    }catch(\Throwable $e){$db->exec('ROLLBACK');throw $e;}
+}
