@@ -19,5 +19,8 @@ check(parseDirectorSelection($p,$c)===$p['participants'],'Valid pair retained in
 $q=['contract'=>'sanctuary.selection.v1','outcome'=>'quiet','participants'=>[]];check(parseDirectorSelection($q,$c)===[],'Quiet allowed');
 foreach([['participants'=>[str_repeat('a',32),str_repeat('a',32)]],['participants'=>[str_repeat('a',32),str_repeat('c',32)]],['participants'=>[str_repeat('a',32)]],['unknown'=>true],['contract'=>'unknown']] as $patch)reject(fn()=>parseDirectorSelection(array_replace($p,$patch),$c),'invalid_proposal');
 reject(fn()=>parseDirectorSelection(array_replace($q,['participants'=>[str_repeat('a',32)]]),$c),'invalid_proposal');
-reject(fn()=>directorSelectionCandidates($db,'2026-01-01',['candidates'=>64,'resident_daily'=>1],10),'configuration_invalid');
+reject(fn()=>directorSelectionCandidates($db,'2026-01-01',['candidates'=>64,'resident_daily'=>1],10),'selection_context_too_large');
+// A candidate limit is a fail-closed bound, never a silent subset.
+for($n=0;$n<63;$n++){$id=sprintf('%032x',$n+10);$db->prepare('INSERT INTO residents VALUES(?,?,?)')->execute([$id,'Extra','curious']);$db->prepare("INSERT INTO resident_states VALUES(?,'available')")->execute([$id]);$db->prepare('INSERT INTO resident_identities VALUES(?,?,?)')->execute([$id,'Owner',1]);}
+reject(fn()=>directorSelectionCandidates($db,'2026-01-01',['candidates'=>64,'resident_daily'=>1],100000),'selection_context_too_large');
 echo "PASS bounded candidate projection, quotas, identity, quiet and strict participant selection (offline)\n";
