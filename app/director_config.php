@@ -57,7 +57,7 @@ function registeredDirector(PDO $db,array $cfg):array
     $checked=validateDirectorExport(json_decode($row['configuration'],true,16,JSON_THROW_ON_ERROR));
     if(hash('sha256',json_encode($checked,JSON_THROW_ON_ERROR|JSON_UNESCAPED_UNICODE))!==$cfg['fingerprint'])throw new AiGuard('configuration_invalid');return $row;
 }
-function directorSchema(array $choices,bool $multi=false):array
+function directorSchema(array $choices,bool $multi=false,bool $narrative=false):array
 {
     $schema=json_decode((string)file_get_contents(__DIR__.'/../contracts/director-v1.schema.json'),true,32,JSON_THROW_ON_ERROR);
     $schema['properties']['world_action']['enum']=array_keys($choices);
@@ -80,6 +80,9 @@ function directorSchema(array $choices,bool $multi=false):array
         $schema['properties']['notes']['items']['properties']['sequence']['maximum']=$cfg['max']-1;
         unset($schema['properties']['notes']['items']['properties']['sequence']['enum']);
     }
+    if($narrative){$schema['required'][]='narrative_story';$schema['properties']['narrative_story']=['type'=>'object','additionalProperties'=>false,'required'=>['action','story_id'],'properties'=>[
+        'action'=>['type'=>'string','enum'=>['none','start','continue','conclude','revisit']],
+        'story_id'=>['anyOf'=>[['type'=>'null'],['type'=>'string','pattern'=>'^[a-f0-9]{32}$']]]]];}
     return $schema;
 }
 function directorProposalByteLimit(string $contract):int
@@ -102,6 +105,6 @@ function managedDirectorPrototype(array $external,array $context,array $choices)
     // and optional experimental permits; managed billing remains provisional.
     return ['agent_id'=>$config['id'],'environment'=>['type'=>'none'],
         'agent'=>['model'=>$config['model'],'reasoning'=>$config['reasoning'],'tools'=>[],'multi_agent'=>['enabled'=>false],'service_tier'=>'default',
-            'text'=>['format'=>['type'=>'json_schema','schema'=>directorSchema($choices,str_ends_with($context['contract'],'.v2'))]]],
+            'text'=>['format'=>['type'=>'json_schema','schema'=>directorSchema($choices,str_ends_with($context['contract'],'.v2'),array_key_exists('narrative_stories',$context))]]],
         'input'=>[['role'=>'user','content'=>[['type'=>'input_text','text'=>json_encode($context,JSON_THROW_ON_ERROR|JSON_UNESCAPED_UNICODE)]]]],'stream'=>false];
 }

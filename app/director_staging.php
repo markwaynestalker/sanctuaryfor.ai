@@ -173,7 +173,8 @@ function stagingManagedEncounter(PDO $db,DirectorTransport $transport,array $att
         $items=$request('GET','agents/sessions/'.$sid.'/turns/'.$turnId.'/items?limit=20&order=asc');$proposalStage=null;
         try{
             $decoded=stagingItems($items,$turnId,$proposalStage,directorProposalByteLimit($prepared['context']['contract']));$proposalStage='proposal_content';
-            $proposal=parseDirectorProposal($decoded,$prepared['context']['participants'],$choices);
+            $proposal=parseDirectorProposal($decoded,$prepared['context']['participants'],$choices,array_key_exists('narrative_stories',$prepared['context']));
+            validateNarrativeProposal($proposal,$prepared['context']);
             assertDirectorOutputContract($proposal['contract'],$prepared['context']['contract']);
             if($conversationOnly&&($proposal['outcome']!=='conversation'||$proposal['world_action']!=='none'))throw new AiGuard('invalid_proposal');
         }catch(\Throwable $e){
