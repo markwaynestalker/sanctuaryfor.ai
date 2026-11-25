@@ -81,16 +81,16 @@ if($available)$appearanceReady=LittleSparks\appearanceInstalled($db);
             <span class="scene-coordinate" aria-hidden="true">SANCTUARY / COMMON GROUND</span>
         </div>
         <section id="dialogue-panel" data-transcript class="dialogue-panel" aria-labelledby="dialogue-title" hidden>
-            <div class="dialogue-heading"><div><p class="eyebrow">A SAVED EXCHANGE</p><h3 id="dialogue-title" tabindex="-1"></h3></div><button id="close-dialogue" type="button" class="small-button" aria-label="Close conversation">Close</button></div>
+            <div class="dialogue-heading"><div><p class="eyebrow">A SAVED STORY</p><h3 id="dialogue-title" tabindex="-1"></h3></div><button id="close-dialogue" type="button" class="small-button" aria-label="Close conversation">Close</button></div>
             <button type="button" class="small-button" data-read-aloud aria-pressed="false" hidden>Read aloud</button><p id="dialogue-source" class="field-help"></p><div id="dialogue-lines" class="dialogue-lines"></div>
-            <p class="field-help">Take your time. This exchange stays open until you close it or choose another. <a href="journal.php">Read the village journal ↗</a></p>
+            <p class="field-help">Take your time. This story stays open until you close it or choose another. <a href="journal.php">Read the village journal ↗</a></p>
         </section>
         <p id="chicken-message" class="chicken-message" role="status">The chickens are protected. Always.</p>
         <p id="commons-freshness" class="field-help" role="status">Refresh residents to discover the latest saved village life. Visiting never starts a simulation.</p>
         <p><a class="profile-life-link" href="conversations.php">Browse all conversations ↗</a> · <a href="bulletin.php">Read the bulletin board ↗</a> · <a href="gazette.php">Read the Village Gazette ↗</a></p>
         <div id="board-posts" class="board-posts" hidden></div>
         <p class="field-help">Wandering is decorative. Highlighted pairs replay saved conversations; no new encounter is created by this scene.</p>
-        <details class="commons-recordings"><summary>Read recent saved conversations</summary><div id="saved-dialogue"><p class="field-help">Saved exchanges will appear here when available. You can also read the <a href="journal.php">village journal</a>.</p></div></details>
+        <details class="commons-recordings"><summary>Read recent saved conversations and storylines</summary><div id="saved-dialogue"><p class="field-help">Saved exchanges will appear here when available. You can also read the <a href="journal.php">village journal</a>.</p></div></details>
     </section>
     <div class="village-columns">
         <section id="create" class="creation-panel" aria-labelledby="create-title">

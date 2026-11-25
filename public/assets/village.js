@@ -8,7 +8,7 @@
     const meadow = globalThis.SparksMeadow;
     const setProfileLink = commons.bindProfileLink($('profile-life-link'), $('resident-profile'));
     $('profile-idea-link')?.addEventListener('click',()=>{if($('resident-profile').open)$('resident-profile').close();});
-    let homes = [], exchanges = new Map(), posts = new Map(), activeMeeting = null, gathering = null, commonsVersion = 0, dialogueOrigin = null;
+    let homes = [], exchanges = new Map(), stories = [], posts = new Map(), activeMeeting = null, gathering = null, commonsVersion = 0, dialogueOrigin = null;
     let replayStorage;
     try { replayStorage = sessionStorage; } catch { /* Storage may be disabled. */ }
     const played = commons.replayHistory(replayStorage);
@@ -309,10 +309,10 @@
     }
     function renderRecordings() {
         const panel = $('saved-dialogue'); panel.replaceChildren();
-        const recent = [...exchanges.values()].sort((a, b) => b.created_at.localeCompare(a.created_at)).slice(0, 6);
+        const recent = [...stories].sort((a, b) => b.created_at.localeCompare(a.created_at)).slice(0, 6);
         for (const c of recent) {
             const article = document.createElement('article'), source = document.createElement('p');
-            source.className = 'field-help'; source.textContent = commons.sourceLabel(c); article.append(source);
+            source.className = 'field-help'; source.textContent = commons.sourceLabel(c)+(c.segments ? ` | ${c.segments.length} ${c.segments.length===1?'exchange':'exchanges'}` : ''); article.append(source);
             for (const message of c.messages) {
                 const line = document.createElement('p'), name = document.createElement('strong'), text = document.createElement('span');
                 name.textContent = `${message.name}: `; text.textContent = message.text; line.append(name, text); article.append(line);
@@ -328,11 +328,11 @@
     }
     document.addEventListener('sparks:timezone',()=>{
         renderRecordings();renderPosts();renderFreshness();
-        if(activeMeeting)$('dialogue-source').textContent=commons.sourceLabel(activeMeeting.exchange);
+        if(activeMeeting){const c=activeMeeting.exchange;$('dialogue-source').textContent=commons.sourceLabel(c)+(c.segments ? ` | ${c.segments.length} ${c.segments.length===1?'exchange':'exchanges'}` : '');}
     });
     async function refreshCommons() {
         const version = ++commonsVersion, ids = walkers.map(w => w.resident.id);
-        homes = []; exchanges = new Map();posts=new Map(); renderHomes(); renderRecordings();renderPosts();
+        homes = []; exchanges = new Map();stories=[];posts=new Map(); renderHomes(); renderRecordings();renderPosts();
         if (!ids.length) return;
         try {
             const response = await fetch(`api/commons.php?ids=${encodeURIComponent(ids.join(','))}`, {credentials:'same-origin', cache:'no-store'});
@@ -342,7 +342,9 @@
             globalThis.SparksAtmosphere?.setSharedWeather?.(data.settings?.weather??null);
             replayCooldown=replay;sleepPolicy=sleep;sleepReceivedAt=performance.now();commonsReady=true;syncSleep();
             homes = Array.isArray(data.homes) ? data.homes.slice(0, 24) : [];
-            exchanges = commons.latestExchanges(Array.isArray(data.conversations) ? data.conversations : [], ids);
+            stories = Array.isArray(data.story_threads) ? commons.storyThreads(data.story_threads,ids) : [...commons.latestExchanges(Array.isArray(data.conversations) ? data.conversations : [],ids).values()];
+            exchanges = new Map();
+            for(const story of stories){const pair=story.messages.slice(0,2),key=commons.pairKey(pair[0].resident_id,pair[1].resident_id),old=exchanges.get(key);if(!old||story.created_at>old.created_at)exchanges.set(key,story);}
             posts=commons.bulletinPosts(data.bulletin_posts,ids);
             renderHomes(); renderRecordings();renderPosts();
             updateIndicators();
@@ -369,12 +371,16 @@
         for(const w of pair)w.stop=Infinity;
         played.record(exchange.id,Date.now());
         $('dialogue-title').textContent=exchange.messages.slice(0,2).map(m=>m.name).join(' & ');
-        $('dialogue-source').textContent=commons.sourceLabel(exchange);
+        $('dialogue-source').textContent=commons.sourceLabel(exchange)+(exchange.segments ? ` | ${exchange.segments.length} ${exchange.segments.length===1?'exchange':'exchanges'}` : '');
         const lines=$('dialogue-lines');lines.replaceChildren();
-        for(const message of exchange.messages){
+        const segments=exchange.segments||[{messages:exchange.messages}];
+        for(const [index,segment] of segments.entries()){
+            if(segments.length>1){const chapter=document.createElement('p');chapter.className='story-chapter';chapter.textContent=`Exchange ${index+1} | ${commons.sourceLabel(segment)} `;const link=document.createElement('a');link.href='conversations.php?conversation='+encodeURIComponent(segment.id);link.textContent='Archive';chapter.append(link);lines.append(chapter);}
+            for(const message of segment.messages){
             const line=document.createElement('article'),name=document.createElement('strong'),text=document.createElement('p'),resident=pair.find(w=>w.resident.id===message.resident_id).resident;
             line.className='saved-speech';line.style.setProperty('--speech-color',avatars.palette(avatars.appearance(resident)).primary);
             line.append(avatars.render(resident,'avatar-small'));name.textContent=message.name;text.textContent=message.text;text.setAttribute('data-speech','');line.append(name,text);lines.append(line);
+            }
         }
         $('dialogue-panel').hidden=false;updateIndicators();
         if(focus)$('dialogue-title').focus();
