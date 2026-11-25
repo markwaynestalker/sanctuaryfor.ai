@@ -49,7 +49,7 @@ class Element{
     focus(){this.doc.activeElement=this;for(const f of this.listeners.focus??[])f({});}showModal(){this.open=true;}close(){this.open=false;for(const f of this.listeners.close??[])f({});}
     click(overrides={}){const event={button:0,defaultPrevented:false,preventDefault(){this.defaultPrevented=true;},...overrides};for(const f of this.listeners.click??[])f(event);this.onclick?.(event);if(this.href&&!event.defaultPrevented&&!event.ctrlKey&&!event.metaKey)this.doc.location.href=new URL(this.href,this.doc.location.href).href;return event;}
 }
-async function meadow({mobile=false,reduced=false,third=false,conversation=exchange,replay=60,sleep,weather,unavailable=false,bulletinPosts,homesEnabled=true,people=residents,width=mobile?388:1000}={}){
+async function meadow({mobile=false,reduced=false,third=false,conversation=exchange,storyThreads,replay=60,sleep,weather,unavailable=false,bulletinPosts,homesEnabled=true,people=residents,width=mobile?388:1000}={}){
     const elements=new Map(),requests=[],frames=new Map(),media=new Map(),motionStates=[];let clock=1000,sequence=0;
     const location={href:'http://fixture.test/village.php',pathname:'/village.php',search:'',hash:''};
     const document={elements,location,hidden:false,listeners:{},getElementById(id){if(id==='creation-appearance')return null;if(!elements.has(id))elements.set(id,new Element(id.includes('link')?'a':'div',this));return elements.get(id);},createElement(tag){return new Element(tag,this);},createElementNS(ns,tag){return new Element(tag,this);},addEventListener(type,f){this.listeners[type]=f;}};
@@ -63,7 +63,7 @@ async function meadow({mobile=false,reduced=false,third=false,conversation=excha
         matchMedia(query){const value={matches:query.includes('reduced')?reduced:mobile,addEventListener(type,f){this.listener=f;}};media.set(query,value);return value;},
         addEventListener(){},requestAnimationFrame(f){frames.set(++sequence,f);return sequence;},cancelAnimationFrame(id){frames.delete(id);},
         ResizeObserver:class{constructor(f){resize=f;}observe(){}},
-        fetch:async(url,options)=>{requests.push({url,options});if(unavailable&&url.includes('commons.php'))return {ok:false,json:async()=>({error:'Fixture unavailable'})};const ids=new URL(url,'http://fixture.test/').searchParams.get('ids')?.split(',')||[];return {ok:true,json:async()=>url.includes('residents.php')?{residents:population,total:population.length,page:0,lastPage:0,csrf:'fixture'}:{homes:(homesEnabled?people:[]).map((r,i)=>({resident_id:r.id,plot:{x:i*4,y:0,width:4,height:4},objects:[{kind:'house',x:i*4+1,y:1},...(i===0?[{kind:'tree',x:3,y:3},{kind:'flowers',x:0,y:2},{kind:'bush',x:3,y:0},{kind:'path',x:1,y:2},{kind:'decoration',x:2,y:0}]:[])]})).filter(h=>ids.includes(h.resident_id)),bulletin_posts:bulletinPosts,conversations:conversation?(Array.isArray(conversation)?conversation:[conversation]):[]}};}});
+        fetch:async(url,options)=>{requests.push({url,options});if(unavailable&&url.includes('commons.php'))return {ok:false,json:async()=>({error:'Fixture unavailable'})};const ids=new URL(url,'http://fixture.test/').searchParams.get('ids')?.split(',')||[];return {ok:true,json:async()=>url.includes('residents.php')?{residents:population,total:population.length,page:0,lastPage:0,csrf:'fixture'}:{homes:(homesEnabled?people:[]).map((r,i)=>({resident_id:r.id,plot:{x:i*4,y:0,width:4,height:4},objects:[{kind:'house',x:i*4+1,y:1},...(i===0?[{kind:'tree',x:3,y:3},{kind:'flowers',x:0,y:2},{kind:'bush',x:3,y:0},{kind:'path',x:1,y:2},{kind:'decoration',x:2,y:0}]:[])]})).filter(h=>ids.includes(h.resident_id)),bulletin_posts:bulletinPosts,...(storyThreads?{story_threads:storyThreads}:{}),conversations:conversation?(Array.isArray(conversation)?conversation:[conversation]):[]}};}});
     let commonsGate;
     const originalFetch=context.fetch;context.fetch=async(...args)=>{if(args[0].includes('commons.php')&&commonsGate)await commonsGate;const result=await originalFetch(...args);if(args[0].includes('commons.php')){const json=result.json;result.json=async()=>({...await json(),settings:{replay_cooldown_seconds:replay,...(sleep?{sleep}:{}),...(weather?{weather}:{})}});}return result;};
     vm.runInContext(helperSource,context);vm.runInContext(meadowSource,context);vm.runInContext(avatarSource,context);vm.runInContext(villageSource,context);await new Promise(setImmediate);
@@ -151,6 +151,15 @@ const multiline='A small thought.\nA second line, kept exactly as saved.',lineFi
 for(const mobile of [false,true]){
  const text='é'.repeat(159)+'🌻',boundary={...exchange,id:'boundary-'+mobile,messages:exchange.messages.map(m=>({...m,text}))};
  const m=await meadow({mobile,reduced:true,conversation:boundary});m.$('conversation-layer').children[0].click();assert.ok(m.$('dialogue-lines').textContent.includes(text),'All 160 Unicode characters survive the mobile and desktop panel');assert.ok(m.$('saved-dialogue').textContent.includes(text));
+}
+const segments=[0,1,2].map(i=>({...exchange,id:'chapter-'+i,created_at:`2026-10-24T13:0${i}:00Z`,messages:exchange.messages.map((m,n)=>({...m,text:`Chapter ${i+1} line ${n+1}`}))}));
+const thread={id:segments[0].id,created_at:segments[2].created_at,provider:'openai',segments};
+for(const mobile of [false,true]){
+ const m=await meadow({mobile,reduced:true,storyThreads:[thread]});m.$('conversation-layer').children[0].click();
+ assert.ok(m.$('dialogue-source').textContent.includes('3 exchanges'));const text=m.$('dialogue-lines').textContent;
+ assert.ok(text.indexOf('Chapter 1 line 1')<text.indexOf('Chapter 2 line 1')&&text.indexOf('Chapter 2 line 1')<text.indexOf('Chapter 3 line 1'));
+ assert.equal(m.$('dialogue-lines').children.filter(el=>el.className==='story-chapter').length,3);assert.equal(m.requests.length,2,'Story reading adds no request');
+ assert.equal(m.$('saved-dialogue').children.length,1,'One recent story replaces its three segments');
 }
 const idle=await meadow({conversation:null});for(let i=0;i<700;i++)idle.step();assert.ok(idle.$('dialogue-panel').hidden);assert.ok(idle.$('conversation-layer').children.every(el=>el.hidden),'No invented conversation or availability indicator');
 for(const replay of [0,3600]){

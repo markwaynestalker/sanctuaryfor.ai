@@ -24,6 +24,21 @@ globalThis.SparksCommons = (() => {
         }
         return result;
     }
+    function storyThreads(records, ids) {
+        if (!Array.isArray(records)) return [];
+        const stories=[];
+        for (const thread of records.slice(0,64)) {
+            if (!thread || !Array.isArray(thread.segments) || thread.segments.length<1 || thread.segments.length>3) continue;
+            const segments=thread.segments, validated=segments.map(s=>[...latestExchanges([s],ids).values()][0]);
+            if (validated.some(s=>!s)) continue;
+            const first=validated[0], key=pairKey(first.messages[0].resident_id,first.messages[1].resident_id);
+            if (validated.some((s,i)=>pairKey(s.messages[0].resident_id,s.messages[1].resident_id)!==key || (i && s.created_at<validated[i-1].created_at))) continue;
+            const last=validated[validated.length-1];
+            if (thread.id!==first.id || thread.created_at!==last.created_at || thread.provider!==last.provider) continue;
+            stories.push({...thread,segments:validated,messages:validated.flatMap(s=>s.messages)});
+        }
+        return stories;
+    }
     const sourceLabel = c => globalThis.SparksAtmosphere?.savedLabel(c) ?? `${c.created_at.slice(0,10) === new Date().toISOString().slice(0,10) ? 'Saved today' : 'From the village journal'} · ${c.provider === 'openai' ? 'Saved AI-generated dialogue' : 'Saved scripted dialogue'} · ${c.created_at.replace('T', ' ').replace('Z', ' UTC')}`;
     function bulletinPosts(records,ids) {
         const visible=new Set(ids),posts=new Map();
@@ -76,5 +91,5 @@ globalThis.SparksCommons = (() => {
             }
         });
     }
-    return Object.freeze({validId, pairKey, profileUrl, bindProfileLink, latestExchanges, bulletinPosts, sourceLabel, replayCooldown, replayHistory,sleepConfiguration,sleepingAt});
+    return Object.freeze({validId, pairKey, profileUrl, bindProfileLink, latestExchanges, storyThreads, bulletinPosts, sourceLabel, replayCooldown, replayHistory,sleepConfiguration,sleepingAt});
 })();

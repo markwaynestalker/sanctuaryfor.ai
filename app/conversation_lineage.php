@@ -25,3 +25,29 @@ function publicConversationLineage(PDO $db,array $ids,?int $version=null,?array 
         $out[$id]=['source_id'=>$r['source_id'],'root_id'=>$r['root_id'],'segment'=>$r['segment']];
     }return $out;
 }
+
+/** Shared source authorization; callers add bound filters inside a read snapshot. */
+function conversationPublicSource(PDO $db):array
+{
+    $messageTable=messageRelation($db);
+    $version=(int)$db->query('PRAGMA user_version')->fetchColumn();
+    $source=$version>=3?"CASE WHEN ai.conversation_id IS NOT NULL THEN 'openai' ELSE 'scripted' END":"'scripted'";
+    $joins=$version>=3?' LEFT JOIN ai_conversations ai ON ai.conversation_id=c.id':'';
+    $topic=$version===6?'COALESCE(d.topic,c.topic)':'c.topic';
+    if($version===6)$joins.=' LEFT JOIN director_runs d ON d.conversation_id=c.id AND d.run_id=c.run_id';
+    $sql=" FROM conversations c
+        JOIN simulation_runs run ON run.id=c.run_id AND run.status='completed'
+        JOIN $messageTable a ON a.conversation_id=c.id AND a.sequence=0
+        JOIN $messageTable b ON b.conversation_id=c.id AND b.sequence=1 AND b.resident_id<>a.resident_id
+        JOIN conversation_participants pa ON pa.conversation_id=c.id AND pa.resident_id=a.resident_id
+        JOIN conversation_participants pb ON pb.conversation_id=c.id AND pb.resident_id=b.resident_id
+        JOIN residents ra ON ra.id=a.resident_id JOIN residents rb ON rb.id=b.resident_id $joins
+        WHERE c.visibility='public' AND length(a.body) BETWEEN 1 AND 160 AND length(b.body) BETWEEN 1 AND 160
+        AND EXISTS(SELECT 1 FROM archive_events e WHERE e.run_id=c.run_id
+            AND ((e.actor_id=a.resident_id AND e.target_id=b.resident_id) OR (e.actor_id=b.resident_id AND e.target_id=a.resident_id))
+            AND (substr(e.dedupe_key,1,length('social:'||e.run_id||':'))<>'social:'||e.run_id||':' OR e.dedupe_key='social:'||e.run_id||':'||c.id))";
+    // Materialize public event authorization once per query. SQLite can build a
+    // transient run-id lookup instead of rescanning the full event log per row.
+    $prefix="WITH archive_events AS MATERIALIZED (SELECT run_id,actor_id,target_id,dedupe_key FROM events WHERE visibility='public' AND kind IN ('conversation','quiet_time') AND target_id IS NOT NULL) ";
+    return compact('prefix','sql','source','topic','messageTable','version');
+}

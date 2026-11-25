@@ -12,7 +12,7 @@
         const active=current===button;stop();if(active)return;
         const chosen=voice(),container=button.closest('[data-transcript]');if(!chosen||!container)return;
         const lines=[...container.querySelectorAll('[data-speech]')].map(el=>el.textContent);
-        if(!lines.length||lines.length>64||lines.some(line=>!line||Array.from(line).length>160))return;
+        if(!lines.length||lines.length>192||lines.some(line=>!line||Array.from(line).length>160))return;
         current=button;button.textContent='Stop reading';button.setAttribute('aria-pressed','true');
         const token=generation;let index=0;
         function next(){if(token!==generation)return;if(index===lines.length){stop();return;}const utterance=new Utterance(lines[index++]);currentUtterance=utterance;utterance.voice=chosen;utterance.lang=chosen.lang;utterance.onend=next;utterance.onerror=()=>{if(token===generation)stop();};synth.speak(utterance);}

@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import vm from 'node:vm';
 import {readFile} from 'node:fs/promises';
 const source=await readFile(new URL('../public/assets/read-aloud.js',import.meta.url),'utf8');
-for(const count of [2,3,16,64]){
+for(const count of [2,3,16,64,192]){
  const listeners={},events={},spoken=[],buttons=[],lines=Array.from({length:count},(_,i)=>({textContent:`Original message ${i+1}: I disagree.`}));
  const container={querySelectorAll:()=>lines};
  const button={hidden:true,textContent:'Read aloud',setAttribute(k,v){this[k]=v;},closest:()=>container};buttons.push(button);
@@ -16,4 +16,4 @@ for(const count of [2,3,16,64]){
  assert.equal(button['aria-pressed'],'false');
 }
 const buttons=[{hidden:true}],context=vm.createContext({document:{querySelectorAll:()=>buttons,addEventListener(){}},speechSynthesis:{getVoices:()=>[{localService:false,lang:'en-US'}],addEventListener(){}},SpeechSynthesisUtterance:class{},addEventListener(){}});vm.runInContext(source,context);assert.equal(buttons[0].hidden,true,'No remote-only voice is selected');
-console.log('PASS original saved speech order at 2/3/16/64 messages, explicit start/stop, stale callback cancellation, hidden tabs and on-device voice requirement');
+console.log('PASS original saved speech order at 2/3/16/64/192 messages, explicit start/stop, stale callback cancellation, hidden tabs and on-device voice requirement');

@@ -191,3 +191,6 @@ textarea{width:100%;min-height:8rem;resize:vertical;font:inherit;color:inherit;b
 .village-resident:focus-visible,.commons-home:focus-visible { outline:3px solid var(--mint); outline-offset:3px; }
 
 .directory-panel { align-self:start; }
+
+.story-chapter { margin:12px 0 0; color:#c5d9ca; font-size:.8rem; overflow-wrap:anywhere; }
+.story-chapter a { color:#d6efdf; text-decoration:underline; }
