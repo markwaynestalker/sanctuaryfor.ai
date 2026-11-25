@@ -32,11 +32,11 @@ function directorKeys(array $value,array $keys):void
 {
     if(count($value)!==count($keys)||array_diff(array_keys($value),$keys))throw new AiGuard('invalid_proposal');
 }
-function parseDirectorProposal(array $p,array $pair,array $choices):array
+function parseDirectorProposal(array $p,array $pair,array $choices,bool $narrative=false):array
 {
     $multi=in_array($p['contract']??null,['sanctuary.director.v2','sanctuary.director.bulletin.v2'],true);
     $cfg=$multi?conversationConfiguration():['min'=>2,'max'=>2];
-    $bulletin=in_array($p['contract']??null,['sanctuary.director.bulletin.v1','sanctuary.director.bulletin.v2'],true);$keys=['contract','outcome','topic','messages','world_action','transmissions','notes'];if($bulletin)$keys[]='notice';directorKeys($p,$keys);
+    $bulletin=in_array($p['contract']??null,['sanctuary.director.bulletin.v1','sanctuary.director.bulletin.v2'],true);$keys=['contract','outcome','topic','messages','world_action','transmissions','notes'];if($bulletin)$keys[]='notice';if($narrative)$keys[]='narrative_story';directorKeys($p,$keys);if($narrative)parseNarrativeDecision($p['narrative_story']??null);
     if(($bulletin&&!array_key_exists('post_notice',$choices))||(!$bulletin&&!in_array($p['contract']??null,['sanctuary.director.v1','sanctuary.director.v2'],true))||!in_array($p['outcome']??null,['conversation','action','quiet','none'],true)
         ||!is_string($p['topic']??null)||!is_string($p['world_action']??null)||!array_key_exists($p['world_action'],$choices)
         ||!is_array($p['messages'])||!array_is_list($p['messages'])||!is_array($p['notes'])||!array_is_list($p['notes'])||count($p['notes'])>2
@@ -150,6 +150,7 @@ function simulateDirectorOpportunity(PDO $db,string $at,bool $allowPaid,?AiTrans
     $independent=sparkDialogueMode()==='independent';$sparkCfg=$independent?sparkDialogueConfiguration($db,$cfg,$pricing):null;
     if($independent&&($managed!==null||$staging!==null||$configuredManaged||$stagingContinueAfter!==null))throw new AiGuard('configuration_invalid');
     simulationInterval();memoryConfiguration();
+    $narrative=narrativeStoryEnabled($db);if($narrative&&$contextProvider!==null)throw new AiGuard('configuration_invalid');
     $selection=getenv('LITTLE_SPARKS_AI_SELECTION_ENABLED')==='1';
     if($selection&&($cfg['runtime']!=='agents'||$managed===null||$independent||$staging!==null||$stagingContinueAfter!==null||$conversationOnly||$contextProvider!==null))throw new AiGuard('configuration_invalid');
     $claim=claimActivity($db,$at,$now,$selection);if(isset($claim['replay']))return $claim['replay']+['replayed'=>true];
@@ -194,12 +195,14 @@ function simulateDirectorOpportunity(PDO $db,string $at,bool $allowPaid,?AiTrans
             $usage=null; // Best-effort observations must remain uncertain even if apply later fails.
         }else{
             $responses??=new OpenAiTransport();startAiRequest($db,$attempt,'responses_started');$result=$responses->post('responses',$body,$attempt['expires']);
-            $usage=recordAiUsage($db,$attempt,$result,$pricing);$proposal=parseDirectorProposal(decodedAiProposal($result,directorProposalByteLimit($prepared['context']['contract'])),$prepared['context']['participants'],$choices);
+            $usage=recordAiUsage($db,$attempt,$result,$pricing);$proposal=parseDirectorProposal(decodedAiProposal($result,directorProposalByteLimit($prepared['context']['contract'])),$prepared['context']['participants'],$choices,array_key_exists('narrative_stories',$prepared['context']));
+            validateNarrativeProposal($proposal,$prepared['context']);
             assertDirectorOutputContract($proposal['contract'],$prepared['context']['contract']);
             startAiRequest($db,$attempt,'moderation_started');$moderation=$responses->post('moderations',['model'=>'omni-moderation-latest','input'=>json_encode([$prepared['context'],$proposal],JSON_THROW_ON_ERROR|JSON_UNESCAPED_UNICODE)],$attempt['expires']);
             if(count($moderation['results']??[])!==1||($moderation['results'][0]['flagged']??null)!==false)throw new AiGuard('moderation_rejected');
             if(($proposal['world_action']??null)==='post_notice')$proposal['bulletin_approved']=true;
         }
+        if(array_key_exists('narrative_stories',$prepared['context']))$proposal['narrative_offered']=$prepared['context']['narrative_stories'];
         $proposal['operator_idea_ids']=$prepared['operator_idea_ids']??[];
         $proposal['gazette_context_receipt']=$prepared['gazette_context_receipt']??null;
         $proposal['director_session']=$session['id'];$proposal['director_fingerprint']=$registered['fingerprint'];

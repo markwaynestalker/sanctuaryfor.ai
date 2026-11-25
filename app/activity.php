@@ -241,6 +241,7 @@ function applyActivity(PDO $db,array $claim,array $proposal,array $choices,int $
         }elseif($outcome==='conversation'&&memoryEnabled($db))conversationMemory($db,$conversation,$proposal['shared_receipt']??null);
         if($outcome==='quiet'&&$pair)event($db,$pair[0]['id'],null,'quiet_time','simulation',$time,'activity:'.$claim['id'].':quiet',$run);
         $db->prepare('UPDATE simulation_opportunities SET run_id=?,outcome=?,finished_at=? WHERE id=?')->execute([$run,$outcome,$time,$claim['id']]);
+        if(isset($proposal['director'],$proposal['narrative_story'],$conversation))saveNarrativeStory($db,$proposal['narrative_story'],$proposal['narrative_offered']??[],$conversation,$time);
         if($ai){
             $db->prepare("UPDATE ai_attempts SET state='applied',finished_at=? WHERE id=?")->execute([$time,$run]);
             if(directorEnabled($db)){
