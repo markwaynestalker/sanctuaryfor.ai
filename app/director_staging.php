@@ -172,14 +172,14 @@ function stagingManagedEncounter(PDO $db,DirectorTransport $transport,array $att
         if($observed===null&&($turn['usage']??null)!==null)throw new AiGuard('usage_unknown');
         $items=$request('GET','agents/sessions/'.$sid.'/turns/'.$turnId.'/items?limit=20&order=asc');$proposalStage=null;
         try{
-            $decoded=stagingItems($items,$turnId,$proposalStage,directorProposalByteLimit($prepared['context']['contract']));$proposalStage='proposal_content';
+            $decoded=stagingItems($items,$turnId,$proposalStage,directorProposalByteLimit($prepared['context']['contract']));$proposalStage='proposal_content';$proposalCategory='director_fields';
             $proposal=parseDirectorProposal($decoded,$prepared['context']['participants'],$choices,array_key_exists('narrative_stories',$prepared['context']));
-            validateNarrativeProposal($proposal,$prepared['context']);
-            assertDirectorOutputContract($proposal['contract'],$prepared['context']['contract']);
-            if($conversationOnly&&($proposal['outcome']!=='conversation'||$proposal['world_action']!=='none'))throw new AiGuard('invalid_proposal');
+            $proposalCategory='narrative_decision';validateNarrativeProposal($proposal,$prepared['context']);
+            $proposalCategory='contract_mismatch';assertDirectorOutputContract($proposal['contract'],$prepared['context']['contract']);
+            $proposalCategory='conversation_required';if($conversationOnly&&($proposal['outcome']!=='conversation'||$proposal['world_action']!=='none'))throw new AiGuard('invalid_proposal');
         }catch(\Throwable $e){
             if(($e instanceof AiGuard&&$e->reason==='invalid_proposal')||$e instanceof \JsonException)
-                $db->prepare('INSERT INTO settings(name,value) VALUES (?,?)')->execute(['director_proposal_rejection:'.$attempt['id'],json_encode(['stage'=>$proposalStage],JSON_THROW_ON_ERROR)]);
+                $db->prepare('INSERT INTO settings(name,value) VALUES (?,?)')->execute(['director_proposal_rejection:'.$attempt['id'],json_encode($proposalStage==='proposal_content'?['stage'=>$proposalStage,'category'=>($e instanceof AiGuard&&$e->diagnostic!==null?$e->diagnostic:($proposalCategory??'director_fields'))]:['stage'=>$proposalStage],JSON_THROW_ON_ERROR)]);
             throw $e;
         }
         $moderated=$request('POST','moderations',['model'=>'omni-moderation-latest','input'=>json_encode([$prepared['context'],$decoded],JSON_THROW_ON_ERROR|JSON_UNESCAPED_UNICODE)]);

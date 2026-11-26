@@ -36,34 +36,34 @@ function parseDirectorProposal(array $p,array $pair,array $choices,bool $narrati
 {
     $multi=in_array($p['contract']??null,['sanctuary.director.v2','sanctuary.director.bulletin.v2'],true);
     $cfg=$multi?conversationConfiguration():['min'=>2,'max'=>2];
-    $bulletin=in_array($p['contract']??null,['sanctuary.director.bulletin.v1','sanctuary.director.bulletin.v2'],true);$keys=['contract','outcome','topic','messages','world_action','transmissions','notes'];if($bulletin)$keys[]='notice';if($narrative)$keys[]='narrative_story';directorKeys($p,$keys);if($narrative)parseNarrativeDecision($p['narrative_story']??null);
+    $bulletin=in_array($p['contract']??null,['sanctuary.director.bulletin.v1','sanctuary.director.bulletin.v2'],true);$keys=['contract','outcome','topic','messages','world_action','transmissions','notes'];if($bulletin)$keys[]='notice';if($narrative)$keys[]='narrative_story';try{directorKeys($p,$keys);}catch(AiGuard){throw new AiGuard('invalid_proposal','proposal_keys');}if($narrative)parseNarrativeDecision($p['narrative_story']??null);
     if(($bulletin&&!array_key_exists('post_notice',$choices))||(!$bulletin&&!in_array($p['contract']??null,['sanctuary.director.v1','sanctuary.director.v2'],true))||!in_array($p['outcome']??null,['conversation','action','quiet','none'],true)
         ||!is_string($p['topic']??null)||!is_string($p['world_action']??null)||!array_key_exists($p['world_action'],$choices)
         ||!is_array($p['messages'])||!array_is_list($p['messages'])||!is_array($p['notes'])||!array_is_list($p['notes'])||count($p['notes'])>2
         // V3A does not infer a fact entailment from free prose or model-selected aliases.
         // Existing V5 receipt chains remain intact. New text is retained as unverified notes.
-        ||$p['transmissions']!==[])throw new AiGuard('invalid_proposal');
-    safeAiText($p['topic'],64);$conversation=$p['outcome']==='conversation';
+        ||$p['transmissions']!==[])throw new AiGuard('invalid_proposal','proposal_fields');
+    try{safeAiText($p['topic'],64);}catch(AiGuard){throw new AiGuard('invalid_proposal','topic_text');}$conversation=$p['outcome']==='conversation';
     if(($conversation?(count($p['messages'])<$cfg['min']||count($p['messages'])>$cfg['max']):count($p['messages'])!==0)||(!$conversation&&$p['notes']!==[])
         ||($conversation&&count($pair)!==2)||($p['outcome']==='action'&&$p['world_action']==='none')
-        ||(in_array($p['outcome'],['quiet','none'],true)&&$p['world_action']!=='none'))throw new AiGuard('invalid_proposal');
+        ||(in_array($p['outcome'],['quiet','none'],true)&&$p['world_action']!=='none'))throw new AiGuard('invalid_proposal','outcome_shape');
     foreach($p['messages'] as $i=>$m){
-        if(!is_array($m))throw new AiGuard('invalid_proposal');directorKeys($m,['resident_id','text']);
-        if(($m['resident_id']??null)!==$pair[$i%2]['id'])throw new AiGuard('invalid_proposal');
-        $text=safeAiText($m['text']??null,160);
-        if(trim($text)!==$text||preg_match('/\A(?:[AB]|assistant|user|system|resident|robot)\s*:/iu',$text))throw new AiGuard('invalid_proposal');
-        foreach($pair as $actor)if(isset($actor['name'])&&preg_match('/\A'.preg_quote($actor['name'],'/').'\s*:/iu',$text))throw new AiGuard('invalid_proposal');
+        if(!is_array($m))throw new AiGuard('invalid_proposal','message_shape');try{directorKeys($m,['resident_id','text']);}catch(AiGuard){throw new AiGuard('invalid_proposal','message_shape');}
+        if(($m['resident_id']??null)!==$pair[$i%2]['id'])throw new AiGuard('invalid_proposal','message_speaker_order');
+        try{$text=safeAiText($m['text']??null,160);}catch(AiGuard){throw new AiGuard('invalid_proposal','message_text');}
+        if(trim($text)!==$text||preg_match('/\A(?:[AB]|assistant|user|system|resident|robot)\s*:/iu',$text))throw new AiGuard('invalid_proposal','message_format');
+        foreach($pair as $actor)if(isset($actor['name'])&&preg_match('/\A'.preg_quote($actor['name'],'/').'\s*:/iu',$text))throw new AiGuard('invalid_proposal','message_format');
     }
-    if($conversation&&$p['messages'][0]['text']===$p['messages'][1]['text'])throw new AiGuard('invalid_proposal');
+    if($conversation&&$p['messages'][0]['text']===$p['messages'][1]['text'])throw new AiGuard('invalid_proposal','duplicate_messages');
     foreach($p['notes'] as $note){
-        if(!is_array($note))throw new AiGuard('invalid_proposal');directorKeys($note,['resident_id','sequence','quote','classification']);
+        if(!is_array($note))throw new AiGuard('invalid_proposal','note_shape');try{directorKeys($note,['resident_id','sequence','quote','classification']);}catch(AiGuard){throw new AiGuard('invalid_proposal','note_shape');}
         if(!in_array($note['resident_id']??null,array_column($pair,'id'),true)||!is_int($note['sequence']??null)||$note['sequence']<0||$note['sequence']>=count($p['messages'])
-            ||!in_array($note['classification']??null,['preference','interpretation','rumor'],true))throw new AiGuard('invalid_proposal');
-        safeAiText($note['quote']??null,160);
-        if(!str_contains($p['messages'][$note['sequence']]['text'],$note['quote']))throw new AiGuard('invalid_proposal');
+            ||!in_array($note['classification']??null,['preference','interpretation','rumor'],true))throw new AiGuard('invalid_proposal','note_reference');
+        try{safeAiText($note['quote']??null,160);}catch(AiGuard){throw new AiGuard('invalid_proposal','note_text');}
+        if(!str_contains($p['messages'][$note['sequence']]['text'],$note['quote']))throw new AiGuard('invalid_proposal','note_quote');
     }
-    if(($p['world_action']==='post_notice')!==($bulletin&&$p['notice']!==null))throw new AiGuard('invalid_proposal');
-    if($p['world_action']==='post_notice')validateBulletinNotice($p['notice'],$pair);
+    if(($p['world_action']==='post_notice')!==($bulletin&&$p['notice']!==null))throw new AiGuard('invalid_proposal','notice_choice');
+    if($p['world_action']==='post_notice')try{validateBulletinNotice($p['notice'],$pair);}catch(AiGuard $e){if($e->reason!=='invalid_proposal')throw $e;throw new AiGuard('invalid_proposal','notice_content');}
     return $p+['first'=>$p['messages'][0]['text']??'','second'=>$p['messages'][1]['text']??'','director'=>true];
 }
 

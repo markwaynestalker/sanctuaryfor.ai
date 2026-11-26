@@ -65,7 +65,7 @@ function prepareDirectorEncounter(PDO $db,array $pair,array $choices,array $clai
         'dialogue_guidance'=>directorSchema($choices)['properties']['messages']['items']['properties']['text']['description'],
         'encounter_guidance'=>directorEncounterGuidance(),
         'participants'=>[],'shared_recent_conversations'=>[],'allowed_actions'=>array_keys($choices),'world_action_actor_id'=>$pair[0]['id'],'director_continuity_is_not_participant_knowledge'=>true,'director_continuity'=>[]];
-    if($narrative){$context['narrative_stories']=narrativeStoryCandidates($db,$pair);$context['narrative_guidance']='A story is optional. Select none, start a new story, continue or conclude an offered open story, or revisit an offered concluded story. Story IDs only identify a narrative connection, not a reason to force one. A known exchange belongs only to its indicated holder; do not assume other participants witnessed it or grant them its private knowledge. New participants may join without inventing prior experience.';}
+    if($narrative){$context['narrative_stories']=narrativeStoryCandidates($db,$pair);$context['narrative_guidance']='A story is optional. Set narrative_story.action to none or start with story_id null; for continue or conclude use the exact ID of an offered open story; for revisit use the exact ID of an offered concluded story. Only a conversation may use an action other than none. Story IDs only identify a narrative connection, not a reason to force one. A known exchange belongs only to its indicated holder; do not assume other participants witnessed it or grant them its private knowledge. New participants may join without inventing prior experience.';}
     if(str_ends_with($context['contract'],'.v2'))$context['conversation_guidance']=$schema['properties']['messages']['description'];
     if($weather=encounterVillageWeather($db,$claim))$context['village_weather']=$weather;
     if($notices=bulletinContext($db,strtotime($claim['created_at'])))$context['public_notices']=$notices;
@@ -136,7 +136,7 @@ function prepareDirectorEncounter(PDO $db,array $pair,array $choices,array $clai
     $aliases=[];foreach($context['participants'] as $p)foreach($p['memories'] as $m)if($m['source_alias']??null)$aliases[]=$m['source_alias'];
     $receipt=directorGazetteReceipt($context['published_gazette']??[]);
     return ['context'=>$context,'sources'=>array_intersect_key($sources,array_flip($aliases)),'operator_idea_ids'=>array_column($context['operator_suggestions']??[],'id'),
-        'gazette_context_receipt'=>$receipt,'session_scope'=>['input_context'=>'sqlite-v6-6','published_reporting'=>$receipt?hash('sha256',editorialJson($receipt)):null]+($narrative?['narrative_story'=>'v1']:[])+(sparkDialogueMode()==='independent'?['dialogue_mode'=>'spark.v1']:[])+(sharedConsciousnessGuidance()!==''?['narrative_mode'=>'shared-consciousness.v1']:[])];
+        'gazette_context_receipt'=>$receipt,'session_scope'=>['input_context'=>'sqlite-v6-6','published_reporting'=>$receipt?hash('sha256',editorialJson($receipt)):null]+($narrative?['narrative_story'=>'v2']:[])+(sparkDialogueMode()==='independent'?['dialogue_mode'=>'spark.v1']:[])+(sharedConsciousnessGuidance()!==''?['narrative_mode'=>'shared-consciousness.v1']:[])];
 }
 function directorRequest(array $pricing,array $registered,array $prepared,array $choices):array
 {
