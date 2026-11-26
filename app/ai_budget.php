@@ -9,7 +9,7 @@ require_once __DIR__.'/selection_accounting.php';
 
 final class AiGuard extends RuntimeException
 {
-    public function __construct(public readonly string $reason){parent::__construct('AI request blocked: '.$reason);}
+    public function __construct(public readonly string $reason,public readonly ?string $diagnostic=null){parent::__construct('AI request blocked: '.$reason);}
 }
 
 const AI_PRICING_VERSION='2026-10-24-standard-v1';

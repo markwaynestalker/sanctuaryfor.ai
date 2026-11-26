@@ -31,10 +31,10 @@ function migrateNarrativeStories(PDO $db):void
 /** Strict Director decision; no topic or pair heuristics determine membership. */
 function parseNarrativeDecision(mixed $decision):array
 {
-    if(!is_array($decision)||count($decision)!==2||array_diff(array_keys($decision),['action','story_id'])||!in_array($decision['action']??null,['none','start','continue','conclude','revisit'],true))throw new AiGuard('invalid_proposal');
+    if(!is_array($decision)||count($decision)!==2||array_diff(array_keys($decision),['action','story_id'])||!in_array($decision['action']??null,['none','start','continue','conclude','revisit'],true))throw new AiGuard('invalid_proposal','narrative_shape_or_action');
     $id=$decision['story_id']??null;
-    if(in_array($decision['action'],['none','start'],true)){if($id!==null)throw new AiGuard('invalid_proposal');}
-    elseif(!is_string($id)||!preg_match('/\A[a-f0-9]{32}\z/',$id))throw new AiGuard('invalid_proposal');
+    if(in_array($decision['action'],['none','start'],true)){if($id!==null)throw new AiGuard('invalid_proposal','narrative_unexpected_id');}
+    elseif(!is_string($id)||!preg_match('/\A[a-f0-9]{32}\z/',$id))throw new AiGuard('invalid_proposal','narrative_missing_or_invalid_id');
     return $decision;
 }
 /** Require a completed Director conversation with its own public conversation event. */
@@ -95,9 +95,10 @@ function validateNarrativeProposal(array $proposal,array $context):void
 {
     if(!array_key_exists('narrative_stories',$context))return;
     $decision=parseNarrativeDecision($proposal['narrative_story']??null);
-    if($decision['action']!=='none'&&($proposal['outcome']??null)!=='conversation')throw new AiGuard('invalid_proposal');
+    if($decision['action']!=='none'&&($proposal['outcome']??null)!=='conversation')throw new AiGuard('invalid_proposal','narrative_requires_conversation');
     if(!in_array($decision['action'],['none','start'],true)){
         $match=array_values(array_filter($context['narrative_stories'],static fn($c)=>$c['id']===$decision['story_id']));
-        if(count($match)!==1||(($decision['action']==='revisit')!==($match[0]['state']==='concluded')))throw new AiGuard('invalid_proposal');
+        if(count($match)!==1)throw new AiGuard('invalid_proposal','narrative_not_offered');
+        if(($decision['action']==='revisit')!==($match[0]['state']==='concluded'))throw new AiGuard('invalid_proposal','narrative_state_mismatch');
     }
 }

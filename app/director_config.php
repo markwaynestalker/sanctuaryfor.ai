@@ -80,9 +80,11 @@ function directorSchema(array $choices,bool $multi=false,bool $narrative=false):
         $schema['properties']['notes']['items']['properties']['sequence']['maximum']=$cfg['max']-1;
         unset($schema['properties']['notes']['items']['properties']['sequence']['enum']);
     }
-    if($narrative){$schema['required'][]='narrative_story';$schema['properties']['narrative_story']=['type'=>'object','additionalProperties'=>false,'required'=>['action','story_id'],'properties'=>[
-        'action'=>['type'=>'string','enum'=>['none','start','continue','conclude','revisit']],
-        'story_id'=>['anyOf'=>[['type'=>'null'],['type'=>'string','pattern'=>'^[a-f0-9]{32}$']]]]];}
+    if($narrative){$schema['required'][]='narrative_story';$schema['properties']['narrative_story']=['anyOf'=>[
+        ['type'=>'object','additionalProperties'=>false,'required'=>['action','story_id'],'properties'=>[
+            'action'=>['type'=>'string','enum'=>['none','start']],'story_id'=>['type'=>'null']]],
+        ['type'=>'object','additionalProperties'=>false,'required'=>['action','story_id'],'properties'=>[
+            'action'=>['type'=>'string','enum'=>['continue','conclude','revisit']],'story_id'=>['type'=>'string','pattern'=>'^[a-f0-9]{32}$']]]]];}
     return $schema;
 }
 function directorProposalByteLimit(string $contract):int
