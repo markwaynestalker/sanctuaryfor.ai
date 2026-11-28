@@ -37,7 +37,7 @@ function editorialConversationCandidates(PDO $db,string $start,string $end,int $
         if(count($turns)<2||count($turns)>64||count($speakers)!==2)continue;
         $valid=true;
         foreach($turns as $i=>$turn)if(($turn['sequence']??null)!==$i||!gazetteSafeText($turn['text'])
-            ||!gazetteSafeText($turn['name'])||$turn['resident_id']!==$speakers[$i%2]){$valid=false;break;}
+            ||!gazetteSafeText($turn['name'])||!in_array($turn['resident_id'],$speakers,true)){$valid=false;break;}
         if(!$valid)continue;
         $out[]=['kind'=>'conversation','scope'=>$background?'background':'edition','id'=>$row['id'],'at'=>$row['created_at'],
             'provider'=>$row['provider'],'messages'=>array_map(static fn($m)=>['sequence'=>$m['sequence'],'resident_id'=>$m['resident_id'],'name'=>$m['name'],'text'=>$m['text']],$turns)];

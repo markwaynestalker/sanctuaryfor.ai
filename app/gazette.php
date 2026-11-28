@@ -32,7 +32,7 @@ function gazetteSections():array
 }
 function gazetteSafeText(mixed $text):bool
 {
-    return is_string($text)&&preg_match('/\A[^\p{C}]{1,160}\z/u',$text)===1
+    return is_string($text)&&preg_match('/\A[^\x00]{1,160}\z/us',$text)===1
         &&!preg_match('/\bsk-[a-zA-Z0-9_-]{8,}|Bearer\s+[a-zA-Z0-9_-]{8,}/i',$text);
 }
 function gazetteSourceHash(array $c):string

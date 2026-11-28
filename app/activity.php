@@ -202,12 +202,12 @@ function applyActivity(PDO $db,array $claim,array $proposal,array $choices,int $
         $db->prepare("INSERT INTO simulation_runs(id,period,status,provider,started_at,finished_at,interaction_count,input_tokens,output_tokens,cost_microusd) VALUES (?,?,'completed',?,?,?,?,?,?,?)")
             ->execute([$run,$claim['id'],$ai?'openai':'scripted',$claim['created_at'],$time,$outcome==='conversation'?1:0,$usage['input_tokens']??0,$usage['output_tokens']??0,$usage['cost_microusd']??0]);
         if($outcome==='conversation'){
-            if(count($pair)!==2||!hasSocialRoom($db,$pair[0]['id'],$pair[1]['id']))throw new AiGuard('apply_rejected');
+            if(count($pair)!==2||(!isset($proposal['director'])&&!hasSocialRoom($db,$pair[0]['id'],$pair[1]['id'])))throw new AiGuard('apply_rejected');
             $a=$pair[0]['id'];$b=$pair[1]['id'];$topic=isset($proposal['director'])?'welcome':$proposal['topic'];
             $multi=isset($proposal['director'])&&str_ends_with($proposal['contract'],'.v2');
             if($multi&&!multiMessageInstalled($db))throw new AiGuard('configuration_invalid');
             $evidencePolicy=relationshipEvidenceEnabled();
-            strengthen($db,$a,$b,$evidencePolicy?0:($topic==='quiet'?-1:2),$time);
+            if(!isset($proposal['director']))strengthen($db,$a,$b,$evidencePolicy?0:($topic==='quiet'?-1:2),$time);
             $conversation=bin2hex(random_bytes(16));
             $db->prepare("INSERT INTO conversations(id,run_id,topic,visibility,created_at) VALUES (?,?,?,'public',?)")->execute([$conversation,$run,$topic,$time]);
             if($ai)$db->prepare('INSERT INTO ai_conversations VALUES (?,?)')->execute([$conversation,$run]);
@@ -232,8 +232,9 @@ function applyActivity(PDO $db,array $claim,array $proposal,array $choices,int $
         }
         if(isset($proposal['director'])){
             $db->prepare('INSERT INTO director_runs VALUES (?,?,?,?,?,?)')->execute([$run,$proposal['director_session'],$proposal['director_fingerprint'],$conversation??null,$proposal['topic'],$time]);
+            if($proposal['free_memory']??false)saveDirectorFreeMemories($db,$run,$proposal,$pair,$time);
             if($proposal['world_action']==='post_notice')saveBulletinNotice($db,$proposal,$pair,$run,$now);
-            if($outcome==='conversation'){verifyDirectorDialogue($db,$run,$conversation,$proposal);saveDirectorMemory($db,$conversation,$proposal,$pair,$time);saveOperatorIdeaExposures($db,$conversation,$proposal['operator_idea_ids']??[],$time);
+            if($outcome==='conversation'){verifyDirectorDialogue($db,$run,$conversation,$proposal);if(!($proposal['free_memory']??false))saveDirectorMemory($db,$conversation,$proposal,$pair,$time);saveOperatorIdeaExposures($db,$conversation,$proposal['operator_idea_ids']??[],$time);
                 saveDirectorGazetteExposure($db,$run,$conversation,$pair,$proposal['gazette_context_receipt']??null,$time);
                 saveConversationFlow($db,$claim,$run,$conversation);
                 saveSparkMemoryContext($db,$run,$conversation,$pair,$proposal['spark_memory_receipts']??[]);}

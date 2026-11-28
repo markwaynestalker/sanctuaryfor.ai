@@ -173,7 +173,7 @@ function stagingManagedEncounter(PDO $db,DirectorTransport $transport,array $att
         $items=$request('GET','agents/sessions/'.$sid.'/turns/'.$turnId.'/items?limit=20&order=asc');$proposalStage=null;
         try{
             $decoded=stagingItems($items,$turnId,$proposalStage,directorProposalByteLimit($prepared['context']['contract']));$proposalStage='proposal_content';$proposalCategory='director_fields';
-            $proposal=parseDirectorProposal($decoded,$prepared['context']['participants'],$choices,array_key_exists('narrative_stories',$prepared['context']));
+            $proposal=parseDirectorProposal($decoded,$prepared['context']['participants'],$choices,array_key_exists('narrative_stories',$prepared['context']),($prepared['context']['flexible_speaker_order']??false)===true,($prepared['context']['director_free_memory']??false)===true);
             $proposalCategory='narrative_decision';validateNarrativeProposal($proposal,$prepared['context']);
             $proposalCategory='contract_mismatch';assertDirectorOutputContract($proposal['contract'],$prepared['context']['contract']);
             $proposalCategory='conversation_required';if($conversationOnly&&($proposal['outcome']!=='conversation'||$proposal['world_action']!=='none'))throw new AiGuard('invalid_proposal');

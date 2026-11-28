@@ -18,6 +18,15 @@ function multiMessageInstalled(PDO $db):bool
     if((int)$db->query('SELECT revision FROM conversation_message_meta WHERE singleton=1')->fetchColumn()!==1)throw new \RuntimeException('Unsupported conversation message capability.');
     return true;
 }
+/** Separate capability: legacy and existing extended messages stay untouched. */
+function flexibleSpeakerOrderInstalled(PDO $db):bool
+{
+    $q=$db->query("SELECT 1 FROM sqlite_master WHERE type='table' AND name='conversation_speaker_order_meta'");
+    if(!$q->fetchColumn())return false;
+    if(!multiMessageInstalled($db)||(int)$db->query('SELECT revision FROM conversation_speaker_order_meta WHERE singleton=1')->fetchColumn()!==1)throw new \RuntimeException('Unsupported speaker order capability.');
+    if($db->query("SELECT 1 FROM sqlite_master WHERE type='trigger' AND name='extended_alternation'")->fetchColumn())throw new \RuntimeException('Speaker order migration incomplete.');
+    return true;
+}
 function messageRelation(PDO $db):string{return multiMessageInstalled($db)?'all_conversation_messages':'messages';}
 function noteRelation(PDO $db):string{return multiMessageInstalled($db)?'all_director_notes':'director_notes';}
 function conversationMessageBatch(PDO $db,array $ids):array

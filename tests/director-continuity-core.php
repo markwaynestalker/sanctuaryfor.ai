@@ -65,7 +65,7 @@ try{
     $d->beginTransaction();$q=$d->prepare("UPDATE simulation_runs SET status='failed' WHERE id=(SELECT run_id FROM conversations WHERE id=?)");$q->execute([$allSegments[1]]);$filtered=LittleSparks\commons($d,$rootPair)['story_threads'];check(!str_contains(json_encode($filtered),$allSegments[1]),'Rejected run excluded');$d->rollBack();
     check($beforeStory===$d->query('SELECT * FROM conversations ORDER BY id')->fetchAll(),'Read-only story projection preserves historical conversations');
     [$r,$fourth]=$generateFlow($d);check($r['status']==='completed'&&!isset($fourth->context['conversation_flow'])&&!array_diff(array_column($fourth->context['participants'],'id'),$newcomers),'Bounded window returns service to excluded residents');
-    $rel=LittleSparks\pair($d,...$rootPair);check((int)$rel['affinity']===6&&(int)$rel['familiarity']===3,'Three distinct accepted encounters retain existing accounting, not inferred sentiment scores');
+    check(LittleSparks\pair($d,...$rootPair)===null,'Accepted Director encounters do not infer a relationship');
     check((int)$d->query('SELECT COUNT(*) FROM ai_attempts')->fetchColumn()===4&&(int)$d->query('SELECT SUM(started_requests) FROM director_attempts')->fetchColumn()===8,'Four scheduled opportunities, four reservations, no extra continuation request');
     foreach(['quiet','none','flagged','unknown','withdraw'] as $mode){
         $d=$freshFlow($mode);$generateFlow($d);[$r,$mock]=$generateFlow($d,$mode);

@@ -39,7 +39,7 @@ final class StagingMock implements LittleSparks\DirectorTransport
         }
         if(str_contains($path,'/items?')){
             $actors=$this->context['participants'];$p=['contract'=>'sanctuary.director.v1','outcome'=>'conversation','topic'=>'A welcome in the meadow','messages'=>[['resident_id'=>$actors[0]['id'],'text'=>'Could a welcome grow like a little garden?'],['resident_id'=>$actors[1]['id'],'text'=>'Perhaps kindness is its favorite sunlight.']],'world_action'=>'none','transmissions'=>[],'notes'=>[]];
-            if($this->mode==='invalid')$p['messages'][0]['text']='<script>no</script>';
+            if($this->mode==='invalid')$p['messages'][0]['text']=str_repeat('x',161);
             if($this->mode==='quiet'){$p['outcome']='quiet';$p['messages']=[];}
             return ['has_more'=>false,'data'=>[['type'=>'message','role'=>'assistant','phase'=>'final_answer','status'=>'completed','turn_id'=>$this->turn,'content'=>[['type'=>'output_text','text'=>json_encode($p,JSON_THROW_ON_ERROR)]]]]];
         }

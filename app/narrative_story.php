@@ -59,8 +59,8 @@ function saveNarrativeStory(PDO $db,array $decision,array $offered,string $conve
         $q=$db->prepare('SELECT sequence,conversation_id,action FROM narrative_story_exchanges WHERE story_id=? ORDER BY sequence DESC LIMIT 1');$q->execute([$id]);$head=$q->fetch();$expected=$matches[0];
         if(!$head||(int)$head['sequence']!==($expected['sequence']??null)||$head['conversation_id']!==($expected['head_id']??null)||!narrativePublicConversation($db,$head['conversation_id']))throw new AiGuard('apply_rejected');
         $holder=$expected['holder_id']??null;$witness=$expected['known_exchange']['id']??null;
-        if(!is_string($holder)||!in_array($holder,[$current['speaker_a'],$current['speaker_b']],true)||!is_string($witness))throw new AiGuard('apply_rejected');
-        $known=narrativePublicConversation($db,$witness);if(!$known||!in_array($holder,[$known['speaker_a'],$known['speaker_b']],true))throw new AiGuard('apply_rejected');
+        if(!is_string($witness)||($holder!==null&&(!is_string($holder)||!in_array($holder,[$current['speaker_a'],$current['speaker_b']],true))))throw new AiGuard('apply_rejected');
+        $known=narrativePublicConversation($db,$witness);if(!$known||($holder!==null&&!in_array($holder,[$known['speaker_a'],$known['speaker_b']],true)))throw new AiGuard('apply_rejected');
         $q=$db->prepare('SELECT 1 FROM narrative_story_exchanges WHERE story_id=? AND conversation_id=?');$q->execute([$id,$witness]);if(!$q->fetchColumn())throw new AiGuard('apply_rejected');
         $closed=$head['action']==='conclude';if(($action==='revisit')!==$closed)throw new AiGuard('invalid_proposal');$sequence=(int)$head['sequence']+1;
     }
@@ -74,16 +74,18 @@ function narrativeStoryEnabled(PDO $db):bool
     if($flag!=='1'||!narrativeStoryInstalled($db)||sparkDialogueMode()!=='director')throw new AiGuard('configuration_invalid');
     return true;
 }
-/** Offer only saved stories in which at least one current participant actually spoke. */
+/** Offer verified public story heads; unattributed prior speech is Director context, not resident memory. */
 function narrativeStoryCandidates(PDO $db,array $pair):array
 {
     $ids=array_column($pair,'id');if(count($ids)!==2)return [];
-    $q=$db->prepare("SELECT x.story_id,x.conversation_id AS witness_id,p.resident_id AS holder_id FROM narrative_story_exchanges x
-        JOIN conversation_participants p ON p.conversation_id=x.conversation_id AND p.resident_id IN (?,?)
-        ORDER BY x.created_at DESC,x.sequence DESC,x.story_id LIMIT 32");$q->execute($ids);$out=[];
+    $q=$db->prepare("SELECT x.story_id,x.conversation_id AS witness_id,
+        CASE WHEN EXISTS(SELECT 1 FROM conversation_participants p WHERE p.conversation_id=x.conversation_id AND p.resident_id=?) THEN ?
+             WHEN EXISTS(SELECT 1 FROM conversation_participants p WHERE p.conversation_id=x.conversation_id AND p.resident_id=?) THEN ? ELSE NULL END AS holder_id
+        FROM narrative_story_exchanges x WHERE x.sequence=(SELECT MAX(h.sequence) FROM narrative_story_exchanges h WHERE h.story_id=x.story_id)
+        ORDER BY x.created_at DESC,x.story_id LIMIT 32");$q->execute([$ids[0],$ids[0],$ids[1],$ids[1]]);$out=[];
     foreach($q->fetchAll() as $row){
         $id=$row['story_id'];if(isset($out[$id])||count($out)>=6)continue;
-        $known=narrativePublicConversation($db,$row['witness_id']);if(!$known||!in_array($row['holder_id'],[$known['speaker_a'],$known['speaker_b']],true))continue;
+        $known=narrativePublicConversation($db,$row['witness_id']);if(!$known||($row['holder_id']!==null&&!in_array($row['holder_id'],[$known['speaker_a'],$known['speaker_b']],true)))continue;
         $h=$db->prepare('SELECT sequence,conversation_id,action FROM narrative_story_exchanges WHERE story_id=? ORDER BY sequence DESC LIMIT 1');$h->execute([$id]);$head=$h->fetch();
         if(!$head||!narrativePublicConversation($db,$head['conversation_id']))continue;
         $messages=conversationMessageBatch($db,[$row['witness_id']])[$row['witness_id']]??[];if(count($messages)<2||count($messages)>64)continue;
