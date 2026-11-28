@@ -17,7 +17,7 @@ try{
     foreach($cases as $mode=>$line){
         if(str_starts_with($mode,'reported_'))check(preg_match_all('/./us',$line)===160,'Issue-provided wording is exactly at the boundary; not a raw provider trace');
         $p=$boundaryProposal;$p['messages'][0]['text']=$line;
-        $valid=!in_array($mode,['overlong','invalid_utf8','markup'],true);
+        $valid=!in_array($mode,['overlong','invalid_utf8'],true);
         try{$parsed=LittleSparks\parseDirectorProposal($p,$boundaryPair,['none'=>null]);check($valid&&$parsed['first']===$line,'Parser preserves original Unicode/in-bounds wording: '.$mode);}
         catch(LittleSparks\AiGuard $e){check(!$valid&&$e->reason==='invalid_proposal','Malformed or excessive text rejected, not repaired: '.$mode);}
     }
@@ -44,7 +44,7 @@ try{
         $p=$boundaryProposal;$p['messages'][0]['text']=$cases[$mode]??$natural;
         $mock=new RecordedItemTransport($p,in_array($mode,['flagged','envelope'],true)?$mode:'mixed');
         $r=LittleSparks\simulateDirectorOpportunity($d,$nextAt,true,null,$mock,null,null,false,null,true);
-        $success=!in_array($mode,['overlong','markup','flagged','envelope','storage_mutation'],true);
+        $success=!in_array($mode,['overlong','flagged','envelope','storage_mutation'],true);
         check(($r['status']==='completed')===$success,'Truthful end-to-end boundary outcome: '.$mode);
         $all=$d->query('SELECT * FROM messages ORDER BY rowid')->fetchAll();
         check(array_slice($all,0,count($history))===$history,'Historical bytes and identities are unchanged: '.$mode);

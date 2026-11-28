@@ -232,8 +232,9 @@ function applyActivity(PDO $db,array $claim,array $proposal,array $choices,int $
         }
         if(isset($proposal['director'])){
             $db->prepare('INSERT INTO director_runs VALUES (?,?,?,?,?,?)')->execute([$run,$proposal['director_session'],$proposal['director_fingerprint'],$conversation??null,$proposal['topic'],$time]);
+            if($proposal['free_memory']??false)saveDirectorFreeMemories($db,$run,$proposal,$pair,$time);
             if($proposal['world_action']==='post_notice')saveBulletinNotice($db,$proposal,$pair,$run,$now);
-            if($outcome==='conversation'){verifyDirectorDialogue($db,$run,$conversation,$proposal);saveDirectorMemory($db,$conversation,$proposal,$pair,$time);saveOperatorIdeaExposures($db,$conversation,$proposal['operator_idea_ids']??[],$time);
+            if($outcome==='conversation'){verifyDirectorDialogue($db,$run,$conversation,$proposal);if(!($proposal['free_memory']??false))saveDirectorMemory($db,$conversation,$proposal,$pair,$time);saveOperatorIdeaExposures($db,$conversation,$proposal['operator_idea_ids']??[],$time);
                 saveDirectorGazetteExposure($db,$run,$conversation,$pair,$proposal['gazette_context_receipt']??null,$time);
                 saveConversationFlow($db,$claim,$run,$conversation);
                 saveSparkMemoryContext($db,$run,$conversation,$pair,$proposal['spark_memory_receipts']??[]);}

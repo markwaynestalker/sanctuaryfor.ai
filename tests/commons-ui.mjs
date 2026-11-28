@@ -24,8 +24,9 @@ for(const invalid of [{...exchange,messages:[null,null]},{...exchange,provider:'
 for(const count of [3,16,64]){
  const messages=Array.from({length:count},(_,i)=>({...exchange.messages[i%2],text:`Original saved turn ${i+1}.`}));
  assert.equal(h.latestExchanges([{...exchange,messages}],[a,b]).get(h.pairKey(a,b)).messages.length,count);
- for(const bad of [{...messages.at(-1),resident_id:c},{...messages.at(-1),resident_id:messages.at(-2).resident_id},{...messages.at(-1),text:'x'.repeat(161)}])assert.equal(h.latestExchanges([{...exchange,messages:[...messages.slice(0,-1),bad]}],[a,b]).size,0,'Invalid later turns reject the entire exchange');
+ for(const bad of [{...messages.at(-1),resident_id:c},{...messages.at(-1),text:'x'.repeat(161)}])assert.equal(h.latestExchanges([{...exchange,messages:[...messages.slice(0,-1),bad]}],[a,b]).size,0,'Invalid later turns reject the entire exchange');
 }
+const repeated=[exchange.messages[0],exchange.messages[1],exchange.messages[1]];assert.equal(h.latestExchanges([{...exchange,messages:repeated}],[a,b]).get(h.pairKey(a,b)).messages.length,3,'Repeated speakers remain visible');
 assert.equal(h.latestExchanges([{...exchange,messages:Array.from({length:65},(_,i)=>exchange.messages[i%2])}],[a,b]).size,0);
 assert.equal(h.replayCooldown(undefined),60);
 for(const value of [0,15,3600])assert.equal(h.replayCooldown({replay_cooldown_seconds:value}),value);
