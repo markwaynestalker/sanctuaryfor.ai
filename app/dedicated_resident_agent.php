@@ -25,7 +25,7 @@ function dedicatedResidentAgent(string $resident): ?string
     $setting=dedicatedResidentAgentSettings()[$resident]??null;
     if($setting===null)return null;
     $value=getenv($setting);
-    if($value===false||$value==='')return null;
+    if($value===false)return null;
     if(!preg_match('/\Aagent_[a-zA-Z0-9_-]{1,58}\z/', $value))throw new \RuntimeException('Invalid dedicated agent configuration.');
     return $value;
 }
