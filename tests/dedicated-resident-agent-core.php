@@ -22,3 +22,14 @@ $p=['resident_id'=>$actor,'decision'=>'leave','dialogue'=>null,'invite_resident_
 check(\LittleSparks\parseDedicatedResidentDecision($p,$actor,[$actor,$other])===$p);
 foreach([['resident_id'=>$other,'decision'=>'join','dialogue'=>null,'invite_resident_id'=>null],['resident_id'=>$actor,'decision'=>'invite','dialogue'=>null,'invite_resident_id'=>'00000000000000000000000000000000']] as $bad){try{\LittleSparks\parseDedicatedResidentDecision($bad,$actor,[$actor,$other]);throw new RuntimeException('Accepted invalid resident decision.');}catch(InvalidArgumentException){}}
 echo "PASS independent resident decisions and exact optional dialogue (offline)\n";
+require __DIR__.'/../app/village.php';
+require __DIR__.'/../app/ai_budget.php';
+require __DIR__.'/../app/director_staging.php';
+$decision=['resident_id'=>$actor,'decision'=>'continue','dialogue'=>"  Exact words.\n",'invite_resident_id'=>null];
+$item=['type'=>'message','role'=>'assistant','phase'=>'final_answer','status'=>'completed','turn_id'=>'turn_mock','content'=>[['type'=>'output_text','text'=>json_encode($decision,JSON_THROW_ON_ERROR)]]];
+$page=['has_more'=>false,'data'=>[$item]];
+check(\LittleSparks\parseDedicatedManagedItems($page,'turn_mock',$actor,[$actor,$other],4096)===$decision);
+$wrong=$page;$wrong['data'][0]['turn_id']='other_turn';try{\LittleSparks\parseDedicatedManagedItems($wrong,'turn_mock',$actor,[$actor,$other],4096);throw new RuntimeException('Accepted wrong turn.');}catch(\LittleSparks\AiGuard){}
+$duplicate=$page;$duplicate['data'][]=$item;try{\LittleSparks\parseDedicatedManagedItems($duplicate,'turn_mock',$actor,[$actor,$other],4096);throw new RuntimeException('Accepted ambiguous output.');}catch(\LittleSparks\AiGuard){}
+$wrong=$decision;$wrong['resident_id']=$other;$page['data'][0]['content'][0]['text']=json_encode($wrong,JSON_THROW_ON_ERROR);try{\LittleSparks\parseDedicatedManagedItems($page,'turn_mock',$actor,[$actor,$other],4096);throw new RuntimeException('Accepted impersonation.');}catch(\LittleSparks\AiGuard){}
+echo "PASS managed item verification and resident attribution (offline)\n";

@@ -53,3 +53,13 @@ function parseDedicatedResidentDecision(array $value,string $resident,array $eli
     }elseif($invited!==null)throw new \InvalidArgumentException('Unexpected invitation target.');
     return $value;
 }
+
+/** Decode only the verified final item from the invoked agent's completed turn. */
+function parseDedicatedManagedItems(array $items,string $turn,string $resident,array $eligible,int $maximumBytes):array
+{
+    if($maximumBytes<1||$maximumBytes>4194304)throw new \InvalidArgumentException('Invalid response byte limit.');
+    $stage=null;
+    $value=stagingItems($items,$turn,$stage,$maximumBytes);
+    try{return parseDedicatedResidentDecision($value,$resident,$eligible);}
+    catch(\InvalidArgumentException){throw new AiGuard('invalid_proposal','resident_decision');}
+}
