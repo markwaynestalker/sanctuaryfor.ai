@@ -97,7 +97,7 @@ try{
         $saved=LittleSparks\conversationMessageBatch($d,[$id])[$id];check(array_column($saved,'text')===array_column($mock->proposal['messages'],'text'),'Every original message survives exactly');
         check(array_map('intval',array_column($saved,'sequence'))===range(0,$length-1),'All message sequences are contiguous');
         check(count($mock->moderated)===1&&$mock->moderated[0][1]['messages']===$mock->proposal['messages'],'Moderation covers the complete exchange');
-        $relationship=$d->query('SELECT affinity,familiarity FROM relationships')->fetch();check((int)$relationship['affinity']===2&&(int)$relationship['familiarity']===1,'One relationship increment per encounter');
+        check((int)$d->query('SELECT COUNT(*) FROM relationships')->fetchColumn()===0,'Director conversation does not infer a relationship');
         check((int)$d->query('SELECT interaction_count FROM simulation_runs ORDER BY rowid DESC LIMIT 1')->fetchColumn()===1,'One simulation encounter regardless of message count');
         check((int)$d->query('SELECT count(*) FROM ai_attempts')->fetchColumn()===1&&(int)$d->query('SELECT request_slots FROM director_attempts')->fetchColumn()===8,'One reservation retains the existing eight-slot managed envelope');
         check($d->query('SELECT output_contract FROM conversation_attempt_contracts')->fetchColumn()==='sanctuary.director.v2','Additive attempt provenance records the requested v2 contract');

@@ -81,7 +81,7 @@ try{
         $calls=$db->query('SELECT * FROM spark_calls ORDER BY sequence')->fetchAll();sparkCheck(count($calls)===$length+1&&$calls[$length]['kind']==='moderation','One final full-exchange moderation after independent replies');
         sparkCheck(LittleSparks\sparkExtraRequests($db,gmdate('Y-m-d'))+2===$length+1,'Known-complete daily charge equals dispatched calls');
         $cost=(int)$db->query('SELECT estimated_microusd FROM ai_attempts')->fetchColumn();sparkCheck($cost===array_sum(array_column($calls,'cost_microusd'))&&LittleSparks\aiCommittedTotal($db,gmdate('Y-m'))===$cost,'Actual cumulative token estimates settle accurately');
-        sparkCheck((int)$db->query('SELECT interaction_count FROM simulation_runs')->fetchColumn()===1&&(int)$db->query('SELECT affinity FROM relationships')->fetchColumn()===2,'One encounter relationship/accounting increment despite more model calls');
+        sparkCheck((int)$db->query('SELECT interaction_count FROM simulation_runs')->fetchColumn()===1&&(int)$db->query('SELECT COUNT(*) FROM relationships')->fetchColumn()===0,'One encounter without inferring a relationship despite more model calls');
         $count=count($mock->calls);$again=LittleSparks\simulateDirectorOpportunity($db,$op,true,$mock);sparkCheck($again['replayed']&&count($mock->calls)===$count,'Completed opportunity never repeats independent calls');
         $beforeCalls=$calls;try{$db->exec('DELETE FROM spark_calls');throw new LogicException('Audit deletion accepted');}catch(PDOException){}sparkCheck($db->query('SELECT * FROM spark_calls ORDER BY sequence')->fetchAll()===$beforeCalls,'Call history is immutable');
     }

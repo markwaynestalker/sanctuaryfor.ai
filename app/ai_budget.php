@@ -138,7 +138,7 @@ function reserveAi(PDO $db,string $period,array $pair,array $config,int $now): a
             $q->execute([$config['director_session'],$config['director_runtime'],$expectedScope,$config['model']]);if(!$q->fetchColumn())throw new AiGuard('session_unavailable');
             $limits=activityConfiguration();$q=$db->prepare('SELECT COUNT(*) FROM simulation_opportunities WHERE day=? AND (resident_a=? OR resident_b=?)');
             foreach($ids as $resident){$q->execute([gmdate('Y-m-d',$now),$resident,$resident]);if((int)$q->fetchColumn()>=$limits['resident_daily'])throw new AiGuard('apply_rejected');}
-            if(!conversationCooldownAllows($db,$ids[0],$ids[1],$limits,$now)||!hasSocialRoom($db,$ids[0],$ids[1]))throw new AiGuard('apply_rejected');
+            if(!conversationCooldownAllows($db,$ids[0],$ids[1],$limits,$now))throw new AiGuard('apply_rejected');
         }elseif(selectionLeaseActive($db,$now))throw new AiGuard('simulation_busy');
         $lease=$db->query('SELECT owner FROM ai_lease WHERE singleton=1')->fetchColumn();
         if($lease!==null && $lease!==false)throw new AiGuard('simulation_busy');

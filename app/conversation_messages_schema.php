@@ -30,3 +30,12 @@ function migrateConversationMessages(PDO $db):void
         CREATE TRIGGER extended_alternation BEFORE INSERT ON extended_messages WHEN NEW.sequence>=2 AND NEW.resident_id<>(SELECT resident_id FROM extended_messages WHERE conversation_id=NEW.conversation_id AND sequence=NEW.sequence%2) BEGIN SELECT RAISE(ABORT,'Invalid speaker order'); END;");
     foreach(['extended_conversations','extended_messages','extended_director_notes','conversation_attempt_contracts'] as $table)foreach(['UPDATE','DELETE'] as $operation)$db->exec("CREATE TRIGGER {$table}_no_{$operation} BEFORE $operation ON $table BEGIN SELECT RAISE(ABORT,'Conversation history is immutable'); END;");
 }
+
+/** Requires the caller's write transaction and an idle V6 database. */
+function migrateFlexibleSpeakerOrder(PDO $db):void
+{
+    if((int)$db->query('PRAGMA user_version')->fetchColumn()!==6||!multiMessageInstalled($db))throw new \RuntimeException('Multi-message V6 required.');
+    assertIdentityIdle($db);if(flexibleSpeakerOrderInstalled($db))return;
+    if(!$db->query("SELECT 1 FROM sqlite_master WHERE type='trigger' AND name='extended_alternation' AND tbl_name='extended_messages'")->fetchColumn())throw new \RuntimeException('Expected alternation trigger missing.');
+    $db->exec("CREATE TABLE conversation_speaker_order_meta(singleton INTEGER PRIMARY KEY CHECK(singleton=1),revision INTEGER NOT NULL CHECK(revision=1)); INSERT INTO conversation_speaker_order_meta VALUES(1,1); CREATE TRIGGER conversation_speaker_order_no_update BEFORE UPDATE ON conversation_speaker_order_meta BEGIN SELECT RAISE(ABORT,'immutable'); END; CREATE TRIGGER conversation_speaker_order_no_delete BEFORE DELETE ON conversation_speaker_order_meta BEGIN SELECT RAISE(ABORT,'immutable'); END; DROP TRIGGER extended_alternation;");
+}

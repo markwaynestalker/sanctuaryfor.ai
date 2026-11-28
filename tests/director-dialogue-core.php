@@ -39,6 +39,17 @@ try{
     check($creative->query('SELECT body FROM messages ORDER BY sequence')->fetchAll(PDO::FETCH_COLUMN)===array_column($proposal['messages'],'text'),'Director wording is stored byte for byte');
     check(count($mock->moderations)===1,'Whole proposal still reaches moderation');$creative=null;
 
+    // A Director-selected note must not disappear when a legacy receipt quota is full.
+    $memoryDb=$dir.'/director-remember.sqlite';copy($itemsBase,$memoryDb);$memory=LittleSparks\connect($memoryDb);
+    putenv('LITTLE_SPARKS_MEMORY_PER_RESIDENT=1');
+    for($i=0;$i<2;$i++){
+        $proposal=$recorded;$proposal['notes']=[['resident_id'=>$pair[0]['id'],'sequence'=>0,'quote'=>substr($proposal['messages'][0]['text'],0,10),'classification'=>'interpretation']];
+        $mock=new RecordedItemTransport($proposal,'mixed');$result=LittleSparks\simulateDirectorOpportunity($memory,gmdate('Y-m-d\TH:i:00\Z',time()-(300-$i*60)),true,null,$mock,null,null,false,null,true);
+        check($result['status']==='completed','Director memory encounter succeeds');
+    }
+    check((int)$memory->query('SELECT COUNT(*) FROM director_notes')->fetchColumn()===2,'Both AI-selected memories are retained beyond legacy receipt quota');
+    putenv('LITTLE_SPARKS_MEMORY_PER_RESIDENT');$memory=null;
+
     $path=$dir.'/concise-dialogue.sqlite';copy($itemsBase,$path);$d=LittleSparks\connect($path);
     $proposal=$recorded;$proposal['notes']=[];
     $proposal['messages'][0]['text']='Could we put another sign beside the flowers?';
@@ -71,8 +82,7 @@ try{
     }
     $lines=$d->query('SELECT body FROM messages ORDER BY rowid')->fetchAll(PDO::FETCH_COLUMN);
     check($lines===array_merge(array_column($proposal['messages'],'text'),array_column($proposal['messages'],'text')),'Both encounters persist original words unchanged');
-    $relation=$d->query('SELECT affinity,familiarity FROM relationships')->fetch();
-    check((int)$relation['affinity']===4&&(int)$relation['familiarity']===2,'Disagreement preserves existing relationship accounting without sentiment penalties');
+    check((int)$d->query('SELECT COUNT(*) FROM relationships')->fetchColumn()===0,'Director dialogue does not invent or update relationships');
     $registered=LittleSparks\registeredDirector($d,LittleSparks\directorConfiguration());
     $request=LittleSparks\directorRequest(LittleSparks\aiConfiguration(time()),$registered,['context'=>$context],['none'=>null]);
     check(json_decode($request['input'],true)['dialogue_guidance']===$guidance&&$request['instructions']===$registered['instructions'],'Responses adapter carries the same guidance without replacing owner instructions');

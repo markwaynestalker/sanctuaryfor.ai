@@ -99,7 +99,7 @@ function commonsStoryThreads(PDO $db,array $visible,array $latestIds=[]):array
     foreach($rows as $id=>$row){
         $messages=$texts[$id]??[];$pair=[$row['first_id'],$row['second_id']];
         if(count($messages)<2||count($messages)>64)continue;
-        foreach($messages as $i=>$message){if((int)$message['sequence']!==$i||$message['resident_id']!==$pair[$i%2]||!is_string($message['text'])||preg_match_all('/./us',$message['text'])<1||preg_match_all('/./us',$message['text'])>160)continue 2;}
+        foreach($messages as $i=>$message){if((int)$message['sequence']!==$i||!in_array($message['resident_id'],$pair,true)||!is_string($message['text'])||preg_match_all('/./us',$message['text'])<1||preg_match_all('/./us',$message['text'])>160)continue 2;}
         foreach($messages as &$message){unset($message['sequence']);$message['created_at']=$row['created_at'];}unset($message);
         $segments[$id]=['id'=>$id,'created_at'=>$row['created_at'],'provider'=>$row['provider'],'messages'=>$messages];
     }

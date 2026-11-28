@@ -32,7 +32,7 @@ function directorKeys(array $value,array $keys):void
 {
     if(count($value)!==count($keys)||array_diff(array_keys($value),$keys))throw new AiGuard('invalid_proposal');
 }
-function parseDirectorProposal(array $p,array $pair,array $choices,bool $narrative=false):array
+function parseDirectorProposal(array $p,array $pair,array $choices,bool $narrative=false,bool $flexibleOrder=false):array
 {
     $multi=in_array($p['contract']??null,['sanctuary.director.v2','sanctuary.director.bulletin.v2'],true);
     $cfg=$multi?conversationConfiguration():['min'=>2,'max'=>2];
@@ -49,7 +49,7 @@ function parseDirectorProposal(array $p,array $pair,array $choices,bool $narrati
         ||(in_array($p['outcome'],['quiet','none'],true)&&$p['world_action']!=='none'))throw new AiGuard('invalid_proposal','outcome_shape');
     foreach($p['messages'] as $i=>$m){
         if(!is_array($m))throw new AiGuard('invalid_proposal','message_shape');try{directorKeys($m,['resident_id','text']);}catch(AiGuard){throw new AiGuard('invalid_proposal','message_shape');}
-        if(($m['resident_id']??null)!==$pair[$i%2]['id'])throw new AiGuard('invalid_proposal','message_speaker_order');
+        if(($flexibleOrder&&$multi&&$i>=2)?!in_array($m['resident_id']??null,array_column($pair,'id'),true):(($m['resident_id']??null)!==$pair[$i%2]['id']))throw new AiGuard('invalid_proposal','message_speaker_order');
         try{safeAiText($m['text']??null,160,true);}catch(AiGuard){throw new AiGuard('invalid_proposal','message_text');}
     }
     foreach($p['notes'] as $note){
@@ -70,8 +70,6 @@ function saveDirectorMemory(PDO $db,string $conversation,array $proposal,array $
     foreach($proposal['notes'] as $note){
         $table=messageRelation($db);$q=$db->prepare("SELECT body FROM $table WHERE conversation_id=? AND sequence=?");$q->execute([$conversation,$note['sequence']]);
         if(!str_contains((string)$q->fetchColumn(),$note['quote']))throw new AiGuard('apply_rejected');
-        $allNotes=noteRelation($db);$q=$db->prepare("SELECT COUNT(*) FROM $allNotes WHERE resident_id=?");$q->execute([$note['resident_id']]);
-        if((int)$q->fetchColumn()>=memoryConfiguration()['per_resident'])continue;
         $other=$pair[0]['id']===$note['resident_id']?$pair[1]['id']:$pair[0]['id'];
         $notes=str_ends_with($proposal['contract'],'.v2')?'extended_director_notes':'director_notes';
         $db->prepare("INSERT OR IGNORE INTO $notes VALUES (?,?,?,?,?,?,?,?)")->execute([bin2hex(random_bytes(16)),$note['resident_id'],$other,$conversation,$note['sequence'],$note['quote'],$note['classification'],$time]);
@@ -192,7 +190,7 @@ function simulateDirectorOpportunity(PDO $db,string $at,bool $allowPaid,?AiTrans
             $usage=null; // Best-effort observations must remain uncertain even if apply later fails.
         }else{
             $responses??=new OpenAiTransport();startAiRequest($db,$attempt,'responses_started');$result=$responses->post('responses',$body,$attempt['expires']);
-            $usage=recordAiUsage($db,$attempt,$result,$pricing);$proposal=parseDirectorProposal(decodedAiProposal($result,directorProposalByteLimit($prepared['context']['contract'])),$prepared['context']['participants'],$choices,array_key_exists('narrative_stories',$prepared['context']));
+            $usage=recordAiUsage($db,$attempt,$result,$pricing);$proposal=parseDirectorProposal(decodedAiProposal($result,directorProposalByteLimit($prepared['context']['contract'])),$prepared['context']['participants'],$choices,array_key_exists('narrative_stories',$prepared['context']),($prepared['context']['flexible_speaker_order']??false)===true);
             validateNarrativeProposal($proposal,$prepared['context']);
             assertDirectorOutputContract($proposal['contract'],$prepared['context']['contract']);
             startAiRequest($db,$attempt,'moderation_started');$moderation=$responses->post('moderations',['model'=>'omni-moderation-latest','input'=>json_encode([$prepared['context'],$proposal],JSON_THROW_ON_ERROR|JSON_UNESCAPED_UNICODE)],$attempt['expires']);

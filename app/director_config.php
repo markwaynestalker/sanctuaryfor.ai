@@ -57,7 +57,7 @@ function registeredDirector(PDO $db,array $cfg):array
     $checked=validateDirectorExport(json_decode($row['configuration'],true,16,JSON_THROW_ON_ERROR));
     if(hash('sha256',json_encode($checked,JSON_THROW_ON_ERROR|JSON_UNESCAPED_UNICODE))!==$cfg['fingerprint'])throw new AiGuard('configuration_invalid');return $row;
 }
-function directorSchema(array $choices,bool $multi=false,bool $narrative=false):array
+function directorSchema(array $choices,bool $multi=false,bool $narrative=false,bool $flexibleOrder=false):array
 {
     $schema=json_decode((string)file_get_contents(__DIR__.'/../contracts/director-v1.schema.json'),true,32,JSON_THROW_ON_ERROR);
     $schema['properties']['world_action']['enum']=array_keys($choices);
@@ -76,7 +76,7 @@ function directorSchema(array $choices,bool $multi=false,bool $narrative=false):
         if(aiRequestByteLimit()<2*memoryConfiguration()['context_bytes']+$cfg['max']*768+4096)throw new AiGuard('configuration_invalid');
         $schema['properties']['contract']['enum']=[array_key_exists('post_notice',$choices)?'sanctuary.director.bulletin.v2':'sanctuary.director.v2'];
         $schema['properties']['messages']['maxItems']=$cfg['max'];
-        $schema['properties']['messages']['description']='For conversation, choose '.$cfg['min'].' to '.$cfg['max'].' original messages. Alternate participants strictly, beginning with the first supplied participant; either may finish. Choose the length the interaction needs, not a fixed four-message sketch or the maximum. A saved segment need not resolve the discussion or end with a joke. Other outcomes have no messages.';
+        $schema['properties']['messages']['description']='For conversation, choose '.$cfg['min'].' to '.$cfg['max'].' original messages. '.($flexibleOrder?'Begin with the two supplied participants in order; thereafter either participant may speak in any order.':'Alternate participants strictly, beginning with the first supplied participant; either may finish.').' Choose the length the interaction needs. A saved segment need not resolve the discussion. Other outcomes have no messages.';
         $schema['properties']['notes']['items']['properties']['sequence']['maximum']=$cfg['max']-1;
         unset($schema['properties']['notes']['items']['properties']['sequence']['enum']);
     }
@@ -107,6 +107,6 @@ function managedDirectorPrototype(array $external,array $context,array $choices)
     // and optional experimental permits; managed billing remains provisional.
     return ['agent_id'=>$config['id'],'environment'=>['type'=>'none'],
         'agent'=>['model'=>$config['model'],'reasoning'=>$config['reasoning'],'tools'=>[],'multi_agent'=>['enabled'=>false],'service_tier'=>'default',
-            'text'=>['format'=>['type'=>'json_schema','schema'=>directorSchema($choices,str_ends_with($context['contract'],'.v2'),array_key_exists('narrative_stories',$context))]]],
+            'text'=>['format'=>['type'=>'json_schema','schema'=>directorSchema($choices,str_ends_with($context['contract'],'.v2'),array_key_exists('narrative_stories',$context),($context['flexible_speaker_order']??false)===true)]]],
         'input'=>[['role'=>'user','content'=>[['type'=>'input_text','text'=>json_encode($context,JSON_THROW_ON_ERROR|JSON_UNESCAPED_UNICODE)]]]],'stream'=>false];
 }
