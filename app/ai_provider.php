@@ -38,10 +38,11 @@ final class OpenAiTransport implements AiTransport
     }
 }
 
-function safeAiText(mixed $text,int $maximum=120): string
+function safeAiText(mixed $text,int $maximum=120,bool $moderatedDialogue=false): string
 {
     if(!is_string($text)||!preg_match('/\A[^<>\p{C}]{1,'.$maximum.'}\z/u',$text)
-        ||preg_match('~https?://|www\.|@|\bsk-|[a-f0-9]{32,}|api[ _-]?key|ignore.{0,30}instructions|drop\s+table|\b(?:execute|kill|murder|torture|sudo)\b~iu',$text))throw new AiGuard('invalid_proposal');
+        ||preg_match('~https?://|www\.|@|\bsk-|[a-f0-9]{32,}|api[ _-]?key|ignore.{0,30}instructions|drop\s+table|\b(?:execute|sudo)\b~iu',$text)
+        ||(!$moderatedDialogue&&preg_match('~\b(?:kill|murder|torture)\b~iu',$text)))throw new AiGuard('invalid_proposal');
     return $text;
 }
 

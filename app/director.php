@@ -50,16 +50,13 @@ function parseDirectorProposal(array $p,array $pair,array $choices,bool $narrati
     foreach($p['messages'] as $i=>$m){
         if(!is_array($m))throw new AiGuard('invalid_proposal','message_shape');try{directorKeys($m,['resident_id','text']);}catch(AiGuard){throw new AiGuard('invalid_proposal','message_shape');}
         if(($m['resident_id']??null)!==$pair[$i%2]['id'])throw new AiGuard('invalid_proposal','message_speaker_order');
-        try{$text=safeAiText($m['text']??null,160);}catch(AiGuard){throw new AiGuard('invalid_proposal','message_text');}
-        if(trim($text)!==$text||preg_match('/\A(?:[AB]|assistant|user|system|resident|robot)\s*:/iu',$text))throw new AiGuard('invalid_proposal','message_format');
-        foreach($pair as $actor)if(isset($actor['name'])&&preg_match('/\A'.preg_quote($actor['name'],'/').'\s*:/iu',$text))throw new AiGuard('invalid_proposal','message_format');
+        try{safeAiText($m['text']??null,160,true);}catch(AiGuard){throw new AiGuard('invalid_proposal','message_text');}
     }
-    if($conversation&&$p['messages'][0]['text']===$p['messages'][1]['text'])throw new AiGuard('invalid_proposal','duplicate_messages');
     foreach($p['notes'] as $note){
         if(!is_array($note))throw new AiGuard('invalid_proposal','note_shape');try{directorKeys($note,['resident_id','sequence','quote','classification']);}catch(AiGuard){throw new AiGuard('invalid_proposal','note_shape');}
         if(!in_array($note['resident_id']??null,array_column($pair,'id'),true)||!is_int($note['sequence']??null)||$note['sequence']<0||$note['sequence']>=count($p['messages'])
             ||!in_array($note['classification']??null,['preference','interpretation','rumor'],true))throw new AiGuard('invalid_proposal','note_reference');
-        try{safeAiText($note['quote']??null,160);}catch(AiGuard){throw new AiGuard('invalid_proposal','note_text');}
+        try{safeAiText($note['quote']??null,160,true);}catch(AiGuard){throw new AiGuard('invalid_proposal','note_text');}
         if(!str_contains($p['messages'][$note['sequence']]['text'],$note['quote']))throw new AiGuard('invalid_proposal','note_quote');
     }
     if(($p['world_action']==='post_notice')!==($bulletin&&$p['notice']!==null))throw new AiGuard('invalid_proposal','notice_choice');

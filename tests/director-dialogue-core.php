@@ -26,6 +26,19 @@ try{
     $proposal['messages'][0]['text']=str_repeat('é',161);
     try{LittleSparks\parseDirectorProposal($proposal,$pair,['none'=>null]);throw new LogicException('Overlong dialogue accepted');}catch(LittleSparks\AiGuard $e){check($e->reason==='invalid_proposal','161 Unicode characters still fail without truncation');}
 
+    // Original style and wording survive unchanged after moderation.
+    foreach(['A: The detective said murder.', '  I disagree.  ', 'kill time'] as $line){
+        $proposal=$recorded;$proposal['notes']=[];$proposal['messages'][0]['text']=$line;$proposal['messages'][1]['text']=$line;
+        $parsed=LittleSparks\parseDirectorProposal($proposal,$pair,['none'=>null]);
+        check(array_column($parsed['messages'],'text')===[$line,$line],'No style or repetition rejection');
+    }
+    $creativeDb=$dir.'/director-original-words.sqlite';copy($itemsBase,$creativeDb);$creative=LittleSparks\connect($creativeDb);
+    $proposal=$recorded;$proposal['notes']=[];$proposal['messages'][0]['text']='A: Let us kill time.';$proposal['messages'][1]['text']='A: Let us kill time.';
+    $mock=new RecordedItemTransport($proposal,'mixed');$r=LittleSparks\simulateDirectorOpportunity($creative,gmdate('Y-m-d\TH:i:00\Z',time()-180),true,null,$mock,null,null,false,null,true);
+    check($r['status']==='completed','Moderated repeated prefixed dialogue is accepted');
+    check($creative->query('SELECT body FROM messages ORDER BY sequence')->fetchAll(PDO::FETCH_COLUMN)===array_column($proposal['messages'],'text'),'Director wording is stored byte for byte');
+    check(count($mock->moderations)===1,'Whole proposal still reaches moderation');$creative=null;
+
     $path=$dir.'/concise-dialogue.sqlite';copy($itemsBase,$path);$d=LittleSparks\connect($path);
     $proposal=$recorded;$proposal['notes']=[];
     $proposal['messages'][0]['text']='Could we put another sign beside the flowers?';
