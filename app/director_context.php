@@ -137,7 +137,7 @@ function prepareDirectorEncounter(PDO $db,array $pair,array $choices,array $clai
     $aliases=[];foreach($context['participants'] as $p)foreach($p['memories'] as $m)if($m['source_alias']??null)$aliases[]=$m['source_alias'];
     $receipt=directorGazetteReceipt($context['published_gazette']??[]);
     return ['context'=>$context,'sources'=>array_intersect_key($sources,array_flip($aliases)),'operator_idea_ids'=>array_column($context['operator_suggestions']??[],'id'),
-        'gazette_context_receipt'=>$receipt,'session_scope'=>['input_context'=>'sqlite-v6-6','published_reporting'=>$receipt?hash('sha256',editorialJson($receipt)):null]+($narrative?['narrative_story'=>'v3']:[])+($flexible?['speaker_order'=>'v1']:[])+(sparkDialogueMode()==='independent'?['dialogue_mode'=>'spark.v1']:[])+(sharedConsciousnessGuidance()!==''?['narrative_mode'=>'shared-consciousness.v1']:[])];
+        'gazette_context_receipt'=>$receipt,'session_scope'=>['input_context'=>'sqlite-v6-6','published_reporting'=>$receipt?hash('sha256',editorialJson($receipt)):null]+($narrative?['narrative_story'=>'v3']:[])+($flexible?['speaker_order'=>'v2']:[])+(sparkDialogueMode()==='independent'?['dialogue_mode'=>'spark.v1']:[])+(sharedConsciousnessGuidance()!==''?['narrative_mode'=>'shared-consciousness.v1']:[])];
 }
 function directorRequest(array $pricing,array $registered,array $prepared,array $choices):array
 {

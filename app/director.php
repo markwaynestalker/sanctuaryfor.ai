@@ -49,7 +49,7 @@ function parseDirectorProposal(array $p,array $pair,array $choices,bool $narrati
         ||(in_array($p['outcome'],['quiet','none'],true)&&$p['world_action']!=='none'))throw new AiGuard('invalid_proposal','outcome_shape');
     foreach($p['messages'] as $i=>$m){
         if(!is_array($m))throw new AiGuard('invalid_proposal','message_shape');try{directorKeys($m,['resident_id','text']);}catch(AiGuard){throw new AiGuard('invalid_proposal','message_shape');}
-        if(($flexibleOrder&&$multi&&$i>=2)?!in_array($m['resident_id']??null,array_column($pair,'id'),true):(($m['resident_id']??null)!==$pair[$i%2]['id']))throw new AiGuard('invalid_proposal','message_speaker_order');
+        if($flexibleOrder&&$multi){if(!in_array($m['resident_id']??null,array_column($pair,'id'),true)||($i===1&&$m['resident_id']===$p['messages'][0]['resident_id']))throw new AiGuard('invalid_proposal','message_speaker_order');}elseif(($m['resident_id']??null)!==$pair[$i%2]['id'])throw new AiGuard('invalid_proposal','message_speaker_order');
         try{safeAiText($m['text']??null,160,true);}catch(AiGuard){throw new AiGuard('invalid_proposal','message_text');}
     }
     foreach($p['notes'] as $note){
@@ -147,6 +147,8 @@ function simulateDirectorOpportunity(PDO $db,string $at,bool $allowPaid,?AiTrans
     simulationInterval();memoryConfiguration();
     $narrative=narrativeStoryEnabled($db);if($narrative&&$contextProvider!==null)throw new AiGuard('configuration_invalid');
     $selection=getenv('LITTLE_SPARKS_AI_SELECTION_ENABLED')==='1';
+    // This capability must not silently fall back to PHP-selected participants.
+    if(flexibleSpeakerOrderInstalled($db)&&!$selection)throw new AiGuard('director_selection_required');
     if($selection&&($cfg['runtime']!=='agents'||$managed===null||$independent||$staging!==null||$stagingContinueAfter!==null||$conversationOnly||$contextProvider!==null))throw new AiGuard('configuration_invalid');
     $claim=claimActivity($db,$at,$now,$selection);if(isset($claim['replay']))return $claim['replay']+['replayed'=>true];
     $attempt=null;$usage=null;

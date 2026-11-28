@@ -27,7 +27,7 @@ try{
     try{LittleSparks\parseDirectorProposal($proposal,$pair,['none'=>null]);throw new LogicException('Overlong dialogue accepted');}catch(LittleSparks\AiGuard $e){check($e->reason==='invalid_proposal','161 Unicode characters still fail without truncation');}
 
     // Original style and wording survive unchanged after moderation.
-    foreach(['A: The detective said murder.', '  I disagree.  ', 'kill time'] as $line){
+    foreach(['A: The detective said murder.', '  I disagree.  ', 'kill time', 'Let us execute our plan.'] as $line){
         $proposal=$recorded;$proposal['notes']=[];$proposal['messages'][0]['text']=$line;$proposal['messages'][1]['text']=$line;
         $parsed=LittleSparks\parseDirectorProposal($proposal,$pair,['none'=>null]);
         check(array_column($parsed['messages'],'text')===[$line,$line],'No style or repetition rejection');
