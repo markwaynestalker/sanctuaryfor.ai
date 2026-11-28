@@ -37,3 +37,19 @@ function dedicatedResidentSessionRequest(string $agent, array $context): array
     return ['agent_id'=>$agent, 'environment'=>['type'=>'none'],
         'input'=>json_encode($context,JSON_THROW_ON_ERROR|JSON_UNESCAPED_UNICODE)];
 }
+
+/** A decision belongs to the invoked resident, never to the coordinator. */
+function parseDedicatedResidentDecision(array $value,string $resident,array $eligible):array
+{
+    if(!preg_match('/\A[a-f0-9]{32}\z/', $resident)||count($value)!==4
+        ||array_diff(array_keys($value),['resident_id','decision','dialogue','invite_resident_id'])
+        ||($value['resident_id']??null)!==$resident
+        ||!in_array($value['decision']??null,['join','decline','defer','continue','pause','leave','finish','invite'],true))throw new \InvalidArgumentException('Invalid resident decision.');
+    $dialogue=$value['dialogue']??null;
+    if($dialogue!==null&&(!is_string($dialogue)||$dialogue===''||str_contains($dialogue,"\0")||preg_match('//u',$dialogue)!==1))throw new \InvalidArgumentException('Invalid resident dialogue.');
+    $invited=$value['invite_resident_id']??null;
+    if($value['decision']==='invite'){
+        if(!is_string($invited)||$invited===$resident||!in_array($invited,$eligible,true))throw new \InvalidArgumentException('Invalid invitation target.');
+    }elseif($invited!==null)throw new \InvalidArgumentException('Unexpected invitation target.');
+    return $value;
+}

@@ -13,3 +13,12 @@ putenv('LITTLE_SPARKS_AGENT_MAX=not-an-agent');try{dedicatedResidentAgent('15ebc
 $context=['resident_id'=>'15ebcd0b0da37bd5e00c1e2c32f2ee86','input'=>'Actual words'];$body=dedicatedResidentSessionRequest('agent_test_max',$context);
 check($body['agent_id']==='agent_test_max'&&!array_key_exists('agent',$body)&&json_decode($body['input'],true,512,JSON_THROW_ON_ERROR)===$context);
 echo "PASS stable resident routing and saved-agent request construction (offline)\n";
+$actor='15ebcd0b0da37bd5e00c1e2c32f2ee86';$other='3da13508a7a04c46d8c11c3335539c04';
+foreach(['join','decline','defer','continue','pause','leave','finish','invite'] as $decision){
+    $p=['resident_id'=>$actor,'decision'=>$decision,'dialogue'=>"  Hello, Walter!\n",'invite_resident_id'=>$decision==='invite'?$other:null];
+    check(\LittleSparks\parseDedicatedResidentDecision($p,$actor,[$actor,$other])===$p);
+}
+$p=['resident_id'=>$actor,'decision'=>'leave','dialogue'=>null,'invite_resident_id'=>null];
+check(\LittleSparks\parseDedicatedResidentDecision($p,$actor,[$actor,$other])===$p);
+foreach([['resident_id'=>$other,'decision'=>'join','dialogue'=>null,'invite_resident_id'=>null],['resident_id'=>$actor,'decision'=>'invite','dialogue'=>null,'invite_resident_id'=>'00000000000000000000000000000000']] as $bad){try{\LittleSparks\parseDedicatedResidentDecision($bad,$actor,[$actor,$other]);throw new RuntimeException('Accepted invalid resident decision.');}catch(InvalidArgumentException){}}
+echo "PASS independent resident decisions and exact optional dialogue (offline)\n";
